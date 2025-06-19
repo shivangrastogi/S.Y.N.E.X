@@ -1,0 +1,45 @@
+{
+  "intents": [
+    {
+      "tag": "A0",
+      "patterns": ["hi", "hello", "hey there"],
+      "responses": ["Hello!", "Hi there!"]
+    },
+    {
+      "tag": "A1",
+      "patterns": ["how are you", "how is it going"],
+      "responses": ["I'm doing great!", "All good here!"]
+    },
+    {
+      "tag": "A2",
+      "patterns": ["what's your name", "who are you"],
+      "responses": ["I'm your assistant.", "I am Jarvis."]
+    },
+    {
+      "tag": "A3",
+      "patterns": ["what can you do", "your functions"],
+      "responses": ["I can assist you with various tasks.", "I'm here to help you."]
+    },
+    {
+      "tag": "A4",
+      "patterns": ["tell me a joke", "make me laugh"],
+      "responses": ["Why don't scientists trust atoms? Because they make up everything!", "I'm reading a book on anti-gravity. It's impossible to put down!"]
+    },
+    {
+      "tag": "A5",
+      "patterns": ["what's the weather", "weather today"],
+      "responses": ["It's sunny outside.", "Looks like it might rain today."]
+    },
+    {
+      "tag": "A6",
+      "patterns": ["open google", "launch google"],
+      "responses": ["Opening Google.", "Launching Google for you."]
+    },
+    {
+      "tag": "A7",
+      "patterns": ["play music", "start music"],
+      "responses": ["Playing music.", "Starting your playlist."]
+    }
+
+  ]
+}
