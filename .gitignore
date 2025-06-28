@@ -1,0 +1,28 @@
+# Ignore PyInstaller output
+/dist/
+/build/
+*.spec
+
+# Ignore environment folders
+.venv/
+env/
+venv/
+.env
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+
+# Ignore logs or temporary files
+*.log
+*.tmp
+*.data
+*.db
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files (optional, based on your editor)
+.idea/
+.vscode/
