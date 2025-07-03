@@ -24,6 +24,7 @@ def common_cmd(text):
     # Confirm before closing general apps/windows
     elif any(keyword in text for keyword in close_keywords):
         speak("Closing Now.")
+        close()
         # import speech_recognition as sr
         # recognizer = sr.Recognizer()
         # with sr.Microphone() as source:

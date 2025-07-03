@@ -4,8 +4,7 @@ from AUTOMATION.JARVIS_BATTERY_AUTOMATION.battery_integration_main import *
 from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.integration_main import *
 
 def Automation(text):
-    youtube_cmd(text)  # This will run first
-    battery_cmd(text)  # This will run second
-    common_cmd(text)  # This will run third
-    google_cmd(text)  # This will run last
-
+    common_cmd(text)   # Handle open/close app commands first
+    google_cmd(text)   # Handle browser-specific and website commands
+    youtube_cmd(text)  # Handle YouTube-specific commands
+    battery_cmd(text)  # Handle battery-related commands
