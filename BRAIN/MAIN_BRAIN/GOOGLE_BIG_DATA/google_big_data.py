@@ -1,60 +1,60 @@
-# #Working Code
-# from selenium import webdriver
-# from selenium.webdriver.chrome.service import Service
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.chrome.options import Options
-# from selenium.webdriver.support.ui import WebDriverWait
-# from selenium.webdriver.support import expected_conditions as EC
-# import time
-# import urllib.parse
-#
-# from FUNCTION.ChromeWebdriverLocation.utils import get_chromedriver_path
-#
-#
-# def search_google(query):
-#     chrome_driver_path = get_chromedriver_path()  # Replace this with your actual path
-#
-#     # Configure browser
-#     options = Options()
-#     options.add_argument("--start-maximized")
-#     # options.add_argument("--headless")  # Optional: run in headless mode
-#     options.add_argument("--disable-blink-features=AutomationControlled")
-#
-#     driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
-#
-#     try:
-#         # Format search URL
-#         encoded_query = urllib.parse.quote_plus(query)
-#         url = f"https://www.google.com/search?q={encoded_query}"
-#         driver.get(url)
-#
-#         wait = WebDriverWait(driver, 10)
-#
-#         # Wait and get the first result title (more robust with text-based XPath)
-#         first_result = wait.until(EC.presence_of_element_located((
-#             By.CSS_SELECTOR, 'h3'
-#         )))
-#
-#         result_text = first_result.text
-#         result_link = first_result.find_element(By.XPATH, "..").get_attribute("href")
-#
-#         print("Top result title:", result_text)
-#         print("Top result link:", result_link)
-#
-#         return result_text, result_link
-#
-#     except Exception as e:
-#         print("An error occurred:", e)
-#         return None, None
-#
-#     finally:
-#         time.sleep(2)
-#         driver.quit()
-#
-# # ✅ Example usage:
-# if __name__ == "__main__":
-#     query = "what is anubhav chaturvedi"
-#     title, link = search_google(query)
+#Working Code
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+import urllib.parse
+
+from FUNCTION.ChromeWebdriverLocation.utils import get_chromedriver_path
+
+
+def search_google(query):
+    chrome_driver_path = get_chromedriver_path()  # Replace this with your actual path
+
+    # Configure browser
+    options = Options()
+    options.add_argument("--start-maximized")
+    # options.add_argument("--headless")  # Optional: run in headless mode
+    options.add_argument("--disable-blink-features=AutomationControlled")
+
+    driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+
+    try:
+        # Format search URL
+        encoded_query = urllib.parse.quote_plus(query)
+        url = f"https://www.google.com/search?q={encoded_query}"
+        driver.get(url)
+
+        wait = WebDriverWait(driver, 10)
+
+        # Wait and get the first result title (more robust with text-based XPath)
+        first_result = wait.until(EC.presence_of_element_located((
+            By.CSS_SELECTOR, 'h3'
+        )))
+
+        result_text = first_result.text
+        result_link = first_result.find_element(By.XPATH, "..").get_attribute("href")
+
+        print("Top result title:", result_text)
+        print("Top result link:", result_link)
+
+        return result_text, result_link
+
+    except Exception as e:
+        print("An error occurred:", e)
+        return None, None
+
+    finally:
+        time.sleep(2)
+        driver.quit()
+
+# ✅ Example usage:
+if __name__ == "__main__":
+    query = "what is anubhav chaturvedi"
+    title, link = search_google(query)
 
 
 # import time, re

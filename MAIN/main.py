@@ -1,5 +1,6 @@
 #main.py
 # import random
+from playsound import playsound
 from AUTOMATION.MAIN_INTEGRATION._integration_automation import *
 # import winsound
 from BRAIN.MAIN_BRAIN.BRAIN.brain import *

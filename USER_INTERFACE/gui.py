@@ -12,6 +12,7 @@ from PyQt5.QtGui import QMovie, QFont, QColor, QPixmap, QTextCharFormat
 from PyQt5.QtCore import Qt, QSize, QTimer
 
 from FUNCTION.LOGGER.logger import clear_chat_log
+from MAIN.main import jarvis
 from UTILS.path import resource_path
 
 # ─── Environment & Paths ─────────────────────────────────────────
@@ -168,11 +169,11 @@ class InitialScreen(QWidget):
         self.toggled = not self.toggled
 
     def _start_jarvis(self):
-        try:
-            from MAIN.main import jarvis
-            jarvis()
-        except Exception as e:
-            print(f"[Jarvis Error]: {e}")
+        # try:
+        #     from MAIN.main import jarvis
+        jarvis()
+        # except Exception as e:
+        #     print(f"[Jarvis Error]: {e}")
 
 # ─── Chat Screen ─────────────────────────────────────────────────
 class MessageScreen(QWidget):

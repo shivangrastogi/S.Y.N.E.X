@@ -37,8 +37,8 @@ def brain_cmd(text):
         text = text.strip()
         if text in qa_dict:
             ans = qa_dict[text]
-        elif "define" in text:
-            ans = deep_search(text)
+        # elif "define" in text:
+        #     ans = deep_search(text)
         else:
             ans = search_brain(text)
         return ans

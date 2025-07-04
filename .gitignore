@@ -26,3 +26,7 @@ Thumbs.db
 # Ignore IDE files (optional, based on your editor)
 .idea/
 .vscode/
+
+models/
+*.qrc
+*.ui

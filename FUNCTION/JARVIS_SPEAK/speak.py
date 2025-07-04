@@ -66,7 +66,6 @@ def speak(text):
         print("An error occurred in speak():", e)
         traceback.print_exc()
 
-
 # import time
 # from selenium import webdriver
 # from selenium.webdriver.chrome.service import Service

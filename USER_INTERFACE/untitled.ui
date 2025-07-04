@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>JARVIS UI</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string notr="true">background-color: black;</string>
+   </property>
+
+   <!-- Gradient Background -->
+   <widget class="QLabel" name="labelGradient">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1280</width>
+      <height>720</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">
+background-color: qlineargradient(
+  spread:pad, x1:0, y1:0, x2:1, y2:1,
+  stop:0 rgba(31, 41, 55, 255),
+  stop:0.5 rgba(0, 0, 0, 255),
+  stop:1 rgba(30, 58, 138, 51));
+     </string>
+    </property>
+    <property name="scaledContents">
+     <bool>true</bool>
+    </property>
+   </widget>
+
+   <!-- Radial Glow -->
+   <widget class="QLabel" name="labelRadial">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1280</width>
+      <height>720</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">
+background-image: qradialgradient(
+  cx:0.5, cy:0.5, radius:1, fx:0.5, fy:0.5,
+  stop:0 rgba(0,255,255,25),
+  stop:0.5 transparent,
+  stop:1 transparent);
+     </string>
+    </property>
+    <property name="scaledContents">
+     <bool>true</bool>
+    </property>
+   </widget>
+
+   <!-- Circuit Overlay (Image-Based) -->
+   <widget class="QLabel" name="labelCircuit">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1280</width>
+      <height>720</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">
+background-image: url(:/assets/circuit.png);
+background-repeat: repeat;
+opacity: 0.3;
+     </string>
+    </property>
+    <property name="scaledContents">
+     <bool>true</bool>
+    </property>
+   </widget>
+
+  </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
