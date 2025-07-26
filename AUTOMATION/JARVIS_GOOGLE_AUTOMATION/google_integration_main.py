@@ -4,6 +4,7 @@ from AUTOMATION.JARVIS_GOOGLE_AUTOMATION.scroll_automation import *
 from AUTOMATION.JARVIS_GOOGLE_AUTOMATION.open_website import *
 from AUTOMATION.COMMON_AUTOMATION.open import *
 
+<<<<<<< HEAD
 # def google_cmd(text):
 #     text = text.lower().strip()
 #
@@ -68,6 +69,8 @@ from AUTOMATION.COMMON_AUTOMATION.open import *
 #         pass
 
 
+=======
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 def google_cmd(text):
     if "open google" in text:
         if "website" in text or "site" in text:

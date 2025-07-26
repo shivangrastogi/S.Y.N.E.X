@@ -6,6 +6,7 @@ from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.play_pause_video_in_youtube import *
 from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.search_in_youtube import *
 from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.youtube_video_playback import *
 from FUNCTION.JARVIS_LISTEN.listen import listen
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import *
 from DATA.JARVIS_DLG_DATASET.DLG import *
 #
@@ -24,6 +25,10 @@ from DATA.JARVIS_DLG_DATASET.DLG import *
 #             break
 #         else:
 #             pass
+=======
+from DATA.JARVIS_DLG_DATASET.DLG import *
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def youtube_cmd(text):
     if text in x :

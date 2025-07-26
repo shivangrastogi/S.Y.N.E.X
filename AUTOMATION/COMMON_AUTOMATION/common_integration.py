@@ -1,6 +1,10 @@
 from AUTOMATION.COMMON_AUTOMATION.close import *
 from AUTOMATION.COMMON_AUTOMATION.open import *
+<<<<<<< HEAD
 
+=======
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def common_cmd(text):
     text = text.lower().strip()
@@ -25,6 +29,7 @@ def common_cmd(text):
     elif any(keyword in text for keyword in close_keywords):
         speak("Closing Now.")
         close()
+<<<<<<< HEAD
         # import speech_recognition as sr
         # recognizer = sr.Recognizer()
         # with sr.Microphone() as source:
@@ -47,3 +52,5 @@ def common_cmd(text):
 #     else:
 #         pass
 #
+=======
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)

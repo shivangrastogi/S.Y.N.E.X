@@ -7,7 +7,11 @@ import re
 import time
 
 from FUNCTION.ChromeWebdriverLocation.utils import get_chromedriver_path
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import speak
+=======
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def search_brain(query: str):
     chrome_options = Options()

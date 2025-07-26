@@ -9,6 +9,8 @@ env/
 venv/
 .env
 
+VOSK_MODELS/
+
 # Ignore Python cache
 __pycache__/
 *.py[cod]
@@ -27,6 +29,10 @@ Thumbs.db
 .idea/
 .vscode/
 
+<<<<<<< HEAD
 models/
+=======
+/MODELS/
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 *.qrc
 *.ui

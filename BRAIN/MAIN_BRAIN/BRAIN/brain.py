@@ -2,7 +2,10 @@ import threading
 
 # from BRAIN.MAIN_BRAIN.GOOGLE_BIG_DATA.google_big_data import deep_search
 from BRAIN.MAIN_BRAIN.GOOGLE_SMALL_DATA.google_small_data import search_brain
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import speak
+=======
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 import os
 import sys
 

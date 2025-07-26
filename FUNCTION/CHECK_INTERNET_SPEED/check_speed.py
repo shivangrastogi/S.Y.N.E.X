@@ -5,9 +5,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import *
 # from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
+=======
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 from FUNCTION.ChromeWebdriverLocation.utils import get_chromedriver_path
 import logging
 

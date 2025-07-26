@@ -1,7 +1,11 @@
 import random
 import webbrowser
 from DATA.JARVIS_DLG_DATASET.DLG import websites, open_dld, success_open, sorry_open
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import speak
+=======
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def openweb(text):
     # Convert the input to lowercase for case-insensitive matching

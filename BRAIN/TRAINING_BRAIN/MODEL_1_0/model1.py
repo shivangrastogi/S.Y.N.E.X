@@ -7,7 +7,11 @@ from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+<<<<<<< HEAD
 from FUNCTION.JARVIS_SPEAK.speak import speak
+=======
+from UTILS.tts_singleton import speak
+>>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 def load_dataset(file_path):
