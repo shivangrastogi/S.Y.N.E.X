@@ -4,11 +4,7 @@ import pyautogui as ui
 import webbrowser
 
 from DATA.JARVIS_DLG_DATASET.DLG import yt_search , s1, s2
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 def youtube_search(text):

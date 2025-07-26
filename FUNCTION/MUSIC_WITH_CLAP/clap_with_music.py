@@ -5,71 +5,6 @@ import threading
 from pygame import mixer
 
 from FUNCTION.CLAP_DETECTOR.clapd import TapTester
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-from FUNCTION.JARVIS_LISTEN.listen import listen  # Assumes you have a voice listening function
-
-# Shared flag to control music
-is_playing = False
-
-def play_random_music(folder_path):
-    global is_playing
-
-    music_files = [file for file in os.listdir(folder_path) if file.endswith(('.mp3', '.wav', '.ogg', '.flac'))]
-    if not music_files:
-        speak("No music files found, sir.")
-        return
-
-    selected_music = random.choice(music_files)
-    music_path = os.path.join(folder_path, selected_music)
-
-    try:
-        pygame.init()
-        mixer.init()
-        mixer.music.load(music_path)
-        mixer.music.play()
-        is_playing = True
-        speak(f"Now playing {selected_music.split('.')[0]}")
-        print(f"[JARVIS] 🎵 Playing: {selected_music}")
-
-        while is_playing and mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
-
-        mixer.music.stop()
-        mixer.quit()
-        is_playing = False
-    except Exception as e:
-        speak("Unable to play music.")
-        print(f"[JARVIS] Music error: {e}")
-
-def listen_for_stop_music():
-    global is_playing
-    while True:
-        if is_playing:
-            command = listen().lower()
-            print(f"[JARVIS] Heard: {command}")
-            if "stop music" in command:
-                speak("Stopping the music.")
-                mixer.music.stop()
-                mixer.quit()
-                is_playing = False
-
-def clap_to_music():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    music_folder_path = os.path.abspath(os.path.join(base_dir, '..', '..', 'DATA', 'MUSIC'))
-
-    speak("Clap to start the music, and say stop music to stop it.")
-    tt = TapTester()
-
-    # Start the listener thread once
-    stop_listener = threading.Thread(target=listen_for_stop_music, daemon=True)
-    stop_listener.start()
-
-    while True:
-        if not is_playing and tt.listen():
-            music_thread = threading.Thread(target=play_random_music, args=(music_folder_path,))
-            music_thread.start()
-=======
 from UTILS.tts_singleton import speak
 from FUNCTION.JARVIS_LISTEN.listen import listen  # Your voice rec function
 
@@ -294,7 +229,6 @@ def clap_to_music():
 #
 # if __name__ == "__main__":
 #     clap_to_music()
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 #

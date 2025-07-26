@@ -1,9 +1,5 @@
 import requests # pip install requests
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 def is_online(url="http://www.google.com", timeout=5):

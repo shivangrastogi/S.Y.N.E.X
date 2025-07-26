@@ -4,11 +4,7 @@ import time
 import requests
 
 from FUNCTION.JARVIS_LISTEN.listen import listen
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 def get_random_advice():

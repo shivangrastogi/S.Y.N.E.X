@@ -2,11 +2,7 @@ import time
 import pyautogui as ui
 from DATA.JARVIS_DLG_DATASET.DLG import open_dld
 import random
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 
 def open(text):

@@ -1,10 +1,6 @@
 from AUTOMATION.COMMON_AUTOMATION.close import *
 from AUTOMATION.COMMON_AUTOMATION.open import *
-<<<<<<< HEAD
-
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def common_cmd(text):
     text = text.lower().strip()
@@ -29,28 +25,3 @@ def common_cmd(text):
     elif any(keyword in text for keyword in close_keywords):
         speak("Closing Now.")
         close()
-<<<<<<< HEAD
-        # import speech_recognition as sr
-        # recognizer = sr.Recognizer()
-        # with sr.Microphone() as source:
-        #     try:
-        #         audio = recognizer.listen(source, timeout=5)
-        #         response = recognizer.recognize_google(audio).lower()
-        #         if "yes" in response:
-        #             close()
-        #         else:
-        #             speak("Closing cancelled.")
-        #     except:
-        #         speak("I didn't catch that. Closing cancelled.")
-
-
-
-
-# def common_cmd(text):
-#     if "close" in text or "band kar do" in text:
-#         close()
-#     else:
-#         pass
-#
-=======
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)

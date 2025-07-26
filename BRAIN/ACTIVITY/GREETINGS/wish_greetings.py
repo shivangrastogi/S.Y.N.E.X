@@ -3,11 +3,7 @@ from datetime import date
 import datetime
 
 from DATA.JARVIS_DLG_DATASET.DLG import *
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import speak
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 today = date.today()
 formatted_date = today.strftime("%d %b, %y")

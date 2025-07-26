@@ -1,11 +1,5 @@
 import datetime
-<<<<<<< HEAD
-from FUNCTION.JARVIS_SPEAK.speak import *
-
-
-=======
 from UTILS.tts_singleton import speak
->>>>>>> a8c9983 (added offline jarvis things and GUI interface)
 
 def what_is_the_time():
     try:
