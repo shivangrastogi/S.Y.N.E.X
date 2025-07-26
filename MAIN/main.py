@@ -39,6 +39,7 @@ def comain():
                 current_mode = "main"
                 speak("Returning to main Jarvis mode.")
                 continue
+
             if current_mode == "main":
                 Automation(text)
                 Function_cmd(text)
