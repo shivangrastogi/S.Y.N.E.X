@@ -1,0 +1,5 @@
+node_modules/
+*.exe
+*.dll
+*.zip
+*.tar.gz
