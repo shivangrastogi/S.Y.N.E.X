@@ -1,0 +1,56 @@
+# -------------------------------
+# OS / Editor files
+# -------------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+
+# -------------------------------
+# Node / React frontend
+# -------------------------------
+node_modules/
+build/
+dist/
+*.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+
+# -------------------------------
+# Python backend / virtual env
+# -------------------------------
+venv/
+env/
+*.egg-info/
+*.spec
+
+# Exclude two folders (replace with actual names)
+DATA/LISTEN MODAL/
+DATA/SPEAK MODAL/
+
+# Node modules (React Native / Mobile)
+Mobile App/node_modules/
+Laptop App/node_modules/
+
+# Audio output files
+Backend/FUNCTION/SPEAK/outputs/
+*.wav
+
+# Ignore RAR archives
+*.rar
+
+# Ignore TTS_MINIMAL folder
+Backend/DATA/TTS_MINIMAL/
+
+Backend/DATA/LISTEN MODAL/
+Backend/DATA/SPEAK MODAL/
+
+
