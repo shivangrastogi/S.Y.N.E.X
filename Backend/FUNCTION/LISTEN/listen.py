@@ -11,7 +11,7 @@ from FUNCTION.SPEAK.speak import is_speaking
 
 colorama_init(autoreset=True)
 
-MODEL_PATH = r"C:\Users\bosss\Downloads\Personal-Assistant-main\Personal-Assistant\Backend\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
+MODEL_PATH = r"D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
 SAMPLE_RATE = 16000
 BLOCKSIZE = 8000
 TIMEOUT_SEC = 10

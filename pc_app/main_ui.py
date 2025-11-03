@@ -1,3 +1,4 @@
+# main_ui.py
 import sys, os, json
 from PyQt5.QtWidgets import QApplication, QStackedWidget
 from auth.login_window import LoginWindow

@@ -1,4 +1,5 @@
-import pyrebase4 as pyrebase
+# firebase_config.py
+import pyrebase  # ✅ not pyrebase4
 
 firebaseConfig = {
     "apiKey": "AIzaSyCGW8ssB7vKau3Uchx_K0P0Ca52SknLSGo",

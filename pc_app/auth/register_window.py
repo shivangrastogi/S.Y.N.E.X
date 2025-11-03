@@ -1,3 +1,4 @@
+# register_window.py
 from PyQt5.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox
 from .firebase_config import auth, db
 import json

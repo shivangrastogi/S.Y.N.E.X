@@ -14,7 +14,7 @@ class TTSEngine:
                 cls._instance._initialize(*args, **kwargs)
             return cls._instance
 
-    def _initialize(self, base_dir=r"C:\Users\bosss\Downloads\Personal-Assistant-main\Personal-Assistant\Backend\DATA\SPEAK MODAL\local_tts_modal", device="cpu"):
+    def _initialize(self, base_dir=r"D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\SPEAK MODAL\local_tts_modal", device="cpu"):
         tts_model_path = os.path.join(base_dir, "tts_models--en--ljspeech--fast_pitch", "model_file.pth")
         tts_config_path = os.path.join(base_dir, "tts_models--en--ljspeech--fast_pitch", "config.json")
         vocoder_model_path = os.path.join(base_dir, "vocoder_models--en--ljspeech--hifigan_v2", "model_file.pth")

@@ -1,3 +1,4 @@
+# chat_window.py
 from PyQt5.QtWidgets import QWidget, QTextEdit, QLineEdit, QPushButton, QVBoxLayout, QLabel
 from FUNCTION.SPEAK.speak import JarvisSpeaker
 from FUNCTION.LISTEN.listen import listen
@@ -29,7 +30,7 @@ class ChatWindow(QWidget):
 
         self.setLayout(layout)
 
-        with open("pc_app/user_data.json", "r") as f:
+        with open(r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json", "r") as f:
             data = json.load(f)
         self.username = data["first_name"]
         self.speaker.speak(f"Hello {self.username}, I am ready to assist you.")
