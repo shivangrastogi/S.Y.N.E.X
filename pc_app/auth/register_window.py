@@ -1,7 +1,7 @@
 # register_window.py
-from PyQt5.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox
-from .firebase_config import auth, db
-import json
+from PyQt5.QtWidgets import QWidget, QLineEdit, QPushButton, QVBoxLayout, QMessageBox
+from .firebase_config import auth, db, db_firestore  # Or db_firestore
+import json, os
 
 class RegisterWindow(QWidget):
     def __init__(self, switch_to_login):
@@ -54,14 +54,24 @@ class RegisterWindow(QWidget):
         try:
             user = auth.create_user_with_email_and_password(email, password)
             uid = user["localId"]
-            db.child("users").child(uid).set({
+            id_token = user["idToken"]
+
+            user_data = {
                 "first_name": first,
                 "last_name": last,
                 "email": email
-            })
+            }
 
+            # Store in Firebase (Realtime DB or Firestore)
+            if 'db_firestore' in globals():  # Firestore
+                db_firestore.collection('users').document(uid).set(user_data)
+            else:  # Realtime DB
+                db.child("users").child(uid).set(user_data, token=id_token)
+
+            # Save locally
+            os.makedirs("pc_app", exist_ok=True)
             with open("pc_app/user_data.json", "w") as f:
-                json.dump({"uid": uid, "first_name": first, "last_name": last, "email": email}, f)
+                json.dump({"uid": uid, **user_data}, f)
 
             QMessageBox.information(self, "Success", "Registration successful!")
             self.switch_to_login()

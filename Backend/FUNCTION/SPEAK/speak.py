@@ -5,7 +5,11 @@ import threading
 import hashlib
 import simpleaudio as sa
 from queue import Queue
-from BRAIN.tts_engine import TTSEngine
+from auth.engine_manager import engine_manager  # <-- IMPORT MANAGER
+from colorama import Fore  # <-- For error printing
+
+# --- REMOVED ---
+# from BRAIN.tts_engine import TTSEngine
 
 # --- Globals ---
 _AUDIO_CACHE = {}
@@ -14,8 +18,10 @@ speech_queue = Queue()
 stop_signal = threading.Event()
 speaking_flag = threading.Event()
 
+
 def is_speaking():
     return speaking_flag.is_set()
+
 
 # --- Main Speaker Class ---
 class JarvisSpeaker:
@@ -30,7 +36,15 @@ class JarvisSpeaker:
         if hasattr(self, "_initialized") and self._initialized:
             return
         self._initialized = True
-        self.engine = TTSEngine()
+
+        # Get the pre-loaded engine from the manager
+        try:
+            self.engine = engine_manager.get_tts_engine()
+        except RuntimeError as e:
+            print(f"Speaker Error: {e}")
+            print(Fore.RED + "Error: TTS Engine is not loaded. Cannot speak.")
+            self.engine = None
+
         threading.Thread(target=self._worker, daemon=True).start()
 
     def speak(self, text, interrupt=False):
@@ -48,6 +62,10 @@ class JarvisSpeaker:
 
     # --- Private Methods ---
     def _cache_audio(self, text):
+        if not self.engine:  # Check if engine failed to load
+            print("Cannot cache audio, TTS engine not available.")
+            return None
+
         key = hashlib.md5(text.encode()).hexdigest()
         with _CACHE_LOCK:
             if key in _AUDIO_CACHE and os.path.exists(_AUDIO_CACHE[key]):
@@ -88,8 +106,17 @@ class JarvisSpeaker:
                     self._play_audio(wav_path)
             speech_queue.task_done()
 
+
 # --- Testing ---
 if __name__ == "__main__":
+    # This test will now require the models to be loaded first
+    print("Testing speaker... loading models...")
+    engine_manager.load_models_async()
+    while not engine_manager.is_models_loaded():
+        print("Test waiting for models...")
+        time.sleep(1)
+
+    print("Models loaded. Starting speaker test.")
     speaker = JarvisSpeaker()
     while True:
         speaker.speak("Hello Shivang, testing your new Jarvis speaker system.")
@@ -97,3 +124,103 @@ if __name__ == "__main__":
             time.sleep(0.1)
         print("✅ Done speaking. Looping again.\n")
         time.sleep(2)
+
+# # speak.py
+# import os
+# import time
+# import threading
+# import hashlib
+# import simpleaudio as sa
+# from queue import Queue
+# from BRAIN.tts_engine import TTSEngine
+#
+# # --- Globals ---
+# _AUDIO_CACHE = {}
+# _CACHE_LOCK = threading.Lock()
+# speech_queue = Queue()
+# stop_signal = threading.Event()
+# speaking_flag = threading.Event()
+#
+# def is_speaking():
+#     return speaking_flag.is_set()
+#
+# # --- Main Speaker Class ---
+# class JarvisSpeaker:
+#     _instance = None
+#
+#     def __new__(cls):
+#         if not cls._instance:
+#             cls._instance = super(JarvisSpeaker, cls).__new__(cls)
+#         return cls._instance
+#
+#     def __init__(self):
+#         if hasattr(self, "_initialized") and self._initialized:
+#             return
+#         self._initialized = True
+#         self.engine = TTSEngine()
+#         threading.Thread(target=self._worker, daemon=True).start()
+#
+#     def speak(self, text, interrupt=False):
+#         if not text.strip():
+#             return
+#         if interrupt:
+#             stop_signal.set()
+#             with speech_queue.mutex:
+#                 speech_queue.queue.clear()
+#             stop_signal.clear()
+#         speech_queue.put(text)
+#
+#     def stop(self):
+#         stop_signal.set()
+#
+#     # --- Private Methods ---
+#     def _cache_audio(self, text):
+#         key = hashlib.md5(text.encode()).hexdigest()
+#         with _CACHE_LOCK:
+#             if key in _AUDIO_CACHE and os.path.exists(_AUDIO_CACHE[key]):
+#                 return _AUDIO_CACHE[key]
+#
+#         wav = self.engine.synthesize(text)
+#         if wav is None:
+#             return None
+#
+#         os.makedirs("FUNCTION/SPEAK/outputs", exist_ok=True)
+#         path = os.path.join("FUNCTION", "SPEAK", "outputs", f"tts_{key}.wav")
+#         self.engine.save(wav, path)
+#         with _CACHE_LOCK:
+#             _AUDIO_CACHE[key] = path
+#         return path
+#
+#     def _play_audio(self, wav_path):
+#         try:
+#             wave = sa.WaveObject.from_wave_file(wav_path)
+#             play_obj = wave.play()
+#             speaking_flag.set()
+#             while play_obj.is_playing():
+#                 if stop_signal.is_set():
+#                     play_obj.stop()
+#                     break
+#                 time.sleep(0.02)
+#         except Exception as e:
+#             print(f"Playback error: {e}")
+#         finally:
+#             speaking_flag.clear()
+#
+#     def _worker(self):
+#         while True:
+#             text = speech_queue.get()
+#             if text:
+#                 wav_path = self._cache_audio(text)
+#                 if wav_path:
+#                     self._play_audio(wav_path)
+#             speech_queue.task_done()
+#
+# # --- Testing ---
+# if __name__ == "__main__":
+#     speaker = JarvisSpeaker()
+#     while True:
+#         speaker.speak("Hello Shivang, testing your new Jarvis speaker system.")
+#         while is_speaking():
+#             time.sleep(0.1)
+#         print("✅ Done speaking. Looping again.\n")
+#         time.sleep(2)

@@ -1,5 +1,6 @@
 # firebase_config.py
-import pyrebase  # ✅ not pyrebase4
+# Option 1: Keep Realtime DB (current setup)
+import pyrebase
 
 firebaseConfig = {
     "apiKey": "AIzaSyCGW8ssB7vKau3Uchx_K0P0Ca52SknLSGo",
@@ -14,4 +15,15 @@ firebaseConfig = {
 
 firebase = pyrebase.initialize_app(firebaseConfig)
 auth = firebase.auth()
-db = firebase.database()
+db = firebase.database()  # Realtime DB
+
+# Option 2: Switch to Firestore (recommended for user data)
+# Install: pip install firebase-admin
+# Download your Firebase service account key JSON from Firebase Console > Project Settings > Service Accounts
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+cred = credentials.Certificate("D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\FIREBASE\serviceAccount.json")  # Replace with your key file path
+firebase_admin.initialize_app(cred)
+db_firestore = firestore.client()  # Firestore client
+auth = firebase.auth()  # Still use pyrebase for auth, or switch to firebase-admin for auth too

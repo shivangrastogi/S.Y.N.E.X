@@ -4,27 +4,38 @@ import queue
 import json
 import time
 import sounddevice as sd
-from vosk import Model, KaldiRecognizer
+from vosk import KaldiRecognizer  # Model is no longer loaded here
 from colorama import Fore, Style, init as colorama_init
 from datetime import datetime
 from FUNCTION.SPEAK.speak import is_speaking
+from pc_app.auth.engine_manager import engine_manager
 
 colorama_init(autoreset=True)
 
-MODEL_PATH = r"D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
+# --- REMOVED GLOBAL MODEL LOADING ---
+# MODEL_PATH = r"D:\..."
+# model = Model(MODEL_PATH)
+# ------------------------------------
+
 SAMPLE_RATE = 16000
 BLOCKSIZE = 8000
 TIMEOUT_SEC = 10
 MAX_SILENCE = 12
 
-if not os.path.isdir(MODEL_PATH):
-    raise FileNotFoundError(f"Vosk model not found at {MODEL_PATH}")
-model = Model(MODEL_PATH)
 
 def now():
     return datetime.now().strftime("%H:%M:%S")
 
+
 def listen():
+    # Get the model from the manager *when the function is called*
+    try:
+        model = engine_manager.get_vosk_model()
+    except RuntimeError as e:
+        print(f"Listen Error: {e}")
+        print(Fore.RED + "Error: Vosk model is not loaded. Cannot listen.")
+        return ""  # Return empty string
+
     q = queue.Queue()
 
     def callback(indata, frames, time_, status):
@@ -34,7 +45,7 @@ def listen():
 
     with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=BLOCKSIZE,
                            dtype='int16', channels=1, callback=callback):
-        rec = KaldiRecognizer(model, SAMPLE_RATE)
+        rec = KaldiRecognizer(model, SAMPLE_RATE)  # Use the loaded model
         silence = 0
         printed_listen = False
         partial = ""
@@ -76,8 +87,17 @@ def listen():
                     # Replace line dynamically with partial speech
                     print(Fore.YELLOW + f"\r... {partial}" + Style.RESET_ALL, end="")
 
+
 # For testing
 if __name__ == "__main__":
+    # This test will now require the models to be loaded first
+    print("Testing listener... loading models...")
+    engine_manager.load_models_async()
+    while not engine_manager.is_models_loaded():
+        print("Test waiting for models...")
+        time.sleep(1)
+
+    print("Models loaded. Starting listener test.")
     while True:
         text = listen()
         if text:
@@ -85,3 +105,92 @@ if __name__ == "__main__":
         else:
             print("❌ Nothing detected.")
         time.sleep(1)
+
+
+# # listen.py
+# import os
+# import queue
+# import json
+# import time
+# import sounddevice as sd
+# from vosk import Model, KaldiRecognizer
+# from colorama import Fore, Style, init as colorama_init
+# from datetime import datetime
+# from FUNCTION.SPEAK.speak import is_speaking
+#
+# colorama_init(autoreset=True)
+#
+# MODEL_PATH = r"D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
+# SAMPLE_RATE = 16000
+# BLOCKSIZE = 8000
+# TIMEOUT_SEC = 10
+# MAX_SILENCE = 12
+#
+# if not os.path.isdir(MODEL_PATH):
+#     raise FileNotFoundError(f"Vosk model not found at {MODEL_PATH}")
+# model = Model(MODEL_PATH)
+#
+# def now():
+#     return datetime.now().strftime("%H:%M:%S")
+#
+# def listen():
+#     q = queue.Queue()
+#
+#     def callback(indata, frames, time_, status):
+#         if status:
+#             print(Fore.RED + f"Audio error: {status}" + Style.RESET_ALL)
+#         q.put(bytes(indata))
+#
+#     with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=BLOCKSIZE,
+#                            dtype='int16', channels=1, callback=callback):
+#         rec = KaldiRecognizer(model, SAMPLE_RATE)
+#         silence = 0
+#         printed_listen = False
+#         partial = ""
+#         last_state = None  # "speaking" or "listening"
+#
+#         while True:
+#             # Show "speaking" status
+#             if is_speaking():
+#                 if last_state != "speaking":
+#                     print(Fore.MAGENTA + f"🔇 Speaking..." + Style.RESET_ALL)
+#                     last_state = "speaking"
+#                 time.sleep(0.05)
+#                 continue
+#
+#             # Show "listening" status
+#             if last_state != "listening":
+#                 print(Fore.CYAN + f"\r🟢 Listening..." + Style.RESET_ALL, end="")
+#                 last_state = "listening"
+#
+#             try:
+#                 data = q.get(timeout=TIMEOUT_SEC)
+#             except queue.Empty:
+#                 silence += 1
+#                 if silence >= MAX_SILENCE:
+#                     print(Fore.RED + f"\r⏱️ Timeout — no speech detected." + Style.RESET_ALL)
+#                     return ""
+#                 continue
+#
+#             if rec.AcceptWaveform(data):
+#                 result = json.loads(rec.Result())
+#                 text = result.get("text", "").strip()
+#                 if text:
+#                     print(Fore.RESET + f"\r🎙️ You: {text}" + Style.RESET_ALL)
+#                     return text
+#             else:
+#                 new_partial = json.loads(rec.PartialResult()).get("partial", "")
+#                 if new_partial and new_partial != partial:
+#                     partial = new_partial
+#                     # Replace line dynamically with partial speech
+#                     print(Fore.YELLOW + f"\r... {partial}" + Style.RESET_ALL, end="")
+#
+# # For testing
+# if __name__ == "__main__":
+#     while True:
+#         text = listen()
+#         if text:
+#             print("✅ Recognized:", text)
+#         else:
+#             print("❌ Nothing detected.")
+#         time.sleep(1)
