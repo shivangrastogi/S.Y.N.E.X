@@ -1,0 +1,79 @@
+/* style.qss */
+
+/* Main window and widgets */
+QWidget {
+    background-color: #0a0f18; /* Very dark blue */
+    color: #e0e0e0; /* Light grey text */
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* All StackedWidget pages */
+QStackedWidget > QWidget {
+    background-color: #0a0f18;
+}
+
+/* Input fields */
+QLineEdit {
+    background-color: #1a202c; /* Darker input bg */
+    border: 1px solid #00ffff; /* Neon Cyan border */
+    border-radius: 5px;
+    padding: 10px;
+    color: #ffffff; /* White text */
+    font-size: 14px;
+}
+QLineEdit:focus {
+    border: 2px solid #00ffff; /* Brighter border on select */
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #00ffff; /* Neon Cyan */
+    color: #0a0f18; /* Dark text for contrast */
+    border: none;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+QPushButton:hover {
+    background-color: #00d9d9; /* Slightly darker cyan on hover */
+}
+
+/* Google Button Specific Style */
+QPushButton#googleButton {
+    background-color: #4285F4;
+    color: white;
+}
+QPushButton#googleButton:hover {
+    background-color: #357ae8;
+}
+
+/* Labels */
+QLabel {
+    color: #e0e0e0;
+    font-size: 14px;
+}
+QLabel#orLabel {
+    font-style: italic;
+    color: #777;
+}
+
+/* Chat Area */
+QTextEdit {
+    background-color: #1a202c;
+    border: 1px solid #00ffff;
+    border-radius: 5px;
+    color: #e0e0e0;
+    font-size: 14px;
+}
+
+/* Specific Logout Button Style */
+QPushButton#logoutButton {
+    background-color: #ff4757; /* Red for danger/logout */
+    color: white;
+    font-weight: bold;
+}
+QPushButton#logoutButton:hover {
+    background-color: #e04050;
+}
