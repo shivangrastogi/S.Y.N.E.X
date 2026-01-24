@@ -47,3 +47,15 @@ try:
 except Exception as e:
     print(f"Warning: Could not initialize Firestore client: {e}")
     db_firestore = None
+=======
+# Option 2: Switch to Firestore (recommended for user data)
+# Install: pip install firebase-admin
+# Download your Firebase service account key JSON from Firebase Console > Project Settings > Service Accounts
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+cred = credentials.Certificate("D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\FIREBASE\serviceAccount.json")  # Replace with your key file path
+firebase_admin.initialize_app(cred)
+db_firestore = firestore.client()  # Firestore client
+auth = firebase.auth()  # Still use pyrebase for auth, or switch to firebase-admin for auth too
+>>>>>>> personal-repo/main

@@ -1,45 +1,89 @@
-# Ignore PyInstaller output
-/dist/
-/build/
+# -------------------------------
+# OS / Editor files
+# -------------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# -------------------------------
+# Python cache
+# -------------------------------
+__pycache__/
+*.pyc
+*.py[cod]
+*.egg-info/
 *.spec
 
+# -------------------------------
 # Ignore environment folders
+# -------------------------------
 .venv/
 env/
 venv/
 .env
 
+# -------------------------------
+# Node / React frontend
+# -------------------------------
+node_modules/
+build/
+dist/
+*.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+
+# -------------------------------
+# Ignore PyInstaller output
+# -------------------------------
+/dist/
+/build/
+
+# -------------------------------
+# Model directories
+# -------------------------------
 VOSK_MODELS/
-
-# Ignore Python cache
-__pycache__/
-*.py[cod]
-
-# Ignore logs or temporary files
-*.log
-*.tmp
-*.data
-*.db
-
-# Ignore system files
-.DS_Store
-Thumbs.db
-
-# Ignore IDE files
-.idea/
-.vscode/
-
-# Ignore model and data directories
+DATA/LISTEN MODAL/
+DATA/SPEAK MODAL/
 /BACKEND/DATA/LISTEN MODAL/
 /BACKEND/DATA/SPEAK MODAL/
 /BACKEND/DATA/TTS_MINIMAL/
 BACKEND/MAIN/FUNCTION/SPEAK/output/
 BACKEND/MAIN/FUNCTION/SPEAK/outputs/
+Backend/DATA/TTS_MINIMAL/
+Backend/DATA/LISTEN MODAL/
+Backend/DATA/SPEAK MODAL/
+Backend/FUNCTION/SPEAK/outputs/
 
-# Ignore sensitive files
+# -------------------------------
+# Sensitive files
+# -------------------------------
 pc_app/auth/client_secrets.json
 BACKEND/DATA/FIREBASE/serviceAccount.json
+Backend/DATA/FIREBASE/serviceAccount.json
 
-# Ignore user data
+# -------------------------------
+# User data
+# -------------------------------
 pc_app/user_data.json
 pc_app/pc_app/user_data.json
+
+# -------------------------------
+# Audio output files
+# -------------------------------
+*.wav
+
+# -------------------------------
+# Archives
+# -------------------------------
+*.rar
+
+# Node modules (React Native / Mobile)
+Mobile App/node_modules/
+Laptop App/node_modules/

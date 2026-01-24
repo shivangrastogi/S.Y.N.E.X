@@ -1,0 +1,2000 @@
+open music player:Opening your music player, Sir.
+hi:Hello, Sir! How can I assist you today?
+open files:Opening your file manager, Sir.
+see you later:See you later, Sir. Take care!
+play a song:Playing a song for you, Sir.
+battery status:Checking battery status for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open instagram:Opening Instagram right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+open reddit:Opening Reddit for you, Sir.
+what's the time:Checking the current time for you, Sir.
+open notepad:Opening Notepad for you, Sir.
+lock the device:Locking your device, Sir.
+check email:Opening your email inbox, Sir.
+open instagram:Opening Instagram for you, Sir.
+shutdown:Shutting down the system now, Sir.
+open maps:Opening Google Maps for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open contacts:Opening your contacts, Sir.
+system info:Fetching system information, Sir.
+open notepad:Opening Notepad for you, Sir.
+open maps:Opening Google Maps right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+lock screen:Locking the screen for you, Sir.
+play a song:Playing a song right away, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+open files:Opening your file manager, Sir.
+hi:Hello, Sir! How can I assist you today?
+news update:Fetching the latest news updates right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+good night:Good night, Sir! Sleep well.
+open notepad:Opening Notepad for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+lock screen:Locking the screen right away, Sir.
+open facebook:Opening Facebook right away, Sir.
+open twitter:Opening Twitter for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+good night:Good night, Sir! Sleep well.
+open reddit:Opening Reddit for you, Sir.
+open settings:Opening Settings, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+internet speed:Checking your internet speed, Sir.
+is it raining:Checking if it's raining right now, Sir.
+shutdown:Shutting down the system now, Sir.
+open facebook:Opening Facebook for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open reddit:Opening Reddit for you, Sir.
+lock the device:Locking your device, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open google:Opening Google for you, Sir.
+play a movie:Playing a movie right away, Sir.
+open gmail:Opening Gmail for you, Sir.
+play a song:Playing a song for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+what's today's date:Fetching today's date right away, Sir.
+lock the device:Locking your device, Sir.
+search something:Sure, Sir. Searching it on Google.
+motivate me:You are capable of amazing things, Sir. Keep going!
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+restart system:Restarting the system now, Sir.
+what's the time:Checking the current time for you, Sir.
+battery status:Checking battery status for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+search something:Sure, Sir. Searching it on Google.
+see you later:See you later, Sir. Take care!
+restart system:Restarting the system now, Sir.
+internet speed:Checking your internet speed, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+play music:Playing your music now, Sir.
+play a movie:Playing a movie for you, Sir.
+open settings:Opening Settings, Sir.
+open music player:Opening your music player, Sir.
+open twitter:Launching Twitter right away, Sir.
+open browser:Opening your browser, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+how's everything going:All systems are running smoothly, Sir.
+news update:Fetching the latest news updates for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+good night:Good night, Sir! Sleep well.
+open instagram:Opening Instagram for you, Sir.
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm for you, Sir.
+see you later:See you later, Sir. Take care!
+open browser:Opening your browser, Sir.
+hi:Hello, Sir! How can I assist you today?
+open twitter:Opening Twitter for you, Sir.
+internet speed:Checking your internet speed, Sir.
+what's up:I'm here to assist you with anything, Sir.
+search something:Sure, Sir. Searching it on Google.
+play video:Playing the requested video, Sir.
+open camera:Opening the Camera for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open reddit:Opening Reddit right away, Sir.
+play music:Playing your music now, Sir.
+search something:Sure, Sir. Searching it on Google.
+play music:Playing your music now, Sir.
+open camera:Opening the Camera for you, Sir.
+open maps:Opening Google Maps for you, Sir.
+open twitter:Opening Twitter right away, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open google:Opening Google for you, Sir.
+restart system:Restarting the system now, Sir.
+battery status:Checking battery status for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+motivate me:You are capable of amazing things, Sir. Keep going!
+check email:Opening your email inbox, Sir.
+restart system:Restarting the system now, Sir.
+open reddit:Opening Reddit right away, Sir.
+battery status:Checking battery status right away, Sir.
+good night:Good night, Sir! Sleep well.
+set reminder:Setting a reminder right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+play a movie:Playing a movie for you, Sir.
+hello:Greetings, Sir! How may I help you?
+see you later:See you later, Sir. Take care!
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+is it raining:Checking if it's raining right now, Sir.
+shutdown:Shutting down the system now, Sir.
+how's everything going:All systems are running smoothly, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open google:Opening Google right away, Sir.
+play music:Playing your music now, Sir.
+check email:Opening your email inbox, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open facebook:Opening Facebook for you, Sir.
+restart:Restarting your device, Sir.
+open reddit:Opening Reddit for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open browser:Opening your browser, Sir.
+set reminder:Setting a reminder right away, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+shutdown:Shutting down the system now, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open instagram:Opening Instagram right away, Sir.
+news update:Fetching the latest news updates for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+take screenshot:Taking a screenshot now, Sir.
+what's up:I'm here to assist you with anything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open calculator:Opening Calculator, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open twitter:Opening Twitter right away, Sir.
+open instagram:Opening Instagram for you, Sir.
+lock the device:Locking your device, Sir.
+set timer:Setting a timer for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+see you later:See you later, Sir. Take care!
+motivate me:You are capable of amazing things, Sir. Keep going!
+open camera:Opening the Camera right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+shutdown:Shutting down the system now, Sir.
+restart system:Restarting the system now, Sir.
+set reminder:Setting a reminder for you, Sir.
+shutdown:Shutting down the system now, Sir.
+see you later:See you later, Sir. Take care!
+take screenshot:Taking a screenshot now, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open gmail:Opening Gmail for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open music player:Opening your music player, Sir.
+open google:Opening Google for you, Sir.
+set timer:Setting a timer for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+restart:Restarting your device, Sir.
+what's up:I'm here to assist you with anything, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open google:Opening Google right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+play music:Playing your music now, Sir.
+open calculator:Opening Calculator, Sir.
+open twitter:Launching Twitter for you, Sir.
+battery status:Checking battery status right away, Sir.
+open camera:Opening the Camera for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+is it raining:Checking if it's raining right now, Sir.
+open camera:Launching the Camera for you, Sir.
+hello:Greetings, Sir! How may I help you?
+what's today's date:Fetching today's date right away, Sir.
+open calculator:Opening Calculator, Sir.
+open facebook:Opening Facebook for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+news update:Fetching the latest news updates right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open contacts:Opening your contacts, Sir.
+system info:Fetching system information, Sir.
+open camera:Opening the Camera right away, Sir.
+play a movie:Playing a movie for you, Sir.
+see you later:See you later, Sir. Take care!
+search something:Sure, Sir. Searching it on Google.
+take screenshot:Taking a screenshot now, Sir.
+search something:Sure, Sir. Searching it on Google.
+open settings:Opening Settings, Sir.
+open camera:Launching the Camera for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+play a movie:Playing a movie right away, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+set alarm:Setting an alarm right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+see you later:See you later, Sir. Take care!
+open instagram:Opening Instagram for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+restart:Restarting your device, Sir.
+open camera:Opening the Camera for you, Sir.
+play music:Playing your music now, Sir.
+open notepad:Opening Notepad right away, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+who are you:I am your personal assistant, Sir, always here to help.
+good night:Good night, Sir! Sleep well.
+system info:Fetching system information, Sir.
+open contacts:Launching your contacts, Sir.
+what's today's date:Fetching today's date right away, Sir.
+open files:Opening your file manager, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open contacts:Launching your contacts, Sir.
+play video:Playing the requested video, Sir.
+open twitter:Opening Twitter for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+who are you:I am your personal assistant, Sir, always here to help.
+what's up:I'm here to assist you with anything, Sir.
+lock screen:Locking the screen for you, Sir.
+set reminder:Setting a reminder right away, Sir.
+check email:Opening your email inbox, Sir.
+open notepad:Opening Notepad for you, Sir.
+open music player:Opening your music player, Sir.
+open camera:Opening the Camera for you, Sir.
+play a movie:Playing a movie for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+restart:Restarting your device, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open calculator:Launching Calculator, Sir.
+open maps:Opening Google Maps for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+open twitter:Opening Twitter right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open camera:Opening the Camera right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+set reminder:Setting a reminder right away, Sir.
+open camera:Opening the Camera right away, Sir.
+battery status:Checking battery status for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+open instagram:Launching Instagram for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+lock screen:Locking the screen for you, Sir.
+lock screen:Locking the screen for you, Sir.
+good night:Good night, Sir! Sleep well.
+open browser:Opening your browser, Sir.
+open files:Opening your file manager, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open google:Opening Google right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+open browser:Opening your browser, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+check email:Opening your email inbox, Sir.
+open facebook:Opening Facebook for you, Sir.
+play a song:Playing a song for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open settings:Opening Settings, Sir.
+open browser:Launching your browser, Sir.
+open maps:Opening Google Maps right away, Sir.
+hello:Greetings, Sir! How may I help you?
+check email:Opening your email inbox, Sir.
+set reminder:Setting a reminder for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+set reminder:Setting a reminder right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+set alarm:Setting an alarm for you, Sir.
+internet speed:Checking your internet speed, Sir.
+take screenshot:Taking a screenshot now, Sir.
+what's up:I'm here to assist you with anything, Sir.
+internet speed:Checking your internet speed, Sir.
+hi:Hello, Sir! How can I assist you today?
+restart system:Restarting the system now, Sir.
+what's the time:Checking the current time for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+news update:Fetching the latest news updates right away, Sir.
+set timer:Setting a timer right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+play music:Playing your music now, Sir.
+take screenshot:Taking a screenshot now, Sir.
+what's today's date:Fetching today's date for you, Sir.
+lock the device:Locking your device, Sir.
+open calculator:Opening Calculator, Sir.
+open camera:Opening the Camera right away, Sir.
+play a movie:Playing a movie for you, Sir.
+system info:Fetching system information, Sir.
+battery status:Checking battery status for you, Sir.
+open settings:Opening Settings, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open gmail:Opening Gmail right away, Sir.
+open settings:Opening Settings, Sir.
+lock the device:Locking your device, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open facebook:Opening Facebook for you, Sir.
+battery status:Checking battery status right away, Sir.
+open calculator:Opening Calculator, Sir.
+check email:Opening your email inbox, Sir.
+lock the device:Locking your device, Sir.
+play video:Playing the requested video, Sir.
+how's everything going:All systems are running smoothly, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+is it raining:Checking if it's raining right now, Sir.
+open facebook:Opening Facebook for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open twitter:Opening Twitter for you, Sir.
+system info:Fetching system information, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+how's everything going:All systems are running smoothly, Sir.
+open contacts:Opening your contacts, Sir.
+open camera:Opening the Camera for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open contacts:Opening your contacts, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open settings:Opening Settings, Sir.
+play a movie:Playing a movie right away, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+good night:Good night, Sir! Sleep well.
+lock the device:Locking your device, Sir.
+is it raining:Checking if it's raining right now, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+restart:Restarting your device, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open google:Opening Google for you, Sir.
+play a song:Playing a song right away, Sir.
+open notepad:Opening Notepad for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open music player:Opening your music player, Sir.
+open calculator:Opening Calculator, Sir.
+open camera:Opening the Camera for you, Sir.
+open browser:Opening your browser, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open notepad:Launching Notepad for you, Sir.
+open calculator:Opening Calculator, Sir.
+play music:Playing your music now, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open files:Opening your file manager, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open reddit:Launching Reddit for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+play a movie:Playing a movie for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open google:Opening Google right away, Sir.
+play a song:Playing a song right away, Sir.
+open files:Opening your file manager, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+shutdown:Shutting down the system now, Sir.
+open facebook:Opening Facebook right away, Sir.
+how's everything going:All systems are running smoothly, Sir.
+play a song:Playing a song for you, Sir.
+open reddit:Opening Reddit right away, Sir.
+check email:Opening your email inbox, Sir.
+open browser:Opening your browser, Sir.
+open maps:Opening Google Maps for you, Sir.
+open google:Opening Google for you, Sir.
+hello:Greetings, Sir! How may I help you?
+restart system:Restarting the system now, Sir.
+open browser:Opening your browser, Sir.
+open files:Opening your file manager, Sir.
+restart:Restarting your device, Sir.
+play music:Playing your music now, Sir.
+lock screen:Locking the screen right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+lock screen:Locking the screen for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+restart:Restarting your device, Sir.
+news update:Fetching the latest news updates for you, Sir.
+play a movie:Playing a movie for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+restart:Restarting your device, Sir.
+open calculator:Launching Calculator, Sir.
+open camera:Opening the Camera for you, Sir.
+open maps:Opening Google Maps for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open google:Opening Google for you, Sir.
+what's the time:Checking the current time for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+take screenshot:Taking a screenshot now, Sir.
+open twitter:Opening Twitter right away, Sir.
+see you later:See you later, Sir. Take care!
+what's today's date:Fetching today's date for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+play a movie:Playing a movie for you, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+hi:Hello, Sir! How can I assist you today?
+play a movie:Playing a movie for you, Sir.
+hi:Hello, Sir! How can I assist you today?
+open instagram:Opening Instagram right away, Sir.
+play a song:Playing a song right away, Sir.
+open files:Opening your file manager, Sir.
+play video:Playing the requested video, Sir.
+play a movie:Playing a movie for you, Sir.
+check email:Opening your email inbox, Sir.
+play video:Playing the requested video, Sir.
+open notepad:Launching Notepad right away, Sir.
+open files:Opening your file manager, Sir.
+open reddit:Opening Reddit right away, Sir.
+lock screen:Locking the screen for you, Sir.
+open music player:Opening your music player, Sir.
+news update:Fetching the latest news updates right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+open calculator:Opening Calculator, Sir.
+what's today's date:Fetching today's date for you, Sir.
+play video:Playing the requested video, Sir.
+news update:Fetching the latest news updates for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+restart system:Restarting the system now, Sir.
+check email:Opening your email inbox, Sir.
+hello:Greetings, Sir! How may I help you?
+play video:Playing the requested video, Sir.
+open google:Opening Google for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+what's up:I'm here to assist you with anything, Sir.
+see you later:See you later, Sir. Take care!
+how are you:I am functioning properly, Sir. Thank you for asking.
+what's up:I'm here to assist you with anything, Sir.
+good night:Good night, Sir! Sleep well.
+open camera:Launching the Camera right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+lock screen:Locking the screen right away, Sir.
+news update:Fetching the latest news updates for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+take screenshot:Taking a screenshot now, Sir.
+open maps:Opening Google Maps for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open reddit:Opening Reddit right away, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+battery status:Checking battery status for you, Sir.
+open notepad:Opening Notepad for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+battery status:Checking battery status right away, Sir.
+search something:Sure, Sir. Searching it on Google.
+check email:Opening your email inbox, Sir.
+open calculator:Opening Calculator, Sir.
+open instagram:Opening Instagram for you, Sir.
+open youtube:Launching YouTube for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+hi:Hello, Sir! How can I assist you today?
+search something:Sure, Sir. Searching it on Google.
+open whatsapp:Opening WhatsApp for you, Sir.
+hello:Greetings, Sir! How may I help you?
+set reminder:Setting a reminder for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open contacts:Opening your contacts, Sir.
+play music:Playing your music now, Sir.
+open google:Opening Google for you, Sir.
+play video:Playing the requested video, Sir.
+what's the time:Checking the current time right away, Sir.
+set timer:Setting a timer for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+hello:Greetings, Sir! How may I help you?
+take screenshot:Taking a screenshot now, Sir.
+what's today's date:Fetching today's date for you, Sir.
+play a movie:Playing a movie right away, Sir.
+play a movie:Playing a movie for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play a movie:Playing a movie for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+open files:Opening your file manager, Sir.
+take screenshot:Taking a screenshot now, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+play a song:Playing a song for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open settings:Opening Settings, Sir.
+play a movie:Playing a movie for you, Sir.
+check email:Opening your email inbox, Sir.
+what's up:I'm here to assist you with anything, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+play a movie:Playing a movie right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+system info:Fetching system information, Sir.
+news update:Fetching the latest news updates right away, Sir.
+open youtube:Opening YouTube right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+open files:Opening your file manager, Sir.
+restart:Restarting your device, Sir.
+is it raining:Checking if it's raining right now, Sir.
+see you later:See you later, Sir. Take care!
+who are you:I am your personal assistant, Sir, always here to help.
+how's everything going:All systems are running smoothly, Sir.
+play video:Playing the requested video, Sir.
+play music:Playing your music now, Sir.
+lock screen:Locking the screen for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+good night:Good night, Sir! Sleep well.
+take screenshot:Taking a screenshot now, Sir.
+open instagram:Opening Instagram for you, Sir.
+play a movie:Playing a movie for you, Sir.
+set alarm:Setting an alarm right away, Sir.
+play a song:Playing a song for you, Sir.
+open music player:Opening your music player, Sir.
+set alarm:Setting an alarm for you, Sir.
+set reminder:Setting a reminder right away, Sir.
+internet speed:Checking your internet speed, Sir.
+what's up:I'm here to assist you with anything, Sir.
+search something:Sure, Sir. Searching it on Google.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open google:Opening Google right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open google:Opening Google right away, Sir.
+play video:Playing the requested video, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open google:Opening Google right away, Sir.
+news update:Fetching the latest news updates for you, Sir.
+system info:Fetching system information, Sir.
+play a song:Playing a song for you, Sir.
+restart system:Restarting the system now, Sir.
+search something:Sure, Sir. Searching it on Google.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+how's everything going:All systems are running smoothly, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+internet speed:Checking your internet speed, Sir.
+open gmail:Opening Gmail for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+battery status:Checking battery status for you, Sir.
+what's the time:Checking the current time for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+news update:Fetching the latest news updates right away, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open browser:Opening your browser, Sir.
+play video:Playing the requested video, Sir.
+open calculator:Opening Calculator, Sir.
+set alarm:Setting an alarm for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open settings:Opening Settings, Sir.
+shutdown:Shutting down the system now, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open camera:Opening the Camera for you, Sir.
+open reddit:Opening Reddit for you, Sir.
+play music:Playing your music now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open files:Opening your file manager, Sir.
+open reddit:Opening Reddit for you, Sir.
+open calculator:Opening Calculator, Sir.
+open browser:Opening your browser, Sir.
+open settings:Opening Settings, Sir.
+open contacts:Opening your contacts, Sir.
+open calculator:Launching Calculator, Sir.
+open browser:Opening your browser, Sir.
+open notepad:Opening Notepad right away, Sir.
+internet speed:Checking your internet speed, Sir.
+see you later:See you later, Sir. Take care!
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open calculator:Opening Calculator, Sir.
+lock the device:Locking your device, Sir.
+open twitter:Opening Twitter right away, Sir.
+open maps:Opening Google Maps for you, Sir.
+open facebook:Opening Facebook right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+shutdown:Shutting down the system now, Sir.
+open reddit:Opening Reddit for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+thank you:You're welcome, Sir. Always happy to assist.
+open twitter:Opening Twitter for you, Sir.
+open maps:Opening Google Maps right away, Sir.
+what's the time:Checking the current time for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+news update:Fetching the latest news updates for you, Sir.
+set timer:Setting a timer for you, Sir.
+good night:Good night, Sir! Sleep well.
+news update:Fetching the latest news updates for you, Sir.
+internet speed:Checking your internet speed, Sir.
+open calculator:Opening Calculator, Sir.
+play a song:Playing a song for you, Sir.
+set timer:Setting a timer for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+open maps:Launching Google Maps right away, Sir.
+open music player:Opening your music player, Sir.
+open maps:Opening Google Maps for you, Sir.
+open notepad:Opening Notepad for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open reddit:Opening Reddit for you, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+open contacts:Opening your contacts, Sir.
+open notepad:Opening Notepad for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+open browser:Opening your browser, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open browser:Opening your browser, Sir.
+see you later:See you later, Sir. Take care!
+play music:Playing your music now, Sir.
+open youtube:Opening YouTube right away, Sir.
+set alarm:Setting an alarm for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open maps:Opening Google Maps for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+see you later:See you later, Sir. Take care!
+open instagram:Opening Instagram for you, Sir.
+system info:Fetching system information, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open settings:Opening Settings, Sir.
+open browser:Launching your browser, Sir.
+open twitter:Opening Twitter for you, Sir.
+play a movie:Playing a movie for you, Sir.
+lock the device:Locking your device, Sir.
+open contacts:Opening your contacts, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+set timer:Setting a timer for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open instagram:Launching Instagram right away, Sir.
+play music:Playing your music now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+hi:Hello, Sir! How can I assist you today?
+open music player:Opening your music player, Sir.
+open settings:Opening Settings, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+shutdown:Shutting down the system now, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+lock the device:Locking your device, Sir.
+restart:Restarting your device, Sir.
+restart:Restarting your device, Sir.
+open calculator:Opening Calculator, Sir.
+battery status:Checking battery status right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open twitter:Opening Twitter right away, Sir.
+play video:Playing the requested video, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open calculator:Opening Calculator, Sir.
+hi:Hello, Sir! How can I assist you today?
+open music player:Opening your music player, Sir.
+hello:Greetings, Sir! How may I help you?
+check email:Opening your email inbox, Sir.
+restart:Restarting your device, Sir.
+see you later:See you later, Sir. Take care!
+see you later:See you later, Sir. Take care!
+what's the time:Checking the current time for you, Sir.
+open music player:Opening your music player, Sir.
+hello:Greetings, Sir! How may I help you?
+open notepad:Opening Notepad for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+hello:Greetings, Sir! How may I help you?
+weather forecast:Fetching the latest weather forecast right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+is it raining:Checking if it's raining right now, Sir.
+set timer:Setting a timer for you, Sir.
+what's the time:Checking the current time for you, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+battery status:Checking battery status right away, Sir.
+see you later:See you later, Sir. Take care!
+thank you:You're welcome, Sir. Always happy to assist.
+open facebook:Opening Facebook for you, Sir.
+open youtube:Launching YouTube for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open contacts:Opening your contacts, Sir.
+open camera:Opening the Camera for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open contacts:Opening your contacts, Sir.
+see you later:See you later, Sir. Take care!
+open whatsapp:Opening WhatsApp right away, Sir.
+restart:Restarting your device, Sir.
+open camera:Opening the Camera right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+weather forecast:Fetching the latest weather forecast for you, Sir.
+battery status:Checking battery status right away, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+battery status:Checking battery status for you, Sir.
+open google:Opening Google for you, Sir.
+what's the time:Checking the current time right away, Sir.
+lock screen:Locking the screen for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open google:Opening Google for you, Sir.
+lock the device:Locking your device, Sir.
+check email:Opening your email inbox, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+system info:Fetching system information, Sir.
+what's up:I'm here to assist you with anything, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open music player:Opening your music player, Sir.
+open camera:Opening the Camera right away, Sir.
+set alarm:Setting an alarm right away, Sir.
+battery status:Checking battery status for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+who are you:I am your personal assistant, Sir, always here to help.
+restart system:Restarting the system now, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open music player:Opening your music player, Sir.
+what's up:I'm here to assist you with anything, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm right away, Sir.
+restart system:Restarting the system now, Sir.
+lock the device:Locking your device, Sir.
+how's everything going:All systems are running smoothly, Sir.
+play a song:Playing a song right away, Sir.
+open calculator:Launching Calculator, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+set alarm:Setting an alarm right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+check email:Opening your email inbox, Sir.
+lock the device:Locking your device, Sir.
+is it raining:Checking if it's raining right now, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play video:Playing the requested video, Sir.
+is it raining:Checking if it's raining right now, Sir.
+hello:Greetings, Sir! How may I help you?
+shutdown:Shutting down the system now, Sir.
+open settings:Opening Settings, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+battery status:Checking battery status for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+shutdown:Shutting down the system now, Sir.
+good night:Good night, Sir! Sleep well.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+open files:Opening your file manager, Sir.
+restart:Restarting your device, Sir.
+play a movie:Playing a movie for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+system info:Fetching system information, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+take screenshot:Taking a screenshot now, Sir.
+lock screen:Locking the screen right away, Sir.
+open twitter:Opening Twitter for you, Sir.
+open settings:Opening Settings, Sir.
+hi:Hello, Sir! How can I assist you today?
+system info:Fetching system information, Sir.
+set reminder:Setting a reminder for you, Sir.
+open instagram:Launching Instagram right away, Sir.
+battery status:Checking battery status for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+lock screen:Locking the screen right away, Sir.
+lock screen:Locking the screen for you, Sir.
+internet speed:Checking your internet speed, Sir.
+restart system:Restarting the system now, Sir.
+set alarm:Setting an alarm for you, Sir.
+system info:Fetching system information, Sir.
+open contacts:Opening your contacts, Sir.
+open youtube:Opening YouTube for you, Sir.
+open music player:Opening your music player, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open camera:Opening the Camera for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+play a song:Playing a song for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open twitter:Opening Twitter right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+play a movie:Playing a movie for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open reddit:Launching Reddit for you, Sir.
+news update:Fetching the latest news updates right away, Sir.
+set reminder:Setting a reminder for you, Sir.
+what's the time:Checking the current time for you, Sir.
+open calculator:Opening Calculator, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open browser:Opening your browser, Sir.
+hello:Greetings, Sir! How may I help you?
+check email:Opening your email inbox, Sir.
+hi:Hello, Sir! How can I assist you today?
+what's the time:Checking the current time right away, Sir.
+play a movie:Playing a movie right away, Sir.
+play video:Playing the requested video, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open google:Opening Google right away, Sir.
+open notepad:Opening Notepad for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+what's the time:Checking the current time for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open facebook:Opening Facebook for you, Sir.
+open music player:Opening your music player, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+battery status:Checking battery status for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+lock screen:Locking the screen for you, Sir.
+lock the device:Locking your device, Sir.
+battery status:Checking battery status right away, Sir.
+lock screen:Locking the screen for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+hello:Greetings, Sir! How may I help you?
+see you later:See you later, Sir. Take care!
+is it raining:Checking if it's raining right now, Sir.
+battery status:Checking battery status for you, Sir.
+open notepad:Opening Notepad for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+lock the device:Locking your device, Sir.
+open contacts:Opening your contacts, Sir.
+open twitter:Opening Twitter for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+set reminder:Setting a reminder for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+hi:Hello, Sir! How can I assist you today?
+open maps:Launching Google Maps right away, Sir.
+news update:Fetching the latest news updates right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open settings:Opening Settings, Sir.
+open gmail:Opening Gmail for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open contacts:Opening your contacts, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open google:Opening Google for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+what's the time:Checking the current time for you, Sir.
+lock the device:Locking your device, Sir.
+open contacts:Opening your contacts, Sir.
+what's the time:Checking the current time right away, Sir.
+play a song:Playing a song for you, Sir.
+open contacts:Opening your contacts, Sir.
+play video:Playing the requested video, Sir.
+open notepad:Opening Notepad right away, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+system info:Fetching system information, Sir.
+internet speed:Checking your internet speed, Sir.
+hi:Hello, Sir! How can I assist you today?
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+hello:Greetings, Sir! How may I help you?
+internet speed:Checking your internet speed, Sir.
+open facebook:Opening Facebook for you, Sir.
+open browser:Opening your browser, Sir.
+lock screen:Locking the screen right away, Sir.
+check email:Opening your email inbox, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+open browser:Opening your browser, Sir.
+lock the device:Locking your device, Sir.
+system info:Fetching system information, Sir.
+open calculator:Opening Calculator, Sir.
+news update:Fetching the latest news updates right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+motivate me:You are capable of amazing things, Sir. Keep going!
+motivate me:You are capable of amazing things, Sir. Keep going!
+what's the time:Checking the current time for you, Sir.
+open camera:Opening the Camera for you, Sir.
+open maps:Opening Google Maps right away, Sir.
+good night:Good night, Sir! Sleep well.
+set alarm:Setting an alarm for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+internet speed:Checking your internet speed, Sir.
+play a song:Playing a song for you, Sir.
+shutdown:Shutting down the system now, Sir.
+open calculator:Opening Calculator, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+who are you:I am your personal assistant, Sir, always here to help.
+open reddit:Opening Reddit for you, Sir.
+open music player:Opening your music player, Sir.
+good night:Good night, Sir! Sleep well.
+open settings:Opening Settings, Sir.
+play music:Playing your music now, Sir.
+open maps:Opening Google Maps right away, Sir.
+battery status:Checking battery status for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+shutdown:Shutting down the system now, Sir.
+set alarm:Setting an alarm for you, Sir.
+shutdown:Shutting down the system now, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open browser:Opening your browser, Sir.
+open calculator:Opening Calculator, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+search something:Sure, Sir. Searching it on Google.
+open reddit:Opening Reddit for you, Sir.
+internet speed:Checking your internet speed, Sir.
+what's today's date:Fetching today's date right away, Sir.
+open music player:Opening your music player, Sir.
+open files:Opening your file manager, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+lock screen:Locking the screen for you, Sir.
+play music:Playing your music now, Sir.
+open instagram:Opening Instagram for you, Sir.
+open files:Opening your file manager, Sir.
+open facebook:Opening Facebook for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+what's the time:Checking the current time for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+lock screen:Locking the screen for you, Sir.
+set timer:Setting a timer for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+open twitter:Opening Twitter right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+news update:Fetching the latest news updates for you, Sir.
+check email:Opening your email inbox, Sir.
+set timer:Setting a timer for you, Sir.
+lock the device:Locking your device, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open settings:Opening Settings, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+restart system:Restarting the system now, Sir.
+play music:Playing your music now, Sir.
+what's today's date:Fetching today's date for you, Sir.
+lock screen:Locking the screen for you, Sir.
+open instagram:Opening Instagram right away, Sir.
+open contacts:Opening your contacts, Sir.
+restart system:Restarting the system now, Sir.
+play music:Playing your music now, Sir.
+open youtube:Opening YouTube right away, Sir.
+how's everything going:All systems are running smoothly, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+search something:Sure, Sir. Searching it on Google.
+lock the device:Locking your device, Sir.
+open notepad:Opening Notepad for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+take screenshot:Taking a screenshot now, Sir.
+good night:Good night, Sir! Sleep well.
+open instagram:Opening Instagram for you, Sir.
+open music player:Opening your music player, Sir.
+open notepad:Opening Notepad right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+motivate me:You are capable of amazing things, Sir. Keep going!
+internet speed:Checking your internet speed, Sir.
+restart:Restarting your device, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+set reminder:Setting a reminder for you, Sir.
+lock screen:Locking the screen right away, Sir.
+good night:Good night, Sir! Sleep well.
+battery status:Checking battery status right away, Sir.
+open instagram:Opening Instagram for you, Sir.
+hi:Hello, Sir! How can I assist you today?
+open facebook:Opening Facebook for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open files:Opening your file manager, Sir.
+open music player:Opening your music player, Sir.
+is it raining:Checking if it's raining right now, Sir.
+take screenshot:Taking a screenshot now, Sir.
+restart system:Restarting the system now, Sir.
+open youtube:Launching YouTube right away, Sir.
+restart system:Restarting the system now, Sir.
+battery status:Checking battery status for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open reddit:Launching Reddit for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open youtube:Opening YouTube for you, Sir.
+lock the device:Locking your device, Sir.
+set alarm:Setting an alarm for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open files:Opening your file manager, Sir.
+search something:Sure, Sir. Searching it on Google.
+hello:Greetings, Sir! How may I help you?
+weather forecast:Fetching the latest weather forecast right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+who are you:I am your personal assistant, Sir, always here to help.
+hello:Greetings, Sir! How may I help you?
+search something:Sure, Sir. Searching it on Google.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open music player:Launching your music player, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+open settings:Launching Settings, Sir.
+what's the time:Checking the current time for you, Sir.
+open google:Opening Google for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open camera:Launching the Camera right away, Sir.
+open camera:Opening the Camera right away, Sir.
+play a song:Playing a song for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+restart system:Restarting the system now, Sir.
+internet speed:Checking your internet speed, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open facebook:Opening Facebook right away, Sir.
+open youtube:Opening YouTube for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open instagram:Launching Instagram right away, Sir.
+restart system:Restarting the system now, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+lock screen:Locking the screen for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open youtube:Opening YouTube right away, Sir.
+play music:Playing your music now, Sir.
+open music player:Launching your music player, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open calculator:Opening Calculator, Sir.
+open facebook:Opening Facebook for you, Sir.
+open contacts:Opening your contacts, Sir.
+open facebook:Opening Facebook for you, Sir.
+shutdown:Shutting down the system now, Sir.
+restart system:Restarting the system now, Sir.
+open maps:Opening Google Maps right away, Sir.
+set alarm:Setting an alarm for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open gmail:Launching Gmail for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+how's everything going:All systems are running smoothly, Sir.
+open facebook:Launching Facebook right away, Sir.
+open calculator:Opening Calculator, Sir.
+battery status:Checking battery status for you, Sir.
+open contacts:Launching your contacts, Sir.
+lock the device:Locking your device, Sir.
+see you later:See you later, Sir. Take care!
+search something:Sure, Sir. Searching it on Google.
+system info:Fetching system information, Sir.
+open twitter:Opening Twitter for you, Sir.
+open camera:Opening the Camera for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+what's the time:Checking the current time for you, Sir.
+see you later:See you later, Sir. Take care!
+hi:Hello, Sir! How can I assist you today?
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open settings:Launching Settings, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open calculator:Opening Calculator, Sir.
+check email:Launching your email inbox, Sir.
+what's the time:Checking the current time for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+search something:Sure, Sir. Searching it on Google.
+hello:Greetings, Sir! How may I help you?
+open contacts:Opening your contacts, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+internet speed:Checking your internet speed, Sir.
+see you later:See you later, Sir. Take care!
+open google:Opening Google right away, Sir.
+search something:Sure, Sir. Searching it on Google.
+what's the time:Checking the current time for you, Sir.
+what's the time:Checking the current time for you, Sir.
+open contacts:Opening your contacts, Sir.
+what's up:I'm here to assist you with anything, Sir.
+play music:Playing your music now, Sir.
+play a movie:Playing a movie for you, Sir.
+internet speed:Checking your internet speed, Sir.
+open files:Opening your file manager, Sir.
+open reddit:Opening Reddit for you, Sir.
+open browser:Opening your browser, Sir.
+see you later:See you later, Sir. Take care!
+play a movie:Playing a movie for you, Sir.
+play a movie:Playing a movie for you, Sir.
+shutdown:Shutting down the system now, Sir.
+lock the device:Locking your device, Sir.
+play a movie:Playing a movie for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open instagram:Opening Instagram for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+internet speed:Checking your internet speed, Sir.
+lock the device:Locking your device, Sir.
+hello:Greetings, Sir! How may I help you?
+set alarm:Setting an alarm right away, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open gmail:Launching Gmail for you, Sir.
+what's the time:Checking the current time for you, Sir.
+restart system:Restarting the system now, Sir.
+hi:Hello, Sir! How can I assist you today?
+system info:Fetching system information, Sir.
+battery status:Checking battery status for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+play a song:Playing a song right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+how are you:I am functioning properly, Sir. Thank you for asking.
+lock the device:Locking your device, Sir.
+take screenshot:Taking a screenshot now, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open calculator:Opening Calculator, Sir.
+search something:Sure, Sir. Searching it on Google.
+set timer:Setting a timer for you, Sir.
+play music:Playing your music now, Sir.
+search something:Sure, Sir. Searching it on Google.
+see you later:See you later, Sir. Take care!
+good night:Good night, Sir! Sleep well.
+how are you:I am functioning properly, Sir. Thank you for asking.
+lock screen:Locking the screen right away, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+open facebook:Opening Facebook right away, Sir.
+shutdown:Shutting down the system now, Sir.
+open contacts:Opening your contacts, Sir.
+good night:Good night, Sir! Sleep well.
+open gmail:Opening Gmail for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+open music player:Opening your music player, Sir.
+what's up:I'm here to assist you with anything, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+is it raining:Checking if it's raining right now, Sir.
+open facebook:Opening Facebook for you, Sir.
+set reminder:Setting a reminder right away, Sir.
+system info:Fetching system information, Sir.
+see you later:See you later, Sir. Take care!
+what's today's date:Fetching today's date right away, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open contacts:Opening your contacts, Sir.
+open instagram:Opening Instagram for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+open browser:Opening your browser, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open reddit:Opening Reddit right away, Sir.
+open music player:Opening your music player, Sir.
+open instagram:Opening Instagram for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+restart system:Restarting the system now, Sir.
+open gmail:Opening Gmail right away, Sir.
+open google:Opening Google right away, Sir.
+lock screen:Locking the screen for you, Sir.
+hello:Greetings, Sir! How may I help you?
+play a song:Playing a song right away, Sir.
+set alarm:Setting an alarm right away, Sir.
+set reminder:Setting a reminder for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+play a movie:Playing a movie for you, Sir.
+hi:Hello, Sir! How can I assist you today?
+how are you:I am functioning properly, Sir. Thank you for asking.
+open google:Launching Google for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open youtube:Opening YouTube for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open contacts:Launching your contacts, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open gmail:Opening Gmail for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+open files:Opening your file manager, Sir.
+battery status:Checking battery status for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+what's the time:Checking the current time right away, Sir.
+open reddit:Opening Reddit right away, Sir.
+good night:Good night, Sir! Sleep well.
+hello:Greetings, Sir! How may I help you?
+open settings:Opening Settings, Sir.
+set timer:Setting a timer for you, Sir.
+check email:Opening your email inbox, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open camera:Opening the Camera for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open google:Opening Google right away, Sir.
+set timer:Setting a timer for you, Sir.
+good night:Good night, Sir! Sleep well.
+open instagram:Opening Instagram for you, Sir.
+hello:Greetings, Sir! How may I help you?
+play a movie:Playing a movie for you, Sir.
+play a song:Playing a song for you, Sir.
+play music:Playing your music now, Sir.
+open calculator:Opening Calculator, Sir.
+open files:Opening your file manager, Sir.
+open instagram:Opening Instagram for you, Sir.
+good night:Good night, Sir! Sleep well.
+open notepad:Opening Notepad for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+play music:Playing your music now, Sir.
+check email:Opening your email inbox, Sir.
+check email:Launching your email inbox, Sir.
+open notepad:Opening Notepad right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+take screenshot:Taking a screenshot now, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open facebook:Opening Facebook for you, Sir.
+open browser:Opening your browser, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+restart:Restarting your device, Sir.
+open camera:Opening the Camera for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+battery status:Checking battery status for you, Sir.
+open google:Opening Google for you, Sir.
+hello:Greetings, Sir! How may I help you?
+shutdown:Shutting down the system now, Sir.
+restart system:Restarting the system now, Sir.
+what's the time:Checking the current time for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+lock the device:Locking your device, Sir.
+open google:Opening Google for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+good night:Good night, Sir! Sleep well.
+battery status:Checking battery status for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+open google:Opening Google for you, Sir.
+open youtube:Launching YouTube for you, Sir.
+good night:Good night, Sir! Sleep well.
+open google:Opening Google for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+internet speed:Checking your internet speed, Sir.
+open browser:Opening your browser, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+restart system:Restarting the system now, Sir.
+open camera:Opening the Camera right away, Sir.
+open camera:Opening the Camera for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+battery status:Checking battery status right away, Sir.
+play a song:Playing a song right away, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+hi:Hello, Sir! How can I assist you today?
+how are you:I am functioning properly, Sir. Thank you for asking.
+open youtube:Opening YouTube right away, Sir.
+open reddit:Opening Reddit right away, Sir.
+open music player:Opening your music player, Sir.
+set reminder:Setting a reminder for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open calculator:Opening Calculator, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open calculator:Opening Calculator, Sir.
+play a song:Playing a song right away, Sir.
+set alarm:Setting an alarm for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open files:Opening your file manager, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open youtube:Opening YouTube right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open twitter:Opening Twitter right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open browser:Opening your browser, Sir.
+search something:Sure, Sir. Searching it on Google.
+lock screen:Locking the screen for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open instagram:Opening Instagram right away, Sir.
+battery status:Checking battery status for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open calculator:Opening Calculator, Sir.
+take screenshot:Taking a screenshot now, Sir.
+hello:Greetings, Sir! How may I help you?
+play music:Playing your music now, Sir.
+open browser:Opening your browser, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open notepad:Opening Notepad for you, Sir.
+open google:Opening Google for you, Sir.
+internet speed:Checking your internet speed, Sir.
+hi:Hello, Sir! How can I assist you today?
+shutdown:Shutting down the system now, Sir.
+open calculator:Opening Calculator, Sir.
+play a movie:Playing a movie for you, Sir.
+play video:Playing the requested video, Sir.
+lock screen:Locking the screen for you, Sir.
+open settings:Opening Settings, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+what's the time:Checking the current time for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+play a movie:Playing a movie right away, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+play video:Playing the requested video, Sir.
+lock screen:Locking the screen for you, Sir.
+open calculator:Opening Calculator, Sir.
+open youtube:Opening YouTube for you, Sir.
+play a song:Playing a song right away, Sir.
+open google:Opening Google right away, Sir.
+check email:Opening your email inbox, Sir.
+set timer:Setting a timer for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open twitter:Opening Twitter for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play a movie:Playing a movie for you, Sir.
+open camera:Opening the Camera for you, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+what's up:I'm here to assist you with anything, Sir.
+see you later:See you later, Sir. Take care!
+open settings:Opening Settings, Sir.
+open instagram:Opening Instagram right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+lock screen:Locking the screen for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+open instagram:Opening Instagram right away, Sir.
+battery status:Checking battery status for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+is it raining:Checking if it's raining right now, Sir.
+open google:Opening Google right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+system info:Fetching system information, Sir.
+hi:Hello, Sir! How can I assist you today?
+shutdown:Shutting down the system now, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+set reminder:Setting a reminder for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open notepad:Opening Notepad for you, Sir.
+play video:Playing the requested video, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+restart system:Restarting the system now, Sir.
+hello:Greetings, Sir! How may I help you?
+restart system:Restarting the system now, Sir.
+shutdown:Shutting down the system now, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open camera:Opening the Camera for you, Sir.
+lock the device:Locking your device, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open calculator:Opening Calculator, Sir.
+play a song:Playing a song right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open contacts:Launching your contacts, Sir.
+is it raining:Checking if it's raining right now, Sir.
+open gmail:Opening Gmail right away, Sir.
+play a movie:Playing a movie for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open calculator:Opening Calculator, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open maps:Opening Google Maps for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+lock screen:Locking the screen for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open google:Opening Google right away, Sir.
+open camera:Opening the Camera for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open files:Opening your file manager, Sir.
+see you later:See you later, Sir. Take care!
+see you later:See you later, Sir. Take care!
+news update:Fetching the latest news updates for you, Sir.
+what's today's date:Fetching today's date for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open youtube:Opening YouTube right away, Sir.
+hello:Greetings, Sir! How may I help you?
+open contacts:Launching your contacts, Sir.
+check email:Opening your email inbox, Sir.
+how's everything going:All systems are running smoothly, Sir.
+what's the time:Checking the current time for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+play a song:Playing a song for you, Sir.
+news update:Fetching the latest news updates right away, Sir.
+set timer:Setting a timer right away, Sir.
+open facebook:Launching Facebook for you, Sir.
+set timer:Setting a timer for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+shutdown:Shutting down the system now, Sir.
+what's today's date:Fetching today's date for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+restart system:Restarting the system now, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open contacts:Opening your contacts, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+check email:Opening your email inbox, Sir.
+what's the time:Checking the current time for you, Sir.
+hello:Greetings, Sir! How may I help you?
+restart system:Restarting the system now, Sir.
+open calculator:Opening Calculator, Sir.
+is it raining:Checking if it's raining right now, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open calculator:Opening Calculator, Sir.
+restart:Restarting your device, Sir.
+set alarm:Setting an alarm right away, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play a movie:Playing a movie for you, Sir.
+open music player:Opening your music player, Sir.
+restart system:Restarting the system now, Sir.
+open browser:Launching your browser, Sir.
+set timer:Setting a timer for you, Sir.
+lock the device:Locking your device, Sir.
+open camera:Opening the Camera for you, Sir.
+set alarm:Setting an alarm right away, Sir.
+play a movie:Playing a movie for you, Sir.
+what's the time:Checking the current time right away, Sir.
+open files:Opening your file manager, Sir.
+lock screen:Locking the screen for you, Sir.
+open reddit:Opening Reddit for you, Sir.
+open gmail:Launching Gmail right away, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open reddit:Launching Reddit for you, Sir.
+play video:Playing the requested video, Sir.
+hi:Hello, Sir! How can I assist you today?
+lock the device:Locking your device, Sir.
+open browser:Opening your browser, Sir.
+what's the time:Checking the current time for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+take screenshot:Taking a screenshot now, Sir.
+check email:Opening your email inbox, Sir.
+hi:Hello, Sir! How can I assist you today?
+take screenshot:Taking a screenshot now, Sir.
+play music:Playing your music now, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+lock screen:Locking the screen right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+check email:Opening your email inbox, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+open settings:Opening Settings, Sir.
+check email:Opening your email inbox, Sir.
+play a movie:Playing a movie for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+set timer:Setting a timer for you, Sir.
+play a movie:Playing a movie for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+see you later:See you later, Sir. Take care!
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open browser:Opening your browser, Sir.
+open browser:Opening your browser, Sir.
+good night:Good night, Sir! Sleep well.
+shutdown:Shutting down the system now, Sir.
+open google:Opening Google right away, Sir.
+open reddit:Opening Reddit for you, Sir.
+open settings:Opening Settings, Sir.
+restart system:Restarting the system now, Sir.
+restart:Restarting your device, Sir.
+what's the time:Checking the current time for you, Sir.
+open facebook:Opening Facebook right away, Sir.
+internet speed:Checking your internet speed, Sir.
+open settings:Opening Settings, Sir.
+restart:Restarting your device, Sir.
+internet speed:Checking your internet speed, Sir.
+see you later:See you later, Sir. Take care!
+open music player:Launching your music player, Sir.
+open facebook:Launching Facebook for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open maps:Launching Google Maps for you, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+open browser:Opening your browser, Sir.
+open files:Opening your file manager, Sir.
+see you later:See you later, Sir. Take care!
+shutdown:Shutting down the system now, Sir.
+what's up:I'm here to assist you with anything, Sir.
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm for you, Sir.
+hello:Greetings, Sir! How may I help you?
+open twitter:Opening Twitter for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+is it raining:Checking if it's raining right now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+internet speed:Checking your internet speed, Sir.
+open files:Opening your file manager, Sir.
+hello:Greetings, Sir! How may I help you?
+shutdown:Shutting down the system now, Sir.
+open facebook:Opening Facebook right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+is it raining:Checking if it's raining right now, Sir.
+play a song:Playing a song for you, Sir.
+check email:Opening your email inbox, Sir.
+open contacts:Opening your contacts, Sir.
+open facebook:Opening Facebook for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+battery status:Checking battery status for you, Sir.
+internet speed:Checking your internet speed, Sir.
+search something:Sure, Sir. Searching it on Google.
+play music:Playing your music now, Sir.
+open twitter:Opening Twitter for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+take screenshot:Taking a screenshot now, Sir.
+set reminder:Setting a reminder for you, Sir.
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+internet speed:Checking your internet speed, Sir.
+news update:Fetching the latest news updates right away, Sir.
+set alarm:Setting an alarm for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+internet speed:Checking your internet speed, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+open google:Launching Google for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open reddit:Opening Reddit for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open settings:Opening Settings, Sir.
+lock the device:Locking your device, Sir.
+what's up:I'm here to assist you with anything, Sir.
+what's today's date:Fetching today's date for you, Sir.
+restart system:Restarting the system now, Sir.
+open reddit:Launching Reddit right away, Sir.
+play music:Playing your music now, Sir.
+open gmail:Opening Gmail right away, Sir.
+open files:Opening your file manager, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open contacts:Launching your contacts, Sir.
+open settings:Opening Settings, Sir.
+open music player:Opening your music player, Sir.
+play video:Playing the requested video, Sir.
+search something:Sure, Sir. Searching it on Google.
+who are you:I am your personal assistant, Sir, always here to help.
+lock screen:Locking the screen for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+play a song:Playing a song for you, Sir.
+see you later:See you later, Sir. Take care!
+internet speed:Checking your internet speed, Sir.
+how's everything going:All systems are running smoothly, Sir.
+internet speed:Checking your internet speed, Sir.
+open instagram:Opening Instagram for you, Sir.
+open google:Opening Google right away, Sir.
+restart:Restarting your device, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open google:Opening Google for you, Sir.
+lock screen:Locking the screen for you, Sir.
+open reddit:Opening Reddit for you, Sir.
+open files:Launching your file manager, Sir.
+battery status:Checking battery status for you, Sir.
+shutdown:Shutting down the system now, Sir.
+open google:Opening Google right away, Sir.
+set timer:Setting a timer for you, Sir.
+lock the device:Locking your device, Sir.
+check email:Opening your email inbox, Sir.
+open calculator:Launching Calculator, Sir.
+set alarm:Setting an alarm for you, Sir.
+system info:Fetching system information, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+what's the time:Checking the current time right away, Sir.
+set timer:Setting a timer for you, Sir.
+hello:Greetings, Sir! How may I help you?
+hi:Hello, Sir! How can I assist you today?
+lock the device:Locking your device, Sir.
+restart system:Restarting the system now, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open settings:Opening Settings, Sir.
+is it raining:Checking if it's raining right now, Sir.
+system info:Fetching system information, Sir.
+battery status:Checking battery status for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+open calculator:Opening Calculator, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open settings:Opening Settings, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open instagram:Opening Instagram right away, Sir.
+news update:Fetching the latest news updates right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open settings:Launching Settings, Sir.
+good night:Good night, Sir! Sleep well.
+open reddit:Opening Reddit for you, Sir.
+open contacts:Launching your contacts, Sir.
+what's the time:Checking the current time for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play video:Playing the requested video, Sir.
+what's the time:Checking the current time for you, Sir.
+open browser:Opening your browser, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+what's the time:Checking the current time for you, Sir.
+lock screen:Locking the screen for you, Sir.
+system info:Fetching system information, Sir.
+search something:Sure, Sir. Searching it on Google.
+set alarm:Setting an alarm for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+restart:Restarting your device, Sir.
+open maps:Opening Google Maps for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open reddit:Launching Reddit for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+search something:Sure, Sir. Searching it on Google.
+restart:Restarting your device, Sir.
+hi:Hello, Sir! How can I assist you today?
+how's everything going:All systems are running smoothly, Sir.
+news update:Fetching the latest news updates right away, Sir.
+open camera:Opening the Camera for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+set timer:Setting a timer for you, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open browser:Launching your browser, Sir.
+see you later:See you later, Sir. Take care!
+open reddit:Opening Reddit for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+play video:Playing the requested video, Sir.
+open maps:Opening Google Maps for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+what's today's date:Fetching today's date right away, Sir.
+system info:Fetching system information, Sir.
+open music player:Opening your music player, Sir.
+take screenshot:Taking a screenshot now, Sir.
+hi:Hello, Sir! How can I assist you today?
+open instagram:Opening Instagram for you, Sir.
+lock screen:Locking the screen right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open gmail:Opening Gmail right away, Sir.
+play video:Playing the requested video, Sir.
+check email:Opening your email inbox, Sir.
+system info:Fetching system information, Sir.
+open browser:Opening your browser, Sir.
+good night:Good night, Sir! Sleep well.
+hello:Greetings, Sir! How may I help you?
+open instagram:Opening Instagram for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+play a movie:Playing a movie for you, Sir.
+open calculator:Opening Calculator, Sir.
+shutdown:Shutting down the system now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open youtube:Opening YouTube for you, Sir.
+open instagram:Launching Instagram for you, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+play a movie:Playing a movie right away, Sir.
+hello:Greetings, Sir! How may I help you?
+play a song:Playing a song for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+open maps:Opening Google Maps for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+check email:Opening your email inbox, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+shutdown:Shutting down the system now, Sir.
+restart:Restarting your device, Sir.
+open whatsapp:Opening WhatsApp right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+restart system:Restarting the system now, Sir.
+open maps:Opening Google Maps for you, Sir.
+open calculator:Opening Calculator, Sir.
+internet speed:Checking your internet speed, Sir.
+open facebook:Opening Facebook for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+covid update:Fetching the latest COVID-19 updates for you, Sir.
+restart system:Restarting the system now, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+restart:Restarting your device, Sir.
+what's the time:Checking the current time for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+see you later:See you later, Sir. Take care!
+play a movie:Playing a movie for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open contacts:Opening your contacts, Sir.
+take screenshot:Taking a screenshot now, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open instagram:Opening Instagram for you, Sir.
+play a song:Playing a song for you, Sir.
+open google:Opening Google for you, Sir.
+restart:Restarting your device, Sir.
+hello:Greetings, Sir! How may I help you?
+shutdown:Shutting down the system now, Sir.
+open settings:Opening Settings, Sir.
+set timer:Setting a timer right away, Sir.
+lock screen:Locking the screen right away, Sir.
+play a song:Playing a song for you, Sir.
+what's the time:Checking the current time for you, Sir.
+set timer:Setting a timer for you, Sir.
+open maps:Opening Google Maps for you, Sir.
+play video:Playing the requested video, Sir.
+open camera:Opening the Camera for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+play music:Playing your music now, Sir.
+lock screen:Locking the screen for you, Sir.
+open files:Opening your file manager, Sir.
+open browser:Opening your browser, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open music player:Launching your music player, Sir.
+lock screen:Locking the screen for you, Sir.
+open youtube:Opening YouTube for you, Sir.
+hello:Greetings, Sir! How may I help you?
+lock the device:Locking your device, Sir.
+open reddit:Opening Reddit for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+hello:Greetings, Sir! How may I help you?
+set timer:Setting a timer for you, Sir.
+play a song:Playing a song for you, Sir.
+open maps:Opening Google Maps for you, Sir.
+what's the time:Checking the current time right away, Sir.
+what's up:I'm here to assist you with anything, Sir.
+set reminder:Setting a reminder right away, Sir.
+play a song:Playing a song for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open twitter:Opening Twitter for you, Sir.
+set timer:Setting a timer right away, Sir.
+open facebook:Opening Facebook for you, Sir.
+open music player:Opening your music player, Sir.
+what's today's date:Fetching today's date right away, Sir.
+open notepad:Opening Notepad for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+who are you:I am your personal assistant, Sir, always here to help.
+battery status:Checking battery status for you, Sir.
+good night:Good night, Sir! Sleep well.
+battery status:Checking battery status for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+news update:Fetching the latest news updates right away, Sir.
+good night:Good night, Sir! Sleep well.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+restart:Restarting your device, Sir.
+news update:Fetching the latest news updates right away, Sir.
+open settings:Opening Settings, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open gmail:Opening Gmail right away, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open google:Opening Google for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+play a movie:Playing a movie for you, Sir.
+restart:Restarting your device, Sir.
+system info:Fetching system information, Sir.
+set reminder:Setting a reminder right away, Sir.
+what's the time:Checking the current time for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+is it raining:Checking if it's raining right now, Sir.
+open calculator:Launching Calculator, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+set reminder:Setting a reminder for you, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+covid update:Fetching the latest COVID-19 updates right away, Sir.
+open instagram:Launching Instagram for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+restart:Restarting your device, Sir.
+open music player:Opening your music player, Sir.
+open youtube:Opening YouTube for you, Sir.
+lock the device:Locking your device, Sir.
+open facebook:Launching Facebook for you, Sir.
+hello:Greetings, Sir! How may I help you?
+how's everything going:All systems are running smoothly, Sir.
+system info:Fetching system information, Sir.
+play music:Playing your music now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+good night:Good night, Sir! Sleep well.
+shutdown:Shutting down the system now, Sir.
+check email:Launching your email inbox, Sir.
+lock the device:Locking your device, Sir.
+play music:Playing your music now, Sir.
+open music player:Opening your music player, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+is it raining:Checking if it's raining right now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+how's everything going:All systems are running smoothly, Sir.
+open maps:Opening Google Maps for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open music player:Opening your music player, Sir.
+open maps:Opening Google Maps right away, Sir.
+open music player:Opening your music player, Sir.
+open settings:Opening Settings, Sir.
+shutdown:Shutting down the system now, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+weather forecast:Fetching the latest weather forecast right away, Sir.
+play video:Playing the requested video, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open instagram:Opening Instagram right away, Sir.
+open twitter:Opening Twitter right away, Sir.
+how's everything going:All systems are running smoothly, Sir.
+shutdown:Shutting down the system now, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open youtube:Opening YouTube right away, Sir.
+open music player:Launching your music player, Sir.
+news update:Fetching the latest news updates right away, Sir.
+play a song:Playing a song right away, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open camera:Opening the Camera for you, Sir.
+open contacts:Opening your contacts, Sir.
+how's everything going:All systems are running smoothly, Sir.
+set reminder:Setting a reminder for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open music player:Opening your music player, Sir.
+what's the time:Checking the current time right away, Sir.
+take screenshot:Taking a screenshot now, Sir.
+see you later:See you later, Sir. Take care!
+play a movie:Playing a movie for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+play a song:Playing a song right away, Sir.
+shutdown:Shutting down the system now, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open calculator:Opening Calculator, Sir.
+internet speed:Checking your internet speed, Sir.
+open google:Opening Google right away, Sir.
+open youtube:Opening YouTube right away, Sir.
+shutdown:Shutting down the system now, Sir.
+open twitter:Opening Twitter for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open browser:Launching your browser, Sir.
+hello:Greetings, Sir! How may I help you?
+who are you:I am your personal assistant, Sir, always here to help.
+open google:Launching Google for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+open settings:Opening Settings, Sir.
+play video:Playing the requested video, Sir.
+is it raining:Checking if it's raining right now, Sir.
+set alarm:Setting an alarm for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+check email:Opening your email inbox, Sir.
+system info:Fetching system information, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open browser:Opening your browser, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+see you later:See you later, Sir. Take care!
+open notepad:Launching Notepad for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open contacts:Opening your contacts, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+how's everything going:All systems are running smoothly, Sir.
+see you later:See you later, Sir. Take care!
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+what's up:I'm here to assist you with anything, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+what's the time:Checking the current time right away, Sir.
+see you later:See you later, Sir. Take care!
+internet speed:Checking your internet speed, Sir.
+open gmail:Opening Gmail for you, Sir.
+system info:Fetching system information, Sir.
+open camera:Opening the Camera for you, Sir.
+open instagram:Opening Instagram right away, Sir.
+open instagram:Launching Instagram for you, Sir.
+good night:Good night, Sir! Sleep well.
+what's today's date:Fetching today's date for you, Sir.
+open music player:Opening your music player, Sir.
+hello:Greetings, Sir! How may I help you?
+open files:Opening your file manager, Sir.
+set alarm:Setting an alarm for you, Sir.
+see you later:See you later, Sir. Take care!
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+play video:Playing the requested video, Sir.
+see you later:See you later, Sir. Take care!
+play a song:Playing a song right away, Sir.
+open browser:Opening your browser, Sir.
+open music player:Opening your music player, Sir.
+hi:Hello, Sir! How can I assist you today?
+open settings:Opening Settings, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open gmail:Opening Gmail for you, Sir.
+what's up:I'm here to assist you with anything, Sir.
+set timer:Setting a timer for you, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+play video:Playing the requested video, Sir.
+open facebook:Opening Facebook for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+set reminder:Setting a reminder right away, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+play a movie:Playing a movie right away, Sir.
+set timer:Setting a timer for you, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+hello:Greetings, Sir! How may I help you?
+open google:Opening Google for you, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+open instagram:Opening Instagram for you, Sir.
+restart system:Restarting the system now, Sir.
+take screenshot:Taking a screenshot now, Sir.
+open music player:Opening your music player, Sir.
+system info:Fetching system information, Sir.
+play music:Playing your music now, Sir.
+open music player:Opening your music player, Sir.
+open facebook:Opening Facebook for you, Sir.
+set timer:Setting a timer for you, Sir.
+play video:Playing the requested video, Sir.
+how's everything going:All systems are running smoothly, Sir.
+what's the time:Checking the current time right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+set alarm:Setting an alarm right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+check email:Opening your email inbox, Sir.
+take screenshot:Taking a screenshot now, Sir.
+check email:Opening your email inbox, Sir.
+open settings:Opening Settings, Sir.
+hi:Hello, Sir! How can I assist you today?
+hi:Hello, Sir! How can I assist you today?
+play a song:Playing a song right away, Sir.
+open files:Opening your file manager, Sir.
+is it raining:Checking if it's raining right now, Sir.
+play music:Playing your music now, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open gmail:Opening Gmail right away, Sir.
+is it raining:Checking if it's raining right now, Sir.
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+good night:Good night, Sir! Sleep well.
+open maps:Opening Google Maps for you, Sir.
+is it raining:Checking if it's raining right now, Sir.
+set alarm:Setting an alarm right away, Sir.
+open browser:Opening your browser, Sir.
+play music:Playing your music now, Sir.
+open google:Opening Google for you, Sir.
+good morning:Good morning, Sir! Wishing you a productive day ahead.
+open browser:Opening your browser, Sir.
+system info:Fetching system information, Sir.
+open youtube:Opening YouTube right away, Sir.
+battery status:Checking battery status right away, Sir.
+what's today's date:Fetching today's date for you, Sir.
+hi:Hello, Sir! How can I assist you today?
+set timer:Setting a timer for you, Sir.
+play video:Playing the requested video, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+system info:Fetching system information, Sir.
+what's up:I'm here to assist you with anything, Sir.
+check email:Opening your email inbox, Sir.
+open music player:Opening your music player, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+open calculator:Opening Calculator, Sir.
+news update:Fetching the latest news updates for you, Sir.
+thank you:You're welcome, Sir. Always happy to assist.
+open whatsapp:Opening WhatsApp for you, Sir.
+search something:Sure, Sir. Searching it on Google.
+set alarm:Setting an alarm for you, Sir.
+open calculator:Opening Calculator, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open calculator:Opening Calculator, Sir.
+see you later:See you later, Sir. Take care!
+hi:Hello, Sir! How can I assist you today?
+open settings:Opening Settings, Sir.
+what's the time:Checking the current time right away, Sir.
+hi:Hello, Sir! How can I assist you today?
+what's up:I'm here to assist you with anything, Sir.
+hi:Hello, Sir! How can I assist you today?
+take screenshot:Taking a screenshot now, Sir.
+open camera:Opening the Camera right away, Sir.
+open google:Opening Google right away, Sir.
+open notepad:Opening Notepad for you, Sir.
+open camera:Opening the Camera for you, Sir.
+open gmail:Opening Gmail for you, Sir.
+set alarm:Setting an alarm right away, Sir.
+how are you:I am functioning properly, Sir. Thank you for asking.
+play music:Playing your music now, Sir.
+check email:Launching your email inbox, Sir.
+what's today's date:Fetching today's date for you, Sir.
+open instagram:Opening Instagram for you, Sir.
+restart:Restarting your device, Sir.
+open gmail:Opening Gmail right away, Sir.
+open instagram:Opening Instagram for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+set alarm:Setting an alarm for you, Sir.
+open settings:Opening Settings, Sir.
+is it raining:Checking if it's raining right now, Sir.
+search something:Sure, Sir. Searching it on Google.
+restart:Restarting your device, Sir.
+system info:Fetching system information, Sir.
+what's the time:Checking the current time right away, Sir.
+shutdown:Shutting down the system now, Sir.
+lock the device:Locking your device, Sir.
+battery status:Checking battery status for you, Sir.
+open calculator:Opening Calculator, Sir.
+open youtube:Opening YouTube for you, Sir.
+weather forecast:Fetching the latest weather forecast right away, Sir.
+open whatsapp:Opening WhatsApp for you, Sir.
+check email:Opening your email inbox, Sir.
+see you later:See you later, Sir. Take care!
+see you later:See you later, Sir. Take care!
+set alarm:Setting an alarm for you, Sir.
+open camera:Opening the Camera for you, Sir.
+open files:Opening your file manager, Sir.
+open notepad:Opening Notepad for you, Sir.
+take screenshot:Taking a screenshot now, Sir.
+lock the device:Locking your device, Sir.
+battery status:Checking battery status for you, Sir.
+open browser:Opening your browser, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+take screenshot:Taking a screenshot now, Sir.
+open contacts:Opening your contacts, Sir.
+weather forecast:Fetching the latest weather forecast for you, Sir.
+open contacts:Opening your contacts, Sir.
+who are you:I am your personal assistant, Sir, always here to help.
+open calculator:Opening Calculator, Sir.
+search something:Sure, Sir. Searching it on Google.
+motivate me:You are capable of amazing things, Sir. Keep going!
+open gmail:Opening Gmail for you, Sir.
+set reminder:Setting a reminder for you, Sir.
+motivate me:You are capable of amazing things, Sir. Keep going!
+tell me a joke:Why don't scientists trust atoms? Because they make up everything, Sir.
+news update:Fetching the latest news updates for you, Sir.
+play a song:Playing a song right away, Sir.
+open reddit:Launching Reddit right away, Sir.
+play music:Playing your music now, Sir.
+open notepad:Opening Notepad for you, Sir.
+news update:Fetching the latest news updates for you, Sir.
+open calculator:Opening Calculator, Sir.
+what's the time:Checking the current time for you, Sir.
+open twitter:Opening Twitter for you, Sir.
+open youtube:Launching YouTube for you, Sir.
+how's everything going:All systems are running smoothly, Sir.
+open instagram:Opening Instagram for you, Sir.
+open facebook:Opening Facebook for you, Sir.
+hello:Greetings, Sir! How may I help you?
+search something:Sure, Sir. Searching it on Google.
+good morning:Good morning, Sir! Wishing you a productive day ahead.

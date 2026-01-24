@@ -18,7 +18,6 @@ if not os.path.isdir(VOSK_MODEL_PATH):
             VOSK_MODEL_PATH = backend_fallback
     except Exception:
         pass
-
 class JarvisEngineManager:
     _instance = None
 
@@ -51,28 +50,43 @@ class JarvisEngineManager:
             if not os.path.isdir(VOSK_MODEL_PATH):
                 raise FileNotFoundError(f"Vosk model not found at {VOSK_MODEL_PATH}. Please run setup.")
 
+<<<<<<< HEAD
             self.vosk_model = Model(VOSK_MODEL_PATH)
             print("✅ Vosk model loaded successfully.")
+=======
+            self.vosk_model = Model(VOSK_MODEL_PATH)  # <-- Use new path
+            print("Vosk model loaded.")
+>>>>>>> personal-repo/main
 
             # 2. Load TTS Engine
             print("Loading TTS engine...")
             self.tts_engine = TTSEngine()
+<<<<<<< HEAD
             print("✅ TTS Engine loaded successfully.")
+=======
+            print("TTS Engine loaded.")
+>>>>>>> personal-repo/main
 
             self.models_loaded.set()
             print("✅ All models loaded successfully.")
         except Exception as e:
             print(f"Error loading models: {e}")
+<<<<<<< HEAD
             self.models_loaded.clear()
 
     def is_models_loaded(self):
+=======
+>>>>>>> personal-repo/main
             # This is critical. If models fail, we must inform the user.
             # We can handle this in main_ui.py
             self.models_loaded.clear()  # Ensure it's marked as *not* loaded
 
     def is_models_loaded(self):
         """Check if the models are ready."""
+<<<<<<< HEAD
 >>>>>>> jarvis-repo/main
+=======
+>>>>>>> personal-repo/main
         return self.models_loaded.is_set()
 
     def get_vosk_model(self):
@@ -87,8 +101,13 @@ class JarvisEngineManager:
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 engine_manager = JarvisEngineManager()
 =======
 # Create a single, global instance that all other files can import
 engine_manager = JarvisEngineManager()
 >>>>>>> jarvis-repo/main
+=======
+# Create a single, global instance that all other files can import
+engine_manager = JarvisEngineManager()
+>>>>>>> personal-repo/main

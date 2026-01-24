@@ -9,7 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 import webbrowser
->>>>>>> jarvis-repo/main
+
 
 class LoginWindow(QWidget):
     def __init__(self, switch_to_register, switch_to_chat, switch_to_complete_profile):  # Added new callback
@@ -141,10 +141,14 @@ class LoginWindow(QWidget):
         """Saves user data and tokens to the local JSON file."""
         os.makedirs("pc_app", exist_ok=True)
 <<<<<<< HEAD
+<<<<<<< HEAD
         file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
 =======
         file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
 >>>>>>> jarvis-repo/main
+=======
+        file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
+>>>>>>> personal-repo/main
         with open(file_path, "w") as f:
             json.dump(user_data_with_token, f)
 

@@ -95,10 +95,14 @@ class MainApp(QStackedWidget):
         print("Logging out...")
         # 1. Clear local session file
 <<<<<<< HEAD
+<<<<<<< HEAD
         file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
 =======
         file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
 >>>>>>> jarvis-repo/main
+=======
+        file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
+>>>>>>> personal-repo/main
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
