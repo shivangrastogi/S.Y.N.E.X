@@ -1,35 +1,31 @@
-# -------------------------------
 # OS / Editor files
-# -------------------------------
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+
+# Logs / temp
 *.log
 *.tmp
 *.swp
 *.swo
-.idea/
-.vscode/
+*.data
+*.db
 
-# -------------------------------
-# Python cache
-# -------------------------------
+# Python cache and build
 __pycache__/
 *.pyc
 *.py[cod]
 *.egg-info/
 *.spec
 
-# -------------------------------
-# Ignore environment folders
-# -------------------------------
+# Environment folders
 .venv/
 env/
 venv/
 .env
 
-# -------------------------------
-# Node / React frontend
-# -------------------------------
+# Node / React / RN
 node_modules/
 build/
 dist/
@@ -38,16 +34,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 coverage/
+Mobile App/node_modules/
+Laptop App/node_modules/
 
-# -------------------------------
-# Ignore PyInstaller output
-# -------------------------------
+# PyInstaller output
 /dist/
 /build/
 
-# -------------------------------
 # Model directories
-# -------------------------------
 VOSK_MODELS/
 DATA/LISTEN MODAL/
 DATA/SPEAK MODAL/
@@ -60,30 +54,24 @@ Backend/DATA/TTS_MINIMAL/
 Backend/DATA/LISTEN MODAL/
 Backend/DATA/SPEAK MODAL/
 Backend/FUNCTION/SPEAK/outputs/
+models/
+/MODELS/
 
-# -------------------------------
 # Sensitive files
-# -------------------------------
 pc_app/auth/client_secrets.json
 BACKEND/DATA/FIREBASE/serviceAccount.json
 Backend/DATA/FIREBASE/serviceAccount.json
 
-# -------------------------------
 # User data
-# -------------------------------
 pc_app/user_data.json
 pc_app/pc_app/user_data.json
 
-# -------------------------------
 # Audio output files
-# -------------------------------
 *.wav
 
-# -------------------------------
 # Archives
-# -------------------------------
 *.rar
 
-# Node modules (React Native / Mobile)
-Mobile App/node_modules/
-Laptop App/node_modules/
+# Qt/Designer artifacts
+*.qrc
+*.ui
