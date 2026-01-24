@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # OS / Editor files
 .DS_Store
 Thumbs.db
@@ -79,3 +80,12 @@ pc_app/pc_app/user_data.json
 # Qt/Designer artifacts
 *.qrc
 *.ui
+
+# Training directories
+JARVIS_TRAINING/
+JARVIS TRAIN/
+
+# Additional backend ignores
+BACKEND/CORE/Libs/TTS_MINIMAL/
+BACKEND/DATA/MODELS/
+BACKEND/DATA/CONFIG/FIREBASE/

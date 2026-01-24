@@ -1,0 +1,13 @@
+2025-11-14 15:02:15 | NLU_LOW_CONF | Command: "Jarvis" | Guessed: greet (0.18)
+2025-11-14 15:03:01 | NLU_LOW_CONF | Command: "remember my name is shivang" | Guessed: check_internet_speed (0.37)
+2025-11-14 16:42:15 | NLU_LOW_CONF | Command: "remember my laptop name is jarvis" | Guessed: set_user_name (0.54)
+2025-11-14 17:45:46 | NLU_LOW_CONF | Command: "close edge" | Guessed: greet (0.17)
+2025-11-14 21:50:26 | NLU_LOW_CONF | 'yes sir' | guessed greet (0.17)
+2025-11-14 21:50:48 | NLU_LOW_CONF | 'yes sir' | guessed greet (0.17)
+2025-11-14 21:59:12 | NLU_LOW_CONF | 'yes sir' | guessed greet (0.17)
+2025-11-14 21:59:35 | NLU_LOW_CONF | 'yes sir' | guessed greet (0.17)
+2025-11-14 21:59:46 | NLU_LOW_CONF | 'yes sir' | guessed greet (0.17)
+2025-11-15 02:44:32 | NLU_ENTITY_FAIL | Command: "open" | Intent: open_item
+2025-11-15 03:02:19 | NLU_ENTITY_FAIL | Command: "open" | Intent: open_item
+2025-11-15 03:02:43 | NLU_LOW_CONF | 'FileExplo' | guessed greet (0.17)
+2025-11-15 03:03:14 | NLU_LOW_CONF | 'FileExplo' | guessed greet (0.17)
