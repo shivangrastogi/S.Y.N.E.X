@@ -82,6 +82,7 @@ class CompleteProfileWindow(QWidget):
     def save_local_session(self, user_data_with_token):
         """Saves user data and tokens to the local JSON file."""
         os.makedirs("pc_app", exist_ok=True)
-        file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
+        # Use relative path from pc_app directory
+        file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user_data.json")
         with open(file_path, "w") as f:
             json.dump(user_data_with_token, f)

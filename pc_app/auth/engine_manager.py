@@ -1,10 +1,23 @@
+# auth/engine_manager.py
 import os
 import threading
 from vosk import Model
 from BRAIN.tts_engine import TTSEngine  # Assuming this is your TTS engine path
 
-# ✅ Your permanent local Vosk model path
-VOSK_MODEL_PATH = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\BACKEND\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
+# Define model path using APPDATA for portability
+MODEL_PATH = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "JARVIS_MODELS")
+VOSK_MODEL_PATH = os.path.join(MODEL_PATH, "vosk-model-small-en-us-0.15")
+
+# Fallback to local BACKEND directory if APPDATA model doesn't exist
+if not os.path.isdir(VOSK_MODEL_PATH):
+    try:
+        # Try to find BACKEND directory relative to pc_app
+        pc_app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        backend_fallback = os.path.join(os.path.dirname(pc_app_dir), "BACKEND", "DATA", "LISTEN MODAL", "Vosk Modal", "vosk-model-small-en-us-0.15")
+        if os.path.isdir(backend_fallback):
+            VOSK_MODEL_PATH = backend_fallback
+    except Exception:
+        pass
 
 class JarvisEngineManager:
     _instance = None
@@ -36,7 +49,7 @@ class JarvisEngineManager:
             # 1. Load Vosk Model
             print(f"Loading Vosk model from: {VOSK_MODEL_PATH}")
             if not os.path.isdir(VOSK_MODEL_PATH):
-                raise FileNotFoundError(f"❌ Vosk model not found at: {VOSK_MODEL_PATH}")
+                raise FileNotFoundError(f"Vosk model not found at {VOSK_MODEL_PATH}. Please run setup.")
 
             self.vosk_model = Model(VOSK_MODEL_PATH)
             print("✅ Vosk model loaded successfully.")
@@ -53,6 +66,13 @@ class JarvisEngineManager:
             self.models_loaded.clear()
 
     def is_models_loaded(self):
+            # This is critical. If models fail, we must inform the user.
+            # We can handle this in main_ui.py
+            self.models_loaded.clear()  # Ensure it's marked as *not* loaded
+
+    def is_models_loaded(self):
+        """Check if the models are ready."""
+>>>>>>> jarvis-repo/main
         return self.models_loaded.is_set()
 
     def get_vosk_model(self):
@@ -66,4 +86,9 @@ class JarvisEngineManager:
         return self.tts_engine
 
 
+<<<<<<< HEAD
 engine_manager = JarvisEngineManager()
+=======
+# Create a single, global instance that all other files can import
+engine_manager = JarvisEngineManager()
+>>>>>>> jarvis-repo/main

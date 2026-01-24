@@ -1,3 +1,45 @@
+# Ignore PyInstaller output
+/dist/
+/build/
+*.spec
+
+# Ignore environment folders
+.venv/
+env/
+venv/
+.env
+
+VOSK_MODELS/
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+
+# Ignore logs or temporary files
+*.log
+*.tmp
+*.data
+*.db
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.idea/
+.vscode/
+
+# Ignore model and data directories
 /BACKEND/DATA/LISTEN MODAL/
 /BACKEND/DATA/SPEAK MODAL/
 /BACKEND/DATA/TTS_MINIMAL/
+BACKEND/MAIN/FUNCTION/SPEAK/output/
+BACKEND/MAIN/FUNCTION/SPEAK/outputs/
+
+# Ignore sensitive files
+pc_app/auth/client_secrets.json
+BACKEND/DATA/FIREBASE/serviceAccount.json
+
+# Ignore user data
+pc_app/user_data.json
+pc_app/pc_app/user_data.json

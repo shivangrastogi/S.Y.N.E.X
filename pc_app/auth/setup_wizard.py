@@ -60,14 +60,6 @@ class SetupWizard(QStackedWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("JARVIS Setup")
-
-        # ✅ Skip setup if model already exists
-        existing_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\BACKEND\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
-        if os.path.isdir(existing_path):
-            print(f"✅ Vosk model already exists at {existing_path}, skipping setup.")
-            self.close()
-            return
-
         self.setGeometry(400, 300, 500, 200)
 
         # Page 1: Welcome

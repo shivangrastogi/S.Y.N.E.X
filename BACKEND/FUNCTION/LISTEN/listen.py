@@ -11,7 +11,9 @@ from FUNCTION.SPEAK.speak import is_speaking
 
 colorama_init(autoreset=True)
 
-MODEL_PATH = r"S:\JARVIS\JARVIS 07-11-2025\JARVIS-5-11-2025\BACKEND\DATA\LISTEN MODAL\Vosk Modal\vosk-model-small-en-us-0.15"
+# Use relative path from BACKEND directory
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MODEL_PATH = os.path.join(BACKEND_DIR, "DATA", "LISTEN MODAL", "Vosk Modal", "vosk-model-small-en-us-0.15")
 SAMPLE_RATE = 16000
 BLOCKSIZE = 8000
 TIMEOUT_SEC = 10

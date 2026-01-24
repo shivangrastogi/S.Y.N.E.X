@@ -1,9 +1,18 @@
 # chat/chat_window.py
+import sys
+import os
 from PyQt5.QtWidgets import QWidget, QTextEdit, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QLabel
+import threading, json, time
+
+# Add BACKEND to path for imports
+pc_app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+backend_dir = os.path.join(os.path.dirname(pc_app_dir), "BACKEND")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from FUNCTION.SPEAK.speak import JarvisSpeaker
 from FUNCTION.LISTEN.listen import listen
 from BRAIN.processor import execute_command, find_best_match
-import threading, json, time
 
 
 class ChatWindow(QWidget):

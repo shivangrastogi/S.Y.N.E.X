@@ -3,7 +3,7 @@ import json
 import os
 import datetime
 from FUNCTION.SPEAK.speak import JarvisSpeaker
-from transformers import pipeline  # <-- NEW IMPORT
+from transformers import pipeline
 
 speaker = JarvisSpeaker()
 
@@ -82,7 +82,7 @@ def find_best_match(user_input: str):
 
 def execute_command(command_key, data):
     """
-    Decides how to run the action. (No changes needed here)
+    Decides how to run the action. Keep TTS feedback here, but delegate heavy actions to control.py
     """
     if not command_key or not data:
         speaker.speak("Sorry, I didn't quite understand that.")
@@ -112,3 +112,4 @@ def execute_command(command_key, data):
 
     # Default: speak the response
     speaker.speak(response)
+>>>>>>> jarvis-repo/main

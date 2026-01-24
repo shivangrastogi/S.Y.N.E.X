@@ -1,11 +1,11 @@
 # auth/firebase_config.py
-
+import os
 import pyrebase
 import firebase_admin
 from firebase_admin import credentials, firestore
 
 # --- Pyrebase (Client) Setup ---
-# This is for Auth and Realtime DB (in your setup)
+# This is for Auth and Realtime DB
 firebaseConfig = {
     "apiKey": "AIzaSyCGW8ssB7vKau3Uchx_K0P0Ca52SknLSGo",
     "authDomain": "jarvis-remote-6f460.firebaseapp.com",
@@ -27,14 +27,23 @@ db = firebase.database()  # Realtime DB
 # This check prevents the "ValueError: The default Firebase app already exists."
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\BACKEND\DATA\FIREBASE\serviceAccount.json")
-        firebase_admin.initialize_app(cred)
+        # Use relative path from pc_app/auth directory
+        auth_dir = os.path.dirname(os.path.abspath(__file__))
+        pc_app_dir = os.path.dirname(auth_dir)
+        backend_dir = os.path.join(os.path.dirname(pc_app_dir), "BACKEND")
+        service_account_path = os.path.join(backend_dir, "DATA", "FIREBASE", "serviceAccount.json")
+        
+        if os.path.exists(service_account_path):
+            cred = credentials.Certificate(service_account_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            print(f"Warning: serviceAccount.json not found at {service_account_path}")
     except Exception as e:
         print(f"CRITICAL: Failed to initialize Firebase Admin SDK: {e}")
         # You might want to handle this more gracefully
 
-db_firestore = firestore.client()  # Firestore client
-
-# Your original file had 'auth = firebase.auth()' at the end.
-# This was redundant, as it's already set on line 18.
-# The 'auth' object from pyrebase is correctly used by your login/register windows.
+try:
+    db_firestore = firestore.client()  # Firestore client
+except Exception as e:
+    print(f"Warning: Could not initialize Firestore client: {e}")
+    db_firestore = None

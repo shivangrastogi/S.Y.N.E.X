@@ -1,6 +1,7 @@
 # auth/login_window.py
 from PyQt5.QtWidgets import QWidget, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QLabel
 from PyQt5.QtCore import Qt
+from .firebase_config import auth, db, db_firestore
 import json
 import os
 import requests
@@ -8,9 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 import webbrowser
-
-from pc_app.auth.firebase_config import auth, db, db_firestore
-
+>>>>>>> jarvis-repo/main
 
 class LoginWindow(QWidget):
     def __init__(self, switch_to_register, switch_to_chat, switch_to_complete_profile):  # Added new callback
@@ -141,7 +140,11 @@ class LoginWindow(QWidget):
     def save_local_session(self, user_data_with_token):
         """Saves user data and tokens to the local JSON file."""
         os.makedirs("pc_app", exist_ok=True)
+<<<<<<< HEAD
         file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
+=======
+        file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
+>>>>>>> jarvis-repo/main
         with open(file_path, "w") as f:
             json.dump(user_data_with_token, f)
 

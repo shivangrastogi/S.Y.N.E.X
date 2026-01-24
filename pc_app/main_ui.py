@@ -6,8 +6,7 @@ from auth.register_window import RegisterWindow
 from auth.loading_window import LoadingWindow
 from auth.engine_manager import engine_manager
 from auth.complete_profile_window import CompleteProfileWindow
-from auth.setup_wizard import SetupWizard
-from auth.engine_manager import VOSK_MODEL_PATH
+from auth.setup_wizard import SetupWizard, VOSK_MODEL_PATH
 
 
 # DO NOT import ChatWindow here
@@ -39,7 +38,8 @@ class MainApp(QStackedWidget):
             self.setCurrentWidget(self.login_page)
 
     def load_user_data(self):
-        file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
+        # Use relative path from pc_app directory
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_data.json")
         if os.path.exists(file_path):
             try:
                 with open(file_path, "r") as f:
@@ -94,7 +94,11 @@ class MainApp(QStackedWidget):
         """Clears session and returns to login page."""
         print("Logging out...")
         # 1. Clear local session file
+<<<<<<< HEAD
         file_path = r"C:\Users\bosss\PycharmProjects\PythonProject\jarvis\PythonProject3\pc_app\user_data.json"
+=======
+        file_path = r"D:\OFFICIAL_JARVIS\Personal-Assistant\pc_app\user_data.json"
+>>>>>>> jarvis-repo/main
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
