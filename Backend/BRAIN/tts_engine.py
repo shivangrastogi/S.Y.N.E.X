@@ -14,7 +14,11 @@ class TTSEngine:
                 cls._instance._initialize(*args, **kwargs)
             return cls._instance
 
-    def _initialize(self, base_dir=r"D:\OFFICIAL_JARVIS\Personal-Assistant\Backend\DATA\SPEAK MODAL\local_tts_modal", device="cpu"):
+    def _initialize(self, base_dir=None, device="cpu"):
+        # Resolve default model path relative to BACKEND if not provided
+        if base_dir is None:
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            base_dir = os.path.join(backend_dir, "DATA", "SPEAK MODAL", "local_tts_modal")
         tts_model_path = os.path.join(base_dir, "tts_models--en--ljspeech--fast_pitch", "model_file.pth")
         tts_config_path = os.path.join(base_dir, "tts_models--en--ljspeech--fast_pitch", "config.json")
         vocoder_model_path = os.path.join(base_dir, "vocoder_models--en--ljspeech--hifigan_v2", "model_file.pth")
