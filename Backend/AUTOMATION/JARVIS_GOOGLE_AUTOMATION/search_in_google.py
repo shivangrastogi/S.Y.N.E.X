@@ -1,7 +1,7 @@
 import pywhatkit
 import random
 from DATA.JARVIS_DLG_DATASET.DLG import search_result
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 
 
 def search_google(text):

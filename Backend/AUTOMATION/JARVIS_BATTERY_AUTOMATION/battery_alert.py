@@ -1,8 +1,9 @@
+# battery_alert
 import random
 import time
 import psutil
 from DATA.JARVIS_DLG_DATASET.DLG import low_b, last_low, full_battery
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 
 last_level = None
 

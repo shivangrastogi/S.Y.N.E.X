@@ -1,6 +1,7 @@
+# check_battery_percentage.py
 import psutil
 
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 
 
 def battery_percentage():

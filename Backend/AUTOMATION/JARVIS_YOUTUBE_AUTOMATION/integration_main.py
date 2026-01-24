@@ -6,24 +6,8 @@ from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.play_pause_video_in_youtube import *
 from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.search_in_youtube import *
 from AUTOMATION.JARVIS_YOUTUBE_AUTOMATION.youtube_video_playback import *
 from FUNCTION.JARVIS_LISTEN.listen import listen
-from FUNCTION.JARVIS_SPEAK.speak import *
 from DATA.JARVIS_DLG_DATASET.DLG import *
-#
-# from os import getcwd
-#
-# def clear_input_file():
-#     with open(f"{getcwd()}\\input.txt", "w") as input_file:
-#         input_file.truncate(0)
-#
-# def check_song_name():
-#   while True:
-#     with open(f"{getcwd()}\\input.txt", "r") as input_text:
-#         input_text = input_text.read().lower()  # Convert to lowercase for consistency
-#         if input_text:
-#             play_music_on_youtube(input_text)
-#             break
-#         else:
-#             pass
+from UTILS.tts_singleton import speak
 
 def youtube_cmd(text):
     if text in x :

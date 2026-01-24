@@ -4,7 +4,7 @@ import pyautogui as ui
 import random
 import time
 from DATA.JARVIS_DLG_DATASET.DLG import s2, s1
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 import pygetwindow as gw
 
 def is_browser_active():

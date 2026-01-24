@@ -2,7 +2,7 @@ import time
 import pywhatkit as kt
 import random
 from DATA.JARVIS_DLG_DATASET.DLG import playsong, playing_dlg
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 
 
 def play_music_on_youtube(text):

@@ -4,7 +4,7 @@ import pyautogui as ui
 import webbrowser
 
 from DATA.JARVIS_DLG_DATASET.DLG import yt_search , s1, s2
-from FUNCTION.JARVIS_SPEAK.speak import speak
+from UTILS.tts_singleton import speak
 
 
 def youtube_search(text):
