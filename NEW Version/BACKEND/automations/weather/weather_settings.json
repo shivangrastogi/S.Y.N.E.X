@@ -1,0 +1,26 @@
+{
+  "enable_weather_cache": true,
+  "weather_cache_duration": 600,
+  "enable_location_cache": false,
+  "location_cache_duration": 3600,
+  "max_retries": 2,
+  "retry_delay": 0.1,
+  "request_timeout": 3,
+  "default_location": "Paris",
+  "auto_detect_location": true,
+  "location_providers": [
+    "http://ip-api.com/json",
+    "https://ipinfo.io/json"
+  ],
+  "default_unit": "metric",
+  "include_feels_like": true,
+  "include_humidity": true,
+  "include_wind": true,
+  "include_pressure": false,
+  "include_visibility": false,
+  "use_short_response": false,
+  "round_temperature": true,
+  "decimal_places": 1,
+  "weather_api_provider": "openweathermap",
+  "debug": true
+}

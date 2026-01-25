@@ -1,0 +1,66 @@
+# Python Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Models & TTS
+BACKEND/DATA/models/
+BACKEND/DATA/CUSTOM_TTS/
+*.pt
+*.pth
+*.onnx
+*.pb
+*.h5
+*.pkl
+*.pickle
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Build & Distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS Files
+Thumbs.db
+desktop.ini
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Data Files (optional - uncomment if needed)
+# BACKEND/DATA/JARVIS_RESPONSES/
+# BACKEND/DATA/NGROK/
+# BACKEND/DATA/soundeffect/
