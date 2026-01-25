@@ -768,6 +768,8 @@ class CenterContent(QWidget):
     def closeEvent(self, event):
         if hasattr(self, "gesture_anim_timer") and self.gesture_anim_timer.isActive():
             self.gesture_anim_timer.stop()
+        if hasattr(self, "ring") and hasattr(self.ring, "_timer") and self.ring._timer.isActive():
+            self.ring._timer.stop()
         super().closeEvent(event)
 
 
