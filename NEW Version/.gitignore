@@ -22,6 +22,8 @@ __pycache__/
 # Models & TTS
 DATA/models/
 DATA/CUSTOM_TTS/
+BACKEND/DATA/models/
+BACKEND/DATA/CUSTOM_TTS/
 *.pt
 *.pth
 *.onnx
