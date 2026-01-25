@@ -1,0 +1,16 @@
+Hello Jarvis.
+Can you hear me clearly.
+This is a simple sentence for testing.
+I am testing the listen and speak system.
+Please repeat what I am saying.
+The weather today feels pleasant.
+Artificial intelligence is fascinating.
+Speech recognition should be accurate.
+Text to speech should sound natural.
+This sentence is slightly longer to test clarity and flow.
+Sometimes people speak quickly and sometimes very slowly.
+Background noise can affect microphone quality.
+Jarvis should stop speaking if I interrupt.
+Now I am going to pause for a moment.
+Did you hear that correctly.
+This is the final test sentence.
