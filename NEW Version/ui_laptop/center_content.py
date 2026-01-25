@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QFrame, QPushButton, QTextEdit, QSizePolicy, QStackedWidget, QGraphicsOpacityEffect
-from PyQt6.QtCore import Qt, QRect, QPointF, QTimer, QSize, QPropertyAnimation, QEasingCurve
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QFrame, QPushButton, QTextEdit, QSizePolicy, QStackedWidget
+from PyQt6.QtCore import Qt, QRect, QPointF, QTimer, QSize
 from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QRadialGradient, QPixmap, QIcon, QTextOption, QImage
 import os
 import math
