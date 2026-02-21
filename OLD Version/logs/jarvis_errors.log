@@ -1,6 +1,0 @@
-2025-11-23 21:04:26 | NLU Model not found: DATA/MODELS/NLU_MODELS/model-best
-2025-11-23 21:04:51 | NLU Model not found: DATA/MODELS/NLU_MODELS/model-best
-2025-11-23 21:05:14 | NLU Model not found: DATA/MODELS/NLU_MODELS
-2025-11-23 21:06:04 | NLU Model not found: DATA/MODELS/NLU_MODELS/model-best
-2025-12-16 16:51:49 | NLU Model not found: C:\Users\Shivang\PycharmProjects\Personal Assistant\BACKEND\DATA\MODELS\NLU_MODELS\intent_xlm_roberta_final
-2025-12-16 17:00:19 | NLU Initialization failed: Model directory not found: C:\Users\Shivang\PycharmProjects\Personal Assistant\BACKEND\DATA\MODELS\MODELS\intent_xlm_roberta_final

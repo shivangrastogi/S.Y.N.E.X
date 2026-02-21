@@ -1,0 +1,32 @@
+# Credentials & Tokens
+**/tokens/
+**/credentials.json
+**/token.pickle
+*token.pickle
+
+# AI Models & Feedback
+**/jarvis_model.pkl
+**/feedback.json
+
+# Environment & Cache
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+bin/
+lib/
+include/
+share/
+.DS_Store
+*.log
+*.sqlite
+.vscode/
+.gemini/
+.agent/
+data/
+error_log.txt
+error_log_2.txt
