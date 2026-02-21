@@ -1,0 +1,12 @@
+SpeechRecognition
+pyaudio
+edge-tts
+pygame
+langdetect
+fastapi
+uvicorn[standard]
+pydantic
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+dateparser

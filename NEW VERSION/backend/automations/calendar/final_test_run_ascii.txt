@@ -1,0 +1,38 @@
+System Time: 2026-02-19 22:02:23
+
+--- TEST CASE: Full Information in One Go ---
+User: Schedule a meeting about Project Alpha tomorrow at 5 PM
+JARVIS: Perfect. Scheduling 'Project alpha' for Friday at 05:00 PM.
+SUCCESS: Data to save -> {'title': 'Project alpha', 'date_time': datetime.datetime(2026, 2, 20, 17, 0)}
+
+--- TEST CASE: Missing Title ---
+User: Schedule a meeting tomorrow at 3 PM
+JARVIS: What is the meeting about?
+User: Weekly Sync
+JARVIS: Perfect. Scheduling 'Weekly sync' for Friday at 03:00 PM.
+SUCCESS: Data to save -> {'title': 'Weekly sync', 'date_time': datetime.datetime(2026, 2, 20, 15, 0)}
+
+--- TEST CASE: Just 'Schedule a Meeting' ---
+User: Schedule a meeting
+JARVIS: When should I schedule the meeting?
+User: today at 10 PM
+JARVIS: What is the meeting about?
+User: Interview with John
+JARVIS: Perfect. Scheduling 'Interview with john' for Thursday at 10:00 PM.
+SUCCESS: Data to save -> {'title': 'Interview with john', 'date_time': datetime.datetime(2026, 2, 19, 22, 0)}
+
+--- TEST CASE: Missing Date/Time ---
+User: Schedule a meeting called Team Lunch
+JARVIS: When should I schedule the meeting?
+User: next Friday at 1 PM
+JARVIS: Perfect. Scheduling 'Team lunch' for Friday at 01:00 PM.
+SUCCESS: Data to save -> {'title': 'Team lunch', 'date_time': datetime.datetime(2026, 2, 20, 13, 0)}
+
+--- TEST CASE: Insufficient Data (Retry Limit Test) ---
+User: Schedule a meeting
+JARVIS: When should I schedule the meeting?
+User: I don't know when
+JARVIS: When should I schedule the meeting?
+User: Maybe later
+JARVIS: I'm sorry, I couldn't get all the details. Let's try again later.
+FLOW ENDED: I'm sorry, I couldn't get all the details. Let's try again later.

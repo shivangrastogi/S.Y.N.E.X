@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Arc -->
+    <path
+        android:fillColor="#00d4ff"
+        android:pathData="M54,24c-16.5,0-30,13.5-30,30s13.5,30,30,30 30-13.5,30-30h-6c0,13.2-10.8,24-24,24s-24-10.8-24-24 10.8-24,24-24v6z" />
+    
+    <!-- Inner Arc -->
+    <path
+        android:fillColor="#7ffbff"
+        android:pathData="M54,40c-7.7,0-14,6.3-14,14s6.3,14,14,14 14-6.3,14-14 -6.3-14-14-14zM54,64c-5.5,0-10-4.5-10-10s4.5-10,10-10 10,4.5,10,10-4.5,10-10,10z" />
+    
+    <!-- Center Core -->
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M54,49c-2.7,0-5,2.3-5,5s2.3,5,5,5 5-2.3,5-5-2.3-5-5-5z" />
+</vector>
