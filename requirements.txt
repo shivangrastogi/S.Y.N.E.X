@@ -11,8 +11,3 @@ pyyaml
 requests
 psutil
 keyboard
-tensorflow
-nltk
-opencv-python
-mediapipe
-
