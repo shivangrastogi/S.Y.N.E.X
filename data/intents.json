@@ -1,0 +1,34 @@
+{
+    "open_app": {
+        "patterns": ["open chrome", "open notepad", "open browser", "start calculator", "open visual studio code", "kholo", "chalu karo"],
+        "required_entities": ["app_name"],
+        "prompts": {
+            "app_name": "Kaunsa app kholu bhai?"
+        }
+    },
+    "close_app": {
+        "patterns": ["close chrome", "close notepad", "stop process", "band karo", "hatao"],
+        "required_entities": ["app_name"],
+        "prompts": {
+            "app_name": "Kaunsa app band karna hai?"
+        }
+    },
+    "get_weather": {
+        "patterns": ["weather", "tell weather", "show weather", "current temperature", "mausam"],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "play_music": {
+        "patterns": ["play music", "play song", "next track", "gana sunao"],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "schedule_meeting": {
+        "patterns": ["meeting schedule karo", "book a meeting", "meeting fix karo", "baithak"],
+        "required_entities": ["person", "time"],
+        "prompts": {
+            "person": "Aap kiske saath meeting schedule karna chahte hain?",
+            "time": "Meeting ka time kya hona chahiye?"
+        }
+    }
+}
