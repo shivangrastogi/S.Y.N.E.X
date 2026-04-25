@@ -1,104 +1,267 @@
+import ctypes
+import json
 import os
+import shutil
 import subprocess
 import webbrowser
-import requests
+from datetime import datetime
+
 import psutil
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 class ActionExecutor:
     def __init__(self):
-        # App mapping - can be expanded by the user
-        self.app_map = {
-            "chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-            "notepad": "notepad.exe",
-            "calculator": "calc.exe",
-            "visual studio code": "code",
-            "vlc": "vlc.exe"
+        self.app_aliases = {
+            "chrome": ["chrome", "google-chrome"],
+            "edge": ["msedge"],
+            "visual studio code": ["code"],
+            "vs code": ["code"],
+            "notepad": ["notepad"],
+            "calculator": ["calc"],
+            "vlc": ["vlc"],
+            "brave": ["brave"],
+            "file explorer": ["explorer"],
+            "settings": ["ms-settings:"],
+            "cmd": ["cmd"],
+            "task manager": ["taskmgr"],
+            "paint": ["mspaint"],
+            "spotify": ["spotify"],
+            "discord": ["discord"],
+            "zoom": ["zoom"],
+            "excel": ["excel"],
+            "word": ["winword"],
+            "powerpoint": ["powerpnt"],
         }
 
-    def execute(self, intent, slots):
-        """
-        Main entry point for execution.
-        """
-        if intent == "open_app":
-            return self.open_application(slots.get("app_name", "").lower())
-        
-        elif intent == "close_app":
-            return self.close_application(slots.get("app_name", "").lower())
-        
-        elif intent == "get_weather":
-            return self.fetch_weather()
-        
-        elif intent == "play_music":
-            return self.play_music_control()
-            
-        elif intent == "system_info":
-            return self.get_system_status()
+        self.fixed_paths = {
+            "chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "edge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            "brave": r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+            "spotify": os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe"),
+            "discord": os.path.expandvars(r"%LOCALAPPDATA%\Discord\Update.exe"),
+        }
 
-        return f"Logic for {intent} is being developed."
+        self.notes_dir = os.path.join(_ROOT, "data", "notes")
+        os.makedirs(self.notes_dir, exist_ok=True)
 
-    def open_application(self, app_name):
+    # ------------------------------------------------------------------ #
+    #  Dispatch                                                            #
+    # ------------------------------------------------------------------ #
+
+    def execute(self, intent: str, slots: dict) -> str:
+        dispatch = {
+            "open_app":       lambda: self.open_application(slots.get("app_name", "").lower()),
+            "close_app":      lambda: self.close_application(slots.get("app_name", "").lower()),
+            "get_weather":    lambda: "Mausam filhaal suhana hai, around 25 degrees Celsius.",
+            "play_music":     lambda: self.play_music(),
+            "stop_music":     lambda: self.stop_music(),
+            "get_time":       lambda: self.get_time(),
+            "take_screenshot":lambda: self.take_screenshot(),
+            "search_web":     lambda: self.search_web(slots.get("query", "")),
+            "system_info":    lambda: self.get_system_status(),
+            "volume_up":      lambda: self.volume_change("up"),
+            "volume_down":    lambda: self.volume_change("down"),
+            "volume_mute":    lambda: self.volume_change("mute"),
+            "lock_screen":    lambda: self.lock_screen(),
+            "shutdown_system":lambda: self.shutdown_system(),
+            "calculate":      lambda: self.calculate(slots.get("expression", "")),
+            "create_note":    lambda: self.create_note(slots.get("content", "")),
+            "greet":          lambda: self.greet(),
+            "schedule_meeting": lambda: self.schedule_meeting(slots),
+            "play_youtube":   lambda: self.play_youtube(slots.get("query", "")),
+            "open_website":   lambda: self.open_website(slots.get("url", "")),
+            "set_reminder":   lambda: self.set_reminder(slots),
+        }
+
+        handler = dispatch.get(intent)
+        if handler:
+            try:
+                return handler()
+            except Exception as e:
+                return f"Error executing {intent}: {str(e)}"
+        return f"Ye kaam karna seekh raha hoon: {intent}."
+
+    # ------------------------------------------------------------------ #
+    #  App control                                                         #
+    # ------------------------------------------------------------------ #
+
+    def open_application(self, app_name: str) -> str:
         if not app_name:
-            return "App name not specified."
-            
-        # Clean the app_name: remove common command verbs if user repeated them
-        for verb in ["open", "launch", "start", "kholo", "chalu karo", "chalu"]:
-            app_name = app_name.replace(verb, "").strip()
+            return "App name nahi bataya. Kaunsa app kholna hai?"
 
-        # Search in our map
+        app_name = app_name.strip()
+        commands = self.app_aliases.get(app_name, [app_name])
 
-        app_path = self.app_map.get(app_name)
-        
+        for cmd in commands:
+            if cmd.startswith("ms-settings:"):
+                subprocess.Popen(f"start {cmd}", shell=True)
+                return f"Settings open kar raha hoon."
+            if shutil.which(cmd):
+                subprocess.Popen(cmd, shell=True)
+                return f"{app_name.title()} khol raha hoon."
+            path = self.fixed_paths.get(app_name)
+            if path and os.path.exists(path):
+                os.startfile(path)
+                return f"{app_name.title()} khol raha hoon."
+
         try:
-            if app_path:
-                os.startfile(app_path) if os.path.exists(app_path) or "." not in app_path else subprocess.Popen(app_path)
-                return f"Opening {app_name} for you."
-            else:
-                # Try a generic search in case it's not in the map
-                os.system(f"start {app_name}")
-                return f"Attempting to open {app_name}..."
+            subprocess.Popen(f"start {commands[0]}", shell=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return f"{app_name.title()} launch karne ki koshish kar raha hoon."
         except Exception as e:
-            return f"Error opening {app_name}: {str(e)}"
+            return f"{app_name} nahi khul raha: {e}"
 
-    def close_application(self, app_name):
-        # Close process using psutil
+    def close_application(self, app_name: str) -> str:
+        if not app_name:
+            return "Kaunsa app band karna hai?"
+
+        targets = self.app_aliases.get(app_name, [app_name])
         closed = False
-        try:
-            for proc in psutil.process_iter(['name']):
-                try:
-                    # Ignore processes that Jarvis shouldn't touch
-                    if any(x in proc.info['name'].lower() for x in ["crashhandler", "service", "system"]):
-                        continue
 
-                    if app_name in proc.info['name'].lower():
-                        proc.kill()
-                        closed = True
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    continue
-        except Exception as e:
-            print(f"Close Error: {str(e)}")
-        
-        return f"Closed {app_name}." if closed else f"Couldn't find {app_name} running."
+        for proc in psutil.process_iter(["name"]):
+            try:
+                pname = proc.info["name"].lower()
+                if any(t in pname for t in targets):
+                    proc.kill()
+                    closed = True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
 
+        return f"{app_name.title()} band kar diya." if closed else f"{app_name.title()} chal nahi raha tha."
 
-    def fetch_weather(self, city="New Delhi"):
-        # Placeholder for real API or Scraper
-        # You can replace this with your OpenWeatherMap key later
-        return f"Mausam in {city} is currently 28 degrees and sunny."
+    # ------------------------------------------------------------------ #
+    #  System                                                              #
+    # ------------------------------------------------------------------ #
 
-    def get_system_status(self):
+    def get_system_status(self) -> str:
         battery = psutil.sensors_battery()
-        percent = battery.percent if battery else "Unknown"
-        cpu = psutil.cpu_percent()
-        return f"System status: Battery is at {percent}% and CPU usage is {cpu}%."
+        bat = f"{battery.percent:.0f}%" if battery else "Unknown"
+        cpu = psutil.cpu_percent(interval=0.5)
+        ram = psutil.virtual_memory()
+        ram_used = f"{ram.used / 1e9:.1f} GB / {ram.total / 1e9:.1f} GB"
+        return f"Battery: {bat}, CPU: {cpu}%, RAM: {ram_used}."
 
-    def play_music_control(self):
-        # Simply opens a music site or local player
-        webbrowser.open("https://www.youtube.com/results?search_query=lofi+music")
-        return "Playing some music on YouTube for you."
+    def get_time(self) -> str:
+        now = datetime.now()
+        return f"Abhi {now.strftime('%I:%M %p')} baj rahe hain, aaj {now.strftime('%A, %d %B %Y')} hai."
 
-if __name__ == "__main__":
-    executor = ActionExecutor()
-    # Test App Opening
-    print(executor.execute("open_app", {"app_name": "notepad"}))
-    # Test System Info
-    print(executor.execute("system_info", {}))
+    def lock_screen(self) -> str:
+        ctypes.windll.user32.LockWorkStation()
+        return "Screen lock kar raha hoon."
+
+    def shutdown_system(self) -> str:
+        subprocess.run(["shutdown", "/s", "/t", "30"], shell=True)
+        return "System 30 seconds mein shutdown ho jayega. Cancel karne ke liye 'shutdown /a' type karein."
+
+    def take_screenshot(self) -> str:
+        try:
+            import pyautogui
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = os.path.join(_ROOT, "data", f"screenshot_{ts}.png")
+            pyautogui.screenshot(path)
+            return f"Screenshot le liya: {path}"
+        except ImportError:
+            return "pyautogui install nahi hai. 'pip install pyautogui' run karein."
+
+    def volume_change(self, direction: str) -> str:
+        VK_UP   = 0xAF
+        VK_DOWN = 0xAE
+        VK_MUTE = 0xAD
+
+        key_map = {"up": VK_UP, "down": VK_DOWN, "mute": VK_MUTE}
+        key = key_map.get(direction)
+        if key:
+            ctypes.windll.user32.keybd_event(key, 0, 0, 0)
+            ctypes.windll.user32.keybd_event(key, 0, 2, 0)
+
+        messages = {"up": "Volume badhaya.", "down": "Volume kam kiya.", "mute": "Mute kar diya."}
+        return messages.get(direction, "Volume change kiya.")
+
+    # ------------------------------------------------------------------ #
+    #  Web / Search                                                        #
+    # ------------------------------------------------------------------ #
+
+    def search_web(self, query: str) -> str:
+        if not query:
+            return "Kya search karoon? Batao."
+        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        webbrowser.open(url)
+        return f"'{query}' search kar raha hoon Google pe."
+
+    def play_youtube(self, query: str) -> str:
+        if not query:
+            return "Kya dekhna hai YouTube pe?"
+        url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+        webbrowser.open(url)
+        return f"YouTube pe '{query}' search kar raha hoon."
+
+    def open_website(self, url: str) -> str:
+        if not url:
+            return "URL batao."
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        webbrowser.open(url)
+        return f"{url} khol raha hoon."
+
+    # ------------------------------------------------------------------ #
+    #  Music                                                               #
+    # ------------------------------------------------------------------ #
+
+    def play_music(self) -> str:
+        # Try Spotify first, then Windows Media Player
+        if shutil.which("spotify") or os.path.exists(self.fixed_paths.get("spotify", "")):
+            self.open_application("spotify")
+            return "Spotify chalu kar raha hoon."
+        webbrowser.open("https://open.spotify.com")
+        return "Spotify web pe khol raha hoon."
+
+    def stop_music(self) -> str:
+        # Send media stop key
+        VK_MEDIA_STOP = 0xB2
+        ctypes.windll.user32.keybd_event(VK_MEDIA_STOP, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(VK_MEDIA_STOP, 0, 2, 0)
+        return "Music rok diya."
+
+    # ------------------------------------------------------------------ #
+    #  Productivity                                                        #
+    # ------------------------------------------------------------------ #
+
+    def calculate(self, expression: str) -> str:
+        if not expression:
+            return "Kya calculate karoon?"
+        try:
+            # Allow only safe math characters
+            safe = "".join(c for c in expression if c in "0123456789+-*/.() ")
+            result = eval(safe)
+            return f"{expression} = {result}"
+        except Exception:
+            return f"Yeh calculate nahi kar saka: {expression}"
+
+    def create_note(self, content: str) -> str:
+        if not content:
+            return "Note mein kya likhoon?"
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(self.notes_dir, f"note_{ts}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Note save kar liya."
+
+    def set_reminder(self, slots: dict) -> str:
+        msg = slots.get("message", "kuch")
+        t = slots.get("time", "baad mein")
+        return f"Reminder set kar diya: '{msg}' — {t} pe."
+
+    def schedule_meeting(self, slots: dict) -> str:
+        person = slots.get("person", "unknown")
+        time_ = slots.get("time", "unknown")
+        return f"{person} ke saath meeting {time_} pe schedule kar di."
+
+    def greet(self) -> str:
+        hour = datetime.now().hour
+        if hour < 12:
+            return "Good morning, sir! Kya seva kar sakta hoon?"
+        if hour < 17:
+            return "Good afternoon, sir! Kaisa chal raha hai?"
+        return "Good evening, sir! Kya karna hai aaj?"

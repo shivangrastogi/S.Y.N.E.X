@@ -1,101 +1,103 @@
 import json
 import os
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 class StateManager:
-    def __init__(self, intents_path='data/intents.json'):
-        self.intents_path = intents_path
+    """
+    Manages conversation state for multi-turn entity slot-filling.
+
+    Flow:
+      process_prediction()  →  checks required entities
+                                ├─ missing entity  →  asks prompt, sets is_waiting=True
+                                └─ all filled       →  returns SUCCESS_EXECUTE|intent|{slots}
+
+      handle_follow_up()    →  called when is_waiting=True
+                                fills next missing slot, calls process_prediction again
+    """
+
+    def __init__(self, intents_path: str = None):
+        self.intents_path = intents_path or os.path.join(_ROOT, "data", "intents.json")
+        self._reset()
+        self.intents_data = self._load_intents()
+
+    def _load_intents(self) -> dict:
+        with open(self.intents_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _reset(self):
         self.current_state = {
             "intent": None,
             "slots": {},
             "is_waiting": False,
-            "waiting_for": None
+            "waiting_for": None,
         }
-        self.load_intents()
 
-    def load_intents(self):
-        with open(self.intents_path, 'r') as f:
-            self.intents_data = json.load(f)
+    # ------------------------------------------------------------------ #
 
-    def process_prediction(self, prediction, extracted_entities):
-        """
-        Takes the neural prediction and current extracted entities to decide 
-        if we can execute or need to ask for more info.
-        """
+    def process_prediction(self, prediction: list, extracted_entities: dict) -> str:
         if not prediction:
-            return "Sorry, I didn't understand that."
+            return "Sorry, samajh nahi aaya."
 
-        intent_name = prediction[0]['intent']
+        intent_name = prediction[0]["intent"]
         intent_config = self.intents_data.get(intent_name)
 
         if not intent_config:
-            return "Intent configuration missing."
+            return f"Intent '{intent_name}' ki configuration missing hai."
 
-        # Initialize the state for the new intent
         self.current_state["intent"] = intent_name
         self.current_state["slots"].update(extracted_entities)
 
-        # Check for missing required entities
-        required = intent_config.get("required_entities", [])
-        for entity in required:
-            if entity not in self.current_state["slots"] or not self.current_state["slots"][entity]:
+        # Check each required entity in order
+        for entity in intent_config.get("required_entities", []):
+            val = self.current_state["slots"].get(entity)
+            if not val:
                 self.current_state["is_waiting"] = True
                 self.current_state["waiting_for"] = entity
-                return intent_config["prompts"].get(entity, f"Please provide the {entity}.")
+                prompt = intent_config["prompts"].get(entity, f"Please provide the {entity}.")
+                return prompt
 
-        # If all slots are filled
+        # All slots are filled — ready to execute
         self.current_state["is_waiting"] = False
         self.current_state["waiting_for"] = None
-        
-        # Capture intent before reset
-        final_intent = intent_name
+
+        final_intent = self.current_state["intent"]
         final_slots = self.current_state["slots"].copy()
-        
-        # Reset state after capturing
-        self.reset_state()
-        
+        self._reset()
+
         return f"SUCCESS_EXECUTE|{final_intent}|{json.dumps(final_slots)}"
 
-    def handle_follow_up(self, user_input):
-        """
-        If we were waiting for a specific entity, treat this input as that entity.
-        """
-        if self.current_state["is_waiting"]:
-            entity_name = self.current_state["waiting_for"]
-            self.current_state["slots"][entity_name] = user_input
-            
-            # Re-process with the new data
-            return self.process_prediction([{"intent": self.current_state["intent"]}], self.current_state["slots"])
-        
-        return None
+    def handle_follow_up(self, user_input: str) -> str:
+        """Called when is_waiting=True. Stores the user answer and re-processes."""
+        if not self.current_state["is_waiting"]:
+            return None
 
-    def execute_intent(self, intent, slots):
-        # Deprecated: Handled by main_engine and executor
-        pass
+        entity_name = self.current_state["waiting_for"]
+        self.current_state["slots"][entity_name] = user_input.strip()
 
+        # Re-process with same intent so next missing entity (if any) is prompted
+        return self.process_prediction(
+            [{"intent": self.current_state["intent"]}],
+            self.current_state["slots"],
+        )
 
-    def reset_state(self):
-        self.current_state = {
-            "intent": None,
-            "slots": {},
-            "is_waiting": False,
-            "waiting_for": None
-        }
+    def execute_direct(self, intent_name: str, slots: dict) -> str:
+        """Bypass slot-filling and go straight to execution format."""
+        return f"SUCCESS_EXECUTE|{intent_name}|{json.dumps(slots)}"
+
 
 if __name__ == "__main__":
     sm = StateManager()
-    
-    # Test Case 1: Incomplete Command
-    print("User: Schedule a meeting")
-    # Simulation: Neural Engine predicts 'schedule_meeting', but no entities found
-    response = sm.process_prediction([{"intent": "schedule_meeting"}], {})
-    print(f"Jarvis: {response}")
-    
-    # Follow-up
-    print("User: Shivang")
-    response = sm.handle_follow_up("Shivang")
-    print(f"Jarvis: {response}")
-    
-    # Second Follow-up
-    print("User: 5 PM")
-    response = sm.handle_follow_up("5 PM")
-    print(f"Jarvis: {response}")
+
+    print("User: schedule a meeting")
+    r = sm.process_prediction([{"intent": "schedule_meeting"}], {})
+    print(f"Jarvis: {r}")
+
+    print("User: with Shivang")
+    r = sm.handle_follow_up("with Shivang")
+    print(f"Jarvis: {r}")
+
+    print("User: at 5 PM")
+    r = sm.handle_follow_up("at 5 PM")
+    print(f"Jarvis: {r}")

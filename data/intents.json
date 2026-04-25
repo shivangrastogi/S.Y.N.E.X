@@ -1,34 +1,283 @@
 {
     "open_app": {
-        "patterns": ["open chrome", "open notepad", "open browser", "start calculator", "open visual studio code", "kholo", "chalu karo"],
+        "patterns": [
+            "open chrome", "chrome kholo", "chrome chalu karo", "launch chrome",
+            "open browser", "browser kholo", "google chrome open karo",
+            "open notepad", "notepad kholo", "notepad chalu karo",
+            "vs code open karo", "visual studio code kholo", "code editor open karo",
+            "calculator kholo", "calculator open karo", "calc chalu karo",
+            "vlc open karo", "media player chalu karo", "vlc chalao",
+            "spotify open karo", "spotify chalu karo",
+            "discord open karo", "discord chalu karo",
+            "file explorer kholo", "file manager open karo",
+            "koi app kholo", "app open karo", "application launch karo"
+        ],
         "required_entities": ["app_name"],
         "prompts": {
-            "app_name": "Kaunsa app kholu bhai?"
+            "app_name": "Kaunsa app kholna hai? Batao."
         }
     },
     "close_app": {
-        "patterns": ["close chrome", "close notepad", "stop process", "band karo", "hatao"],
+        "patterns": [
+            "chrome band karo", "close chrome", "chrome hatao",
+            "notepad band karo", "close notepad", "notepad hatao",
+            "vs code band karo", "close visual studio code",
+            "browser band karo", "close browser",
+            "app band karo", "close this app",
+            "vlc rok do", "close vlc",
+            "spotify band karo", "close spotify",
+            "discord hatao", "close discord",
+            "application quit karo", "app exit karo",
+            "yeh program band karo", "close this program"
+        ],
         "required_entities": ["app_name"],
         "prompts": {
             "app_name": "Kaunsa app band karna hai?"
         }
     },
     "get_weather": {
-        "patterns": ["weather", "tell weather", "show weather", "current temperature", "mausam"],
+        "patterns": [
+            "weather batao", "mausam kaisa hai", "aaj ka mausam kya hai",
+            "temperature kya hai", "weather forecast dikhao",
+            "barish hogi kya aaj", "what is the weather",
+            "tell me the weather", "current temperature batao",
+            "weather report do", "aaj garmi hai ya sardi",
+            "climate check karo", "baahar kaisa mausam hai",
+            "humidity kitni hai", "weather update do"
+        ],
         "required_entities": [],
         "prompts": {}
     },
     "play_music": {
-        "patterns": ["play music", "play song", "next track", "gana sunao"],
+        "patterns": [
+            "music sunao", "gana bajao", "play music",
+            "koi gaana chala do", "song play karo",
+            "music chala do", "some music please",
+            "gaana sunna hai", "play some songs",
+            "music on karo", "background music chala",
+            "mujhe gaana sunna hai", "songs play karo",
+            "music suno", "gaane bajao yaar"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "stop_music": {
+        "patterns": [
+            "music band karo", "gaana rok do", "stop music",
+            "music off karo", "pause the music",
+            "music pause karo", "gana band karo",
+            "stop song", "music ruko",
+            "audio off karo", "gaana roko",
+            "music stop", "song band karo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "set_reminder": {
+        "patterns": [
+            "reminder set karo", "alarm lagao", "mujhe yaad dilao",
+            "set a reminder", "alarm set karo", "remind me",
+            "notification set karo", "schedule reminder",
+            "time pe yaad dilana", "ek alarm chahiye",
+            "set an alarm", "mujhe remind karna",
+            "reminder banana hai", "alarm on karo"
+        ],
+        "required_entities": ["message", "time"],
+        "prompts": {
+            "message": "Kya reminder set karoon?",
+            "time": "Kis time ke liye reminder chahiye?"
+        }
+    },
+    "get_time": {
+        "patterns": [
+            "time kya hua hai", "what time is it", "kitne baje hain",
+            "current time batao", "time batao", "abhi kitna time hai",
+            "aaj ki date kya hai", "date batao",
+            "what is the date today", "aaj kaun sa din hai",
+            "day batao", "time check karo", "time kya hai abhi"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "take_screenshot": {
+        "patterns": [
+            "screenshot lo", "take a screenshot", "screen capture karo",
+            "screenshot lelo", "capture the screen",
+            "screen ka photo lo", "screengrab lo",
+            "screenshot please", "screen save karo",
+            "snapshot lo", "screen capture", "screen shot lo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "search_web": {
+        "patterns": [
+            "google pe search karo", "search the web", "internet pe dhundo",
+            "google karo", "web search karo", "search online",
+            "browser mein search karo", "internet search karo",
+            "google me dhundna hai", "search kar internet pe",
+            "online dhundo", "google search karo", "web pe search"
+        ],
+        "required_entities": ["query"],
+        "prompts": {
+            "query": "Kya search karoon?"
+        }
+    },
+    "system_info": {
+        "patterns": [
+            "system status batao", "battery kitni hai", "battery status",
+            "cpu usage kya hai", "ram kitni bachi hai",
+            "system health check", "how is the system",
+            "computer ki condition batao", "performance check karo",
+            "laptop ki battery batao", "system info do",
+            "cpu load kya hai", "memory usage batao",
+            "system performance dikhao"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "volume_up": {
+        "patterns": [
+            "volume badhao", "increase volume", "volume up karo",
+            "thoda aur loud karo", "awaaz badhao",
+            "sound increase karo", "louder karo",
+            "volume thoda upar karo", "sound badhao",
+            "audio up karo", "awaaz tez karo",
+            "zyada loud karo", "volume bada do"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "volume_down": {
+        "patterns": [
+            "volume kam karo", "decrease volume", "volume down karo",
+            "thoda halka karo", "awaaz kam karo",
+            "sound reduce karo", "volume ghata do",
+            "volume neeche karo", "sound halka karo",
+            "audio down karo", "awaaz halki karo",
+            "volume thoda kam karo", "sound kam karo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "volume_mute": {
+        "patterns": [
+            "volume mute karo", "mute karo", "awaaz band karo",
+            "sound off karo", "mute the sound",
+            "volume zero karo", "audio mute karo",
+            "speaker off karo", "sab mute kar do",
+            "chup karo volume", "sound mute",
+            "awaaz bilkul band karo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "lock_screen": {
+        "patterns": [
+            "screen lock karo", "lock the computer", "computer lock karo",
+            "screen band karo lock", "lock this pc",
+            "laptop lock karo", "screen ko lock kar do",
+            "computer lock kar de", "system lock karo",
+            "lock kar do screen", "pc lock",
+            "windows lock karo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "shutdown_system": {
+        "patterns": [
+            "computer band karo", "shutdown the computer",
+            "system shut down karo", "pc off karo",
+            "laptop band karo", "turn off the computer",
+            "computer ko shut down karo", "system off karo",
+            "pc band kar do", "computer off karo",
+            "reboot karo", "restart the computer",
+            "system restart karo"
+        ],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "calculate": {
+        "patterns": [
+            "calculate karo", "compute this", "kya hoga iska answer",
+            "math solve karo", "calculation karo",
+            "kitna hoga", "yeh calculate karo",
+            "solve karo", "answer batao math ka",
+            "kya result hoga", "do the math",
+            "calculation batao", "numbers calculate karo"
+        ],
+        "required_entities": ["expression"],
+        "prompts": {
+            "expression": "Kya calculate karoon? Expression batao."
+        }
+    },
+    "create_note": {
+        "patterns": [
+            "note bana do", "create a note", "yeh note kar lo",
+            "note likh do", "save this as note",
+            "note save karo", "ek note banao",
+            "write this down", "note kar do",
+            "note banana hai", "notepad mein likh do",
+            "yeh yaad rakh", "important note likh"
+        ],
+        "required_entities": ["content"],
+        "prompts": {
+            "content": "Kya note likhoon?"
+        }
+    },
+    "greet": {
+        "patterns": [
+            "hello", "hi jarvis", "hey", "good morning",
+            "good evening", "good night", "kya chal raha hai",
+            "sab theek hai kya", "namaste", "hi there",
+            "hello jarvis", "yo jarvis", "kaise ho tum",
+            "good afternoon", "hey jarvis", "ola",
+            "jarvis kya haal hai"
+        ],
         "required_entities": [],
         "prompts": {}
     },
     "schedule_meeting": {
-        "patterns": ["meeting schedule karo", "book a meeting", "meeting fix karo", "baithak"],
+        "patterns": [
+            "meeting schedule karo", "book a meeting",
+            "meeting fix karo", "appointment lelo",
+            "meeting lagao", "ek meeting organize karo",
+            "schedule a call", "meeting set karo",
+            "call schedule karo", "meeting book karo",
+            "meeting arrange karo", "baithak lagao"
+        ],
         "required_entities": ["person", "time"],
         "prompts": {
-            "person": "Aap kiske saath meeting schedule karna chahte hain?",
-            "time": "Meeting ka time kya hona chahiye?"
+            "person": "Kiske saath meeting karni hai?",
+            "time": "Kis time pe meeting rakhni hai?"
+        }
+    },
+    "play_youtube": {
+        "patterns": [
+            "youtube pe chalao", "play on youtube",
+            "youtube video dikhao", "youtube search karo",
+            "youtube open karke play karo", "youtube pe dhundho",
+            "video play karo youtube pe", "youtube watch karna hai",
+            "ek youtube video chalao", "youtube me search karo",
+            "youtube video dekna hai", "youtube open karo"
+        ],
+        "required_entities": ["query"],
+        "prompts": {
+            "query": "Kya dekhna hai YouTube pe?"
+        }
+    },
+    "open_website": {
+        "patterns": [
+            "website open karo", "open this website",
+            "url open karo", "browser mein kholo",
+            "link open karo", "site open karo",
+            "webpage open karo", "website visit karo",
+            "go to website", "open web page",
+            "website pe jao", "url visit karo"
+        ],
+        "required_entities": ["url"],
+        "prompts": {
+            "url": "Kaunsi website kholni hai? URL batao."
         }
     }
 }

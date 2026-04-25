@@ -2,8 +2,11 @@ import json
 import os
 from rapidfuzz import process, fuzz
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class IntentEngine:
-    def __init__(self, intents_path="data/intents.json"):
+    def __init__(self, intents_path=None):
+        intents_path = intents_path or os.path.join(_ROOT, "data", "intents.json")
         self.intents_path = intents_path
         self.intents = {}
         self.load_intents()
@@ -18,25 +21,22 @@ class IntentEngine:
     def get_intent(self, text, threshold=70):
         if not text:
             return None, 0
-            
-        best_match = None
+
         highest_score = 0
         detected_intent = None
-        
-        # Iterate through all intents and their sample sentences
-        for intent_name, patterns in self.intents.items():
-            # Use RapidFuzz to find the best match within this intent's patterns
+
+        for intent_name, config in self.intents.items():
+            patterns = config.get("patterns", []) if isinstance(config, dict) else config
+            if not patterns:
+                continue
             match = process.extractOne(text, patterns, scorer=fuzz.WRatio)
-            
             if match and match[1] > highest_score:
                 highest_score = match[1]
-                best_match = match[0]
                 detected_intent = intent_name
-        
+
         if highest_score >= threshold:
             return detected_intent, highest_score
-        else:
-            return "unknown", highest_score
+        return "unknown", highest_score
 
 if __name__ == "__main__":
     engine = IntentEngine()

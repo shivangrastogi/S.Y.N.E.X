@@ -1,5 +1,7 @@
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 import time
 import os
 import sys
@@ -9,65 +11,55 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class VisualCortex:
     def __init__(self, executor_engine=None):
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.5
-        )
-        self.mp_draw = mp.solutions.drawing_utils
         self.executor = executor_engine
         self.is_running = False
+        self.model_path = 'data/models/hand_landmarker.task'
+        
+        # Initialize Tasks API
+        base_options = python.BaseOptions(model_asset_path=self.model_path)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.VIDEO,
+            num_hands=1,
+            min_hand_detection_confidence=0.7,
+            min_hand_presence_confidence=0.5,
+            min_tracking_confidence=0.5
+        )
+        self.detector = vision.HandLandmarker.create_from_options(options)
+        print("Visual Cortex online (Modern API).")
 
     def start(self):
         self.is_running = True
         cap = cv2.VideoCapture(0)
-        print("Visual Cortex online. Camera active.")
-
+        
         while self.is_running:
             success, img = cap.read()
-            if not success:
-                break
-
-            # Convert to RGB for Mediapipe
+            if not success: break
+            
+            # Convert to RGB
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            results = self.hands.process(img_rgb)
-
-            if results.multi_hand_landmarks:
-                for hand_lms in results.multi_hand_landmarks:
-                    # Logic to identify specific gestures
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+            
+            # Detect in Video Mode (needs timestamp)
+            timestamp_ms = int(time.time() * 1000)
+            detection_result = self.detector.detect_for_video(mp_image, timestamp_ms)
+            
+            if detection_result.hand_landmarks:
+                for hand_lms in detection_result.hand_landmarks:
                     self.detect_gesture(hand_lms)
-                    # Draw landmarks for debug (optional)
-                    # self.mp_draw.draw_landmarks(img, hand_lms, self.mp_hands.HAND_CONNECTIONS)
-
-            # Performance optimization: small sleep
+                    
             time.sleep(0.01)
-
         cap.release()
 
-    def detect_gesture(self, hand_lms):
-        """
-        Analyze finger positions to detect simple gestures.
-        Index 8 is Index Finger Tip, 4 is Thumb Tip, etc.
-        """
-        landmarks = hand_lms.landmark
-        
-        # Simple Example: If Index finger tip (8) is above index finger knuckle (6)
-        # and other fingers are down, it's a "Point" gesture.
-        
+    def detect_gesture(self, landmarks):
+        # Index 8 is Tip, 6 is PIP joint
         index_up = landmarks[8].y < landmarks[6].y
+        # Middle 12 is Tip, 10 is PIP joint
         middle_up = landmarks[12].y < landmarks[10].y
         
         if index_up and not middle_up:
-            # Gesture: Volume Up / One Finger
-            if self.executor:
-                # self.executor.execute("system_control", {"action": "volume_up"})
-                pass
             print("Gesture Detected: Index Up")
-            
         elif index_up and middle_up:
-            # Gesture: Peace Sign / Two Fingers
             print("Gesture Detected: Peace Sign")
 
     def stop(self):

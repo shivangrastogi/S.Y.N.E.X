@@ -1,0 +1,28 @@
+{
+    "app_name": {
+        "chrome": ["chrome", "google chrome", "browser", "web browser", "google browser"],
+        "notepad": ["notepad", "text editor"],
+        "calculator": ["calculator", "calc", "calculator app"],
+        "visual studio code": ["vs code", "vscode", "visual studio code", "code editor", "visual studio"],
+        "vlc": ["vlc", "vlc player", "media player", "vlc media player"],
+        "brave": ["brave", "brave browser"],
+        "edge": ["edge", "microsoft edge", "ms edge"],
+        "file explorer": ["file explorer", "file manager", "explorer", "my computer", "this pc", "files"],
+        "spotify": ["spotify", "spotify app", "music app"],
+        "discord": ["discord", "discord app"],
+        "steam": ["steam", "steam app"],
+        "settings": ["settings", "control panel", "system settings", "preferences"],
+        "whatsapp": ["whatsapp", "whatsapp web"],
+        "excel": ["excel", "microsoft excel", "spreadsheet"],
+        "word": ["word", "microsoft word", "document editor"],
+        "powerpoint": ["powerpoint", "microsoft powerpoint", "presentation"],
+        "paint": ["paint", "ms paint"],
+        "task manager": ["task manager", "process manager", "processes"],
+        "cmd": ["cmd", "command prompt", "terminal", "command line"],
+        "zoom": ["zoom", "zoom meeting"],
+        "teams": ["teams", "microsoft teams"],
+        "telegram": ["telegram", "telegram app"],
+        "obs": ["obs", "obs studio", "screen recorder"],
+        "python": ["python", "python idle", "python shell"]
+    }
+}

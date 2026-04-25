@@ -1,13 +1,33 @@
-vosk
-pyaudio
-pyttsx3
-edge-tts
-pygame
-SpeechRecognition
-rapidfuzz
-scikit-learn
+# ── Audio I/O ────────────────────────────────────────────────────────
+SpeechRecognition          # online STT wrapper (kept until C12 swaps in faster-whisper)
+vosk                       # offline STT fallback
+pyaudio                    # mic input
+edge-tts                   # online TTS (best Hindi quality)
+pyttsx3                    # offline TTS final fallback
+pygame                     # audio playback
+
+# ── NLP / Brain ──────────────────────────────────────────────────────
+sentence-transformers      # multilingual encoder           [C1]
+scikit-learn               # k-NN intent index              [C1]
+spacy                      # NER + tokenisation             [C2 — optional, EntityExtractor degrades gracefully without it]
+                           # After install run: python -m spacy download en_core_web_sm
+# vaderSentiment           # sentiment v1                   [C3]
+rapidfuzz                  # fuzzy fallback (intent_engine.py)
+
+# ── LLM (chit-chat) ──────────────────────────────────────────────────
+requests                   # Ollama HTTP client             [C6]
+
+# ── UI / system ──────────────────────────────────────────────────────
 PyQt5
-pyyaml
-requests
 psutil
 keyboard
+pyautogui
+opencv-python              # gesture (utils/gesture.py)
+mediapipe                  # gesture (utils/gesture.py)
+
+# ── Misc ─────────────────────────────────────────────────────────────
+pyyaml
+nltk
+
+# ── REMOVED ──────────────────────────────────────────────────────────
+# tensorflow               # replaced by k-NN index in C1
