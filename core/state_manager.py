@@ -6,15 +6,16 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class StateManager:
     """
-    Manages conversation state for multi-turn entity slot-filling.
+    Multi-turn conversation state.
 
-    Flow:
-      process_prediction()  →  checks required entities
-                                ├─ missing entity  →  asks prompt, sets is_waiting=True
-                                └─ all filled       →  returns SUCCESS_EXECUTE|intent|{slots}
+    Two parallel modes:
+      - **slot-fill** (`is_waiting=True`): asking the user for a missing
+        required entity for an intent we've already classified.
+      - **disambig** (`is_waiting_disambig=True`): asking the user to choose
+        between top-1 and top-2 candidate intents from a close-call prediction.
 
-      handle_follow_up()    →  called when is_waiting=True
-                                fills next missing slot, calls process_prediction again
+    Both modes are mutually exclusive and both can be aborted by `reset()`
+    (used when the user issues a cancel keyword).
     """
 
     def __init__(self, intents_path: str = None):
@@ -32,7 +33,38 @@ class StateManager:
             "slots": {},
             "is_waiting": False,
             "waiting_for": None,
+            "is_waiting_disambig": False,
+            "disambig_prediction": None,    # core.intent_classifier.Prediction
+            "disambig_text": None,           # original utterance triggering disambig
         }
+
+    # Public alias — main_engine calls this on cancel keyword.
+    def reset(self) -> None:
+        self._reset()
+
+    def is_waiting_slot(self) -> bool:
+        return self.current_state["is_waiting"]
+
+    def is_waiting_disambig(self) -> bool:
+        return self.current_state["is_waiting_disambig"]
+
+    # ------------------------------------------------------------------ #
+    #  Disambig                                                           #
+    # ------------------------------------------------------------------ #
+
+    def set_awaiting_disambig(self, prediction, original_text: str) -> None:
+        """Park a close-call prediction; main_engine will speak the prompt."""
+        self._reset()
+        self.current_state["is_waiting_disambig"] = True
+        self.current_state["disambig_prediction"] = prediction
+        self.current_state["disambig_text"] = original_text
+
+    def consume_disambig(self):
+        """Pop and return (prediction, original_text); resets state."""
+        prediction = self.current_state["disambig_prediction"]
+        text = self.current_state["disambig_text"]
+        self._reset()
+        return prediction, text
 
     # ------------------------------------------------------------------ #
 

@@ -29,5 +29,8 @@ mediapipe                  # gesture (utils/gesture.py)
 pyyaml
 nltk
 
+# ── Dev / test ───────────────────────────────────────────────────────
+pytest                     # test runner                    [C11]
+
 # ── REMOVED ──────────────────────────────────────────────────────────
 # tensorflow               # replaced by k-NN index in C1
