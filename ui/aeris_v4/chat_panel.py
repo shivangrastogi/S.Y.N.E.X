@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import random
 import time
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPointF, QRectF
 from PyQt5.QtGui import QPainter, QPen, QColor, QBrush, QFont
@@ -38,6 +39,11 @@ class ChatPanel(QWidget):
         hleft.addWidget(t1); hleft.addWidget(self._subtitle)
         hlay.addLayout(hleft); hlay.addStretch(1)
 
+        # Busy pill (THINKING/SPEAKING) — only visible when state is busy.
+        self._busy_pill = _Pill("THINKING", C.CYAN, blink=True)
+        self._busy_pill.setVisible(False)
+        hlay.addWidget(self._busy_pill)
+
         self._state_pill = _Pill("LIVE", C.RED, blink=True)
         hlay.addWidget(self._state_pill)
 
@@ -58,9 +64,22 @@ class ChatPanel(QWidget):
         self._msg_layout = QVBoxLayout(self._msg_container)
         self._msg_layout.setContentsMargins(16, 16, 16, 16)
         self._msg_layout.setSpacing(16)
+        # Processing indicator sits at the bottom of the message list and is
+        # shown/hidden via set_state(). Lives BEFORE the stretch so the
+        # 'sender row + bubble' read in document order.
+        self._processing_indicator = _ProcessingDots()
+        self._processing_indicator.setVisible(False)
+        self._msg_layout.addWidget(self._processing_indicator)
         self._msg_layout.addStretch(1)
         self._scroll.setWidget(self._msg_container)
         root.addWidget(self._scroll, 1)
+
+        # Streaming state: which bubble is currently streaming (if any).
+        self._streaming_bubble: _MessageBubble | None = None
+        self._stream_timer: QTimer | None = None
+        self._stream_buffer = ""
+        self._stream_full   = ""
+        self._stream_idx    = 0
 
         # Input bar
         self._input_bar = _InputBar()
@@ -87,6 +106,65 @@ class ChatPanel(QWidget):
     def set_state(self, key: str):
         self._state = key
         self._input_bar.set_state(key)
+        # Header busy pill — only shown for PROCESSING / SPEAKING.
+        if key == "PROCESSING":
+            self._busy_pill.set_data("THINKING", C.CYAN)
+            self._busy_pill.setVisible(True)
+        elif key == "SPEAKING":
+            self._busy_pill.set_data("SPEAKING", C.PURPLE)
+            self._busy_pill.setVisible(True)
+        else:
+            self._busy_pill.setVisible(False)
+        # Processing dots — only while PROCESSING and no streaming bubble yet.
+        self._processing_indicator.setVisible(
+            key == "PROCESSING" and self._streaming_bubble is None
+        )
+        if self._processing_indicator.isVisible():
+            QTimer.singleShot(50, self._scroll_to_bottom)
+
+    # ── Streaming API (typewriter into a single AERIS bubble) ────────
+    def stream_message(self, text: str, tag: tuple[str, QColor] | None = None,
+                       speed_ms: int = 18):
+        """Add an AERIS bubble whose text appears character-by-character.
+
+        Caller can chain another stream_message after the previous finishes;
+        we cancel any in-flight stream when a new one starts.
+        """
+        self._cancel_stream()
+        self._processing_indicator.setVisible(False)
+        self._stream_full = text
+        self._stream_idx = 0
+        self._stream_buffer = ""
+
+        bubble = _MessageBubble("aeris", "", tag, time.strftime("%H:%M:%S"),
+                                streaming=True)
+        idx = self._msg_layout.count() - 2  # before processing dots + stretch
+        self._msg_layout.insertWidget(idx, bubble)
+        self._streaming_bubble = bubble
+        self._messages.append({"role": "aeris", "text": text, "tag": tag,
+                               "time": time.strftime("%H:%M:%S")})
+        self._subtitle.setText(f"Session • {len(self._messages)} messages")
+
+        self._stream_timer = QTimer(self)
+        self._stream_timer.timeout.connect(self._stream_tick)
+        self._stream_timer.start(speed_ms)
+        QTimer.singleShot(50, self._scroll_to_bottom)
+
+    def _stream_tick(self):
+        if self._streaming_bubble is None:
+            self._cancel_stream(); return
+        self._stream_idx += 1
+        self._stream_buffer = self._stream_full[: self._stream_idx]
+        self._streaming_bubble.set_text(self._stream_buffer)
+        if self._stream_idx >= len(self._stream_full):
+            self._streaming_bubble.set_streaming(False)
+            self._cancel_stream()
+
+    def _cancel_stream(self):
+        if self._stream_timer is not None:
+            self._stream_timer.stop()
+            self._stream_timer = None
+        self._streaming_bubble = None
 
     # ── Helpers ───────────────────────────────────────────────────────
     def _scroll_to_bottom(self):
@@ -132,6 +210,11 @@ class _Pill(QWidget):
         self._phase = (time.monotonic() - self._start) * 2 * math.pi / 1.2
         self.update()
 
+    def set_data(self, text: str, color: QColor) -> None:
+        self._text = text
+        self._color = color
+        self.update()
+
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -154,7 +237,8 @@ class _Pill(QWidget):
 
 
 class _MessageBubble(QWidget):
-    def __init__(self, role: str, text: str, tag, time_label: str, parent=None):
+    def __init__(self, role: str, text: str, tag, time_label: str,
+                 streaming: bool = False, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, False)
         is_aeris = role == "aeris"
@@ -165,7 +249,10 @@ class _MessageBubble(QWidget):
         # sender row
         sender_row = QHBoxLayout(); sender_row.setSpacing(6)
         if is_aeris:
-            sender_row.addWidget(_SmallDot(C.CYAN))
+            self._sender_dot = _SmallDot(C.CYAN, blink=streaming)
+            sender_row.addWidget(self._sender_dot)
+        else:
+            self._sender_dot = None
         name = QLabel("A.E.R.I.S" if is_aeris else "YOU")
         name.setFont(mono(10, 700))
         name.setStyleSheet(f"color: {C.CYAN.name() if is_aeris else C.TEXT_SEC.name()}; letter-spacing: 1px;")
@@ -180,37 +267,89 @@ class _MessageBubble(QWidget):
         v.addLayout(sender_row)
 
         # bubble
-        bubble = _BubbleBody(is_aeris, text)
+        self._body = _BubbleBody(is_aeris, text, streaming=streaming)
         bubble_row = QHBoxLayout(); bubble_row.setContentsMargins(0, 0, 0, 0)
         if is_aeris:
-            bubble_row.addWidget(bubble); bubble_row.addStretch(1)
+            bubble_row.addWidget(self._body); bubble_row.addStretch(1)
         else:
-            bubble_row.addStretch(1); bubble_row.addWidget(bubble)
+            bubble_row.addStretch(1); bubble_row.addWidget(self._body)
         v.addLayout(bubble_row)
 
-        if tag:
-            tag_text, tag_color = tag
-            pill = _Pill(tag_text, tag_color, blink=False)
-            pill_row = QHBoxLayout(); pill_row.setContentsMargins(0, 0, 0, 0)
-            if is_aeris:
-                pill_row.addWidget(pill); pill_row.addStretch(1)
-            else:
-                pill_row.addStretch(1); pill_row.addWidget(pill)
-            v.addLayout(pill_row)
+        # tag pill (hidden while streaming so it doesn't appear before done)
+        self._pill_row = None
+        if tag and not streaming:
+            self._add_tag_pill(v, is_aeris, tag)
+
+    def _add_tag_pill(self, v, is_aeris, tag):
+        tag_text, tag_color = tag
+        pill = _Pill(tag_text, tag_color, blink=False)
+        self._pill_row = QHBoxLayout(); self._pill_row.setContentsMargins(0, 0, 0, 0)
+        if is_aeris:
+            self._pill_row.addWidget(pill); self._pill_row.addStretch(1)
+        else:
+            self._pill_row.addStretch(1); self._pill_row.addWidget(pill)
+        v.addLayout(self._pill_row)
+
+    # ── Streaming hooks (used by ChatPanel.stream_message) ───────────
+    def set_text(self, text: str) -> None:
+        self._body.set_text(text)
+
+    def set_streaming(self, on: bool) -> None:
+        self._body.set_streaming(on)
+        if self._sender_dot is not None:
+            self._sender_dot.set_blink(on)
 
 
 class _BubbleBody(QWidget):
-    def __init__(self, is_aeris: bool, text: str, parent=None):
+    def __init__(self, is_aeris: bool, text: str, streaming: bool = False, parent=None):
         super().__init__(parent)
         self._is_aeris = is_aeris
-        self._label = QLabel(text)
+        self._streaming = streaming
+        self._text = text
+
+        self._label = QLabel(self._render())
         self._label.setWordWrap(True)
+        self._label.setTextFormat(Qt.RichText)
         self._label.setFont(mono(12, 400))
         self._label.setStyleSheet(f"color: {C.TEXT_PRI.name()}; line-height: 1.6;")
         self._label.setMaximumWidth(300)
         lay = QVBoxLayout(self); lay.setContentsMargins(14, 10, 14, 10)
         lay.addWidget(self._label)
         self.setMaximumWidth(330)
+
+        # While streaming, blink the cursor by repainting label html every ~280ms.
+        self._cursor_on = True
+        self._cursor_timer = QTimer(self)
+        self._cursor_timer.timeout.connect(self._blink_cursor)
+        if streaming:
+            self._cursor_timer.start(280)
+
+    # ── Public API ───────────────────────────────────────────────────
+    def set_text(self, text: str) -> None:
+        self._text = text
+        self._label.setText(self._render())
+
+    def set_streaming(self, on: bool) -> None:
+        self._streaming = on
+        if on:
+            self._cursor_on = True
+            if not self._cursor_timer.isActive():
+                self._cursor_timer.start(280)
+        else:
+            self._cursor_timer.stop()
+        self._label.setText(self._render())
+
+    def _blink_cursor(self):
+        self._cursor_on = not self._cursor_on
+        self._label.setText(self._render())
+
+    def _render(self) -> str:
+        # Escape just enough that user input doesn't break the html.
+        body = (self._text or "").replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br>")
+        if self._streaming:
+            cursor = "▌" if self._cursor_on else "&nbsp;"
+            return f'{body}<span style="color:{C.CYAN.name()}">{cursor}</span>'
+        return body
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -226,19 +365,140 @@ class _BubbleBody(QWidget):
 
 
 class _SmallDot(QWidget):
-    def __init__(self, color, parent=None):
+    """8x8 dot. Optional blink animation (used for streaming sender dot)."""
+    def __init__(self, color, blink: bool = False, parent=None):
         super().__init__(parent)
         self._color = color
+        self._blink = blink
+        self._start = time.monotonic()
         self.setFixedSize(8, 8)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self.update)
+        if blink:
+            self._timer.start(60)
+
+    def set_blink(self, on: bool) -> None:
+        self._blink = on
+        if on:
+            if not self._timer.isActive():
+                self._timer.start(60)
+        else:
+            self._timer.stop()
+            self.update()
+
+    def paintEvent(self, _):
+        if self._blink:
+            phase = (time.monotonic() - self._start) * 2 * math.pi / 0.7
+            alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
+        else:
+            alpha = 1.0
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        glow = QColor(self._color); glow.setAlphaF(alpha * 0.5)
+        p.setPen(Qt.NoPen); p.setBrush(glow)
+        p.drawEllipse(self.rect())
+        c = QColor(self._color); c.setAlphaF(alpha)
+        p.setBrush(c)
+        p.drawEllipse(self.rect().adjusted(2, 2, -2, -2))
+
+
+class _ProcessingDots(QWidget):
+    """Three blinking dots in an AERIS-styled bubble — shown while PROCESSING.
+
+    Mirrors the jsx 'Processing dots' indicator: a sender row + a small
+    dark bubble containing 3 cyan dots that blink with staggered phase.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        v = QVBoxLayout(self); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(5)
+
+        # sender row (matches AERIS message header)
+        row = QHBoxLayout(); row.setSpacing(6)
+        row.addWidget(_SmallDot(C.CYAN, blink=True))
+        name = QLabel("A.E.R.I.S")
+        name.setFont(mono(10, 700))
+        name.setStyleSheet(f"color: {C.CYAN.name()}; letter-spacing: 1px;")
+        row.addWidget(name); row.addStretch(1)
+        v.addLayout(row)
+
+        # bubble with 3 staggered-blink dots
+        bubble = _DotsBubble()
+        bubble_row = QHBoxLayout(); bubble_row.setContentsMargins(0, 0, 0, 0)
+        bubble_row.addWidget(bubble); bubble_row.addStretch(1)
+        v.addLayout(bubble_row)
+
+
+class _DotsBubble(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(74, 38)
+        self._start = time.monotonic()
+        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
-        glow = QColor(self._color); glow.setAlphaF(0.5)
-        p.setPen(Qt.NoPen); p.setBrush(glow)
-        p.drawEllipse(self.rect())
-        p.setBrush(self._color)
-        p.drawEllipse(self.rect().adjusted(2, 2, -2, -2))
+        # bubble bg
+        p.setPen(QPen(C.BORDER, 1))
+        p.setBrush(rgba(C.CARD, 0.9))
+        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 14, 14)
+        # 3 dots, each phase-shifted by 333ms
+        cy = self.height() / 2
+        for i in range(3):
+            cx = 18 + i * 14
+            phase = (time.monotonic() - self._start - i * 0.33) * 2 * math.pi / 1.0
+            alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
+            glow = QColor(C.CYAN); glow.setAlphaF(alpha * 0.5)
+            p.setPen(Qt.NoPen); p.setBrush(glow)
+            p.drawEllipse(QPointF(cx, cy), 5, 5)
+            c = QColor(C.CYAN); c.setAlphaF(alpha)
+            p.setBrush(c)
+            p.drawEllipse(QPointF(cx, cy), 3, 3)
+
+
+class _ListeningWaveform(QWidget):
+    """Pseudo-random green waveform shown above the input bar while listening."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(32)
+        self._start = time.monotonic()
+        # Pre-randomize per-bar phase + speed so we don't reseed every frame.
+        self._bars = [
+            (random.uniform(0.4, 0.9),     # speed factor
+             random.uniform(0, 2 * math.pi),  # phase offset
+             random.uniform(6, 22))           # max height
+            for _ in range(18)
+        ]
+        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        # bg pill
+        p.setPen(QPen(rgba(C.GREEN, 0.25), 1))
+        p.setBrush(rgba(C.GREEN, 0.07))
+        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 10, 10)
+
+        p.setPen(C.GREEN)
+        p.setFont(mono(9, 700))
+        p.drawText(QRectF(10, 0, 70, self.height()),
+                   Qt.AlignVCenter | Qt.AlignLeft, "LISTENING")
+
+        # bars
+        t = time.monotonic() - self._start
+        x0 = 88
+        bar_w = 3; gap = 5
+        cy = self.height() / 2
+        p.setPen(Qt.NoPen)
+        col = QColor(C.GREEN); col.setAlphaF(0.85)
+        for i, (speed, phase, max_h) in enumerate(self._bars):
+            local = math.sin(t * (2 + speed * 4) + phase)
+            h = 5 + (max_h - 5) * (0.5 + 0.5 * local)
+            x = x0 + i * (bar_w + gap)
+            if x + bar_w > self.width() - 10:
+                break
+            p.setBrush(col)
+            p.drawRoundedRect(QRectF(x, cy - h / 2, bar_w, h), 1.5, 1.5)
 
 
 class _InputBar(QWidget):
@@ -247,12 +507,19 @@ class _InputBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(86)
+        # Height varies with the waveform's visibility; use a min and let
+        # the parent layout grow us when listening.
+        self.setMinimumHeight(86)
         self._state = "IDLE"
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 14, 16, 16)
         root.setSpacing(8)
+
+        # Listening waveform (hidden unless state == LISTENING).
+        self._waveform = _ListeningWaveform()
+        self._waveform.setVisible(False)
+        root.addWidget(self._waveform)
 
         # Input row
         input_row = _InputRow()
@@ -283,6 +550,8 @@ class _InputBar(QWidget):
         }.get(key, "Message A.E.R.I.S…")
         self._field.setPlaceholderText(placeholder)
         self._field.setDisabled(key in ("LISTENING", "PROCESSING", "SPEAKING"))
+        # Toggle listening waveform
+        self._waveform.setVisible(key == "LISTENING")
 
     def _emit_send(self):
         txt = self._field.text().strip()

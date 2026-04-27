@@ -13,7 +13,7 @@ A **fully-local, Hinglish-native** personal assistant with:
 1. **Strong intent routing** — multilingual semantic encoder + k-NN over labelled patterns. Adds new patterns instantly with no retraining.
 2. **Layered entity extraction** — regex + gazetteer + NER + residual span. Almost no follow-up prompts needed.
 3. **Sentiment awareness** — Jarvis adapts tone when user is frustrated, excited, or neutral.
-4. **Long-term user memory** — persistent facts ("my name is Shivang", "I work at X", "remind me on weekdays"). Survives restarts.
+4. **Long-term user memory** — persistent facts ("my name is Shivang", "I work at X", "remind me on weekdays"). Survives restarts.!
 5. **Short-term conversation context** — last N turns inform follow-ups and pronoun resolution.
 6. **Chit-chat fallback via local LLM** (Ollama + Phi-3 or Llama-3.2) — anything not routed to a skill becomes a conversational reply.
 7. **Reward-shaped continual learning** — every utterance + outcome logged; per-intent confidence thresholds learn from acceptance rate; low-confidence utterances queued for user labelling.

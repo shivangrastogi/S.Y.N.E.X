@@ -108,19 +108,9 @@ class TitleBar(QWidget):
         lay.setContentsMargins(14, 0, 20, 0)
         lay.setSpacing(10)
 
-        # Menu / sidebar toggle (hamburger)
-        self.menu_btn = QPushButton()
-        self.menu_btn.setFixedSize(28, 28)
-        self.menu_btn.setFlat(True)
-        self.menu_btn.setCursor(Qt.PointingHandCursor)
-        self.menu_btn.setStyleSheet(f"""
-            QPushButton {{ border: none; border-radius: 6px; }}
-            QPushButton:hover {{ background: rgba(255,255,255,0.04); }}
-        """)
-        self.menu_btn.setText("≡")
-        self.menu_btn.setFont(inter(16, 500))
+        # Menu / sidebar toggle — three painted lines (matches jsx exactly).
+        self.menu_btn = _HamburgerButton()
         self.menu_btn.clicked.connect(self.sidebar_toggled.emit)
-        _style_flat_text(self.menu_btn, C.TEXT_MUT)
         lay.addWidget(self.menu_btn)
 
         # Logo dot
@@ -164,11 +154,18 @@ class TitleBar(QWidget):
         for b in (min_btn, max_btn, close_btn):
             lay.addWidget(b)
 
-        # Clock tick
+        # Clock + system stats tick.
+        # Clock updates every second; stats every 2 seconds (psutil is cheap
+        # but not free, and CPU/RAM don't change perceptibly more often).
         self._clock_timer = QTimer(self)
         self._clock_timer.timeout.connect(self._update_clock)
         self._clock_timer.start(1000)
         self._update_clock()
+
+        self._stats_timer = QTimer(self)
+        self._stats_timer.timeout.connect(self._update_sys_stats)
+        self._stats_timer.start(2000)
+        self._update_sys_stats()
 
     # ── Painting ─────────────────────────────────────────────────────
     def paintEvent(self, _):
@@ -183,6 +180,21 @@ class TitleBar(QWidget):
     def _update_clock(self):
         from datetime import datetime
         self.clock_label.setText(datetime.now().strftime("%H:%M:%S"))
+
+    # ── Live system stats (CPU / RAM / battery) ─────────────────────
+    def _update_sys_stats(self):
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=None)
+            ram_gb = psutil.virtual_memory().used / (1024 ** 3)
+            bat = psutil.sensors_battery()
+            bat_str = f"BAT {int(bat.percent)}%" if bat else "BAT --"
+            self.sys_label.setText(
+                f"CPU {int(cpu)}%   RAM {ram_gb:.1f}G   {bat_str}"
+            )
+        except Exception:
+            # psutil missing or sensor unavailable — leave the placeholder.
+            pass
 
     # ── Drag to move window ──────────────────────────────────────────
     def mousePressEvent(self, e):
@@ -221,3 +233,43 @@ class _LogoDot(QWidget):
 
 def _style_flat_text(btn: QPushButton, color: QColor):
     btn.setStyleSheet(btn.styleSheet() + f"QPushButton {{ color: {color.name()}; }}")
+
+
+class _HamburgerButton(QPushButton):
+    """28x28 button rendering 3 horizontal lines (sidebar toggle).
+
+    Mirrors the inline svg from aeris-app.jsx: three lines at y=1/6/11,
+    1.5px stroke, rounded caps, in TEXT_MUT.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(28, 28)
+        self.setFlat(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self._hover = False
+        self.setStyleSheet("QPushButton { border: none; }")
+
+    def enterEvent(self, _):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, _):
+        self._hover = False
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        # Subtle hover bg (matches jsx hover behaviour).
+        if self._hover:
+            bg = QColor(255, 255, 255); bg.setAlphaF(0.04)
+            p.setPen(Qt.NoPen); p.setBrush(bg)
+            p.drawRoundedRect(self.rect(), 6, 6)
+        # Three horizontal lines centered in a 16x12 box, like the jsx svg.
+        pen = QPen(C.TEXT_MUT, 1.5)
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        x0 = (self.width() - 16) / 2
+        y0 = (self.height() - 12) / 2
+        for dy in (1, 6, 11):
+            p.drawLine(QPointF(x0, y0 + dy), QPointF(x0 + 16, y0 + dy))

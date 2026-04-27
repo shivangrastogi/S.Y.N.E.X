@@ -42,6 +42,14 @@ _NAME_BOUNDARY = (
     r"|$|[.,!?])"
 )
 
+# Hindi/English copulas and discourse particles that must NOT be captured as
+# part of a name span. Without this, "mera naam shivang hai" greedily captures
+# "shivang hai" as a two-word name (the boundary `$` is satisfied at end-of-string).
+_NAME_BLOCKLIST = (
+    r"(?!(?:hai|tha|thi|hain|hoon|ho|ki|ka|ke|se|to|please|nice|"
+    r"right|ok|haan|bhi|bhai|sir|jarvis|aur|and|but)\b)"
+)
+
 
 # (key, regex, kind, ack_template)
 #   kind="single"   → save as fact[key] = group(1)
@@ -54,11 +62,16 @@ _NAME_BOUNDARY = (
 # eating its trailing space and another not.
 _DETECTORS: list[tuple[str, re.Pattern[str], str, str]] = [
     # ---- Name ----
+    # Captures up to two name words. The negative-lookahead BLOCKLIST stops
+    # the optional second word from eating Hindi copulas like "hai" / "hoon".
     (
         "name",
         re.compile(
             r"(?:my name is|mera naam(?:\s+hai)?|main hoon)\s+"
-            r"([a-zA-Z][a-zA-Z]{1,20}(?:\s+[a-zA-Z][a-zA-Z]{1,20})?)"
+            + _NAME_BLOCKLIST
+            + r"([a-zA-Z][a-zA-Z]{1,20}(?:\s+"
+            + _NAME_BLOCKLIST
+            + r"[a-zA-Z][a-zA-Z]{1,20})?)"
             + _NAME_BOUNDARY,
             re.IGNORECASE,
         ),

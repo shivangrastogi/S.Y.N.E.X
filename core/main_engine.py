@@ -45,6 +45,7 @@ from core.llm_chat import LLMChat
 from core.memory import UserMemory
 from core.sentiment import SentimentAnalyzer
 from core.state_manager import StateManager
+from core.utterance_parser import find_best_interpretation, split_into_segments
 
 log = logging.getLogger(__name__)
 
@@ -144,6 +145,10 @@ class JarvisMainEngine:
         Returns the assistant's response text, or None if the utterance was
         empty / silent. All side effects (state changes, DB writes, memory
         writes) happen inside.
+
+        Multi-command utterances ("X aur Y") are split into segments and
+        each segment runs through the brain pipeline independently. The
+        responses are joined with newlines.
         """
         if not text or not text.strip():
             return None
@@ -181,8 +186,9 @@ class JarvisMainEngine:
             self._pending_utterance_id = None
 
         # ── Step 2a: memory-RECALL first (more specific — needs interrogative form) ──
-        # Recall must run before store, otherwise "mera naam kya hai" gets caught
-        # by the name-store pattern as name="Kya Hai".
+        # Recall runs on the FULL utterance before splitting so that
+        # "mera naam kya hai aur mera ghar kahan hai" is still treated as
+        # a single recall pattern (the splitter would otherwise fragment it).
         recall = self.memory.detect_and_recall(text)
         if recall:
             self.history.add_user(text, "neutral")
@@ -200,20 +206,68 @@ class JarvisMainEngine:
         if _is_cancel(text):
             return "Kuch chal nahi raha cancel karne ke liye, sir."
 
-        # ── Step 4: sentiment ──
+        # ── Step 4: split into segments and run pipeline per segment ──
+        segments = split_into_segments(text)
+        responses: list[str] = []
+        for seg in segments:
+            seg_response = self._process_segment(seg)
+            if seg_response:
+                responses.append(seg_response)
+
+        if not responses:
+            return None
+        return "\n".join(responses)
+
+    def _process_segment(self, text: str) -> Optional[str]:
+        """Run brain prediction + execution on a single command segment.
+
+        This is the per-segment version of the original pipeline tail
+        (sentiment + brain + threshold + disambig + execute / fallback).
+        Memory / state / cancel checks have already happened in
+        process_text() against the full utterance.
+        """
+        if not text or not text.strip():
+            return None
+
+        # Sentiment is per-segment so a "weather batao aur tu bekaar hai"
+        # response can pick up the negative tone of the second clause.
         sentiment = self.sentiment.classify(text)
 
-        # ── Step 5: brain (raw, threshold=0 — we judge per-intent below) ──
-        pred = self.brain.predict(text, threshold=0.0)
+        # Subspan scanner: tries the full segment plus a few trimmed
+        # variants and picks the highest-confidence interpretation. This
+        # is what lets "ek kam karo notepad open karo" be recognised as
+        # open_app instead of volume_down ("kam karo" is filler here).
+        # The winning_span is used ONLY for intent classification — entity
+        # extraction still runs on the full segment so that app names /
+        # urls / queries that live OUTSIDE the trimmed span aren't lost.
+        pred, winning_span = find_best_interpretation(text, self.brain)
 
-        # ── Step 6: per-intent learned threshold (the bandit policy) ──
+        # Gazetteer override: if the segment contains a known app name AND
+        # an open/close verb, trust that structural evidence over the brain's
+        # cosine vote. Two reasons to fire:
+        #   (a) the brain disagrees ("brave open karo" → volume_up) — replace
+        #       the wrong prediction with the structural one;
+        #   (b) the brain agrees but its top3 is split between open/close,
+        #       which would otherwise trigger a needless disambig prompt
+        #       ("ek kam karo notepad open karo" had open_app=0.42, close_app=0.37).
+        # In both cases we collapse top3 to a single high-confidence pick.
+        hint = self.entity_extractor.intent_hint(text)
+        if hint:
+            pred = type(pred)(
+                intent=hint,
+                confidence=max(pred.confidence, 0.90),
+                top3=[(hint, 1.0)],
+                raw_text=pred.raw_text,
+                normalized_text=pred.normalized_text,
+            )
+
         intent_for_threshold = pred.intent or "_unknown"
         threshold = self.feedback.get_threshold(intent_for_threshold)
 
         self.history.add_user(text, sentiment.label)
 
         if pred.intent and pred.confidence >= threshold:
-            # 6a. close call?
+            # close call?
             if self.disambiguator.is_close_call(pred):
                 utterance_id = self.feedback.log_utterance(
                     raw_text=text,
@@ -231,7 +285,10 @@ class JarvisMainEngine:
                 self.history.add_assistant(prompt)
                 return prompt
 
-            # 6b. execute
+            # Entity extraction runs on the FULL segment text — never on
+            # the trimmed winning span, since trimming can drop the very
+            # token the slot needs ("chrome" in "chrome open karo" gets
+            # cut if the brain's most-confident subspan is just "open karo").
             entities = self.entity_extractor.extract(text, pred.intent)
             result_str = self.state.process_prediction(
                 [{"intent": pred.intent, "probability": f"{pred.confidence:.3f}"}],
@@ -254,7 +311,7 @@ class JarvisMainEngine:
             self.history.add_assistant(response or "")
             return response
 
-        # ── Step 7: low confidence → LLM chit-chat or rejection ──
+        # low confidence → LLM chit-chat or rejection
         return self._fallback(text, pred, sentiment)
 
     # ------------------------------------------------------------------ #

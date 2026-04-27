@@ -214,6 +214,42 @@ class EntityExtractor:
         return residual or None
 
     # ------------------------------------------------------------------ #
+    #  Intent hint from gazetteer + verb context                           #
+    # ------------------------------------------------------------------ #
+
+    # Verb roots that strongly indicate "I want to open / launch the named app".
+    _OPEN_VERBS = (
+        "open", "kholo", "khol", "kholna", "launch", "chalu", "chalao",
+        "chala", "start", "boot",
+    )
+    # Verb roots that strongly indicate "I want to close / quit the named app".
+    _CLOSE_VERBS = (
+        "close", "band", "hatao", "hata", "quit", "exit", "kill",
+        "rok", "ruko", "stop", "shut",
+    )
+
+    def intent_hint(self, text: str) -> Optional[str]:
+        """Return 'open_app' / 'close_app' if gazetteer + verb evidence is strong.
+
+        The encoder doesn't memorise every app name, so a sentence like
+        "brave open karo" can drift to a semantically-adjacent intent
+        (volume_up, because "brave" embeds near "loud/bold"). When the
+        gazetteer matches a real app AND a known open/close verb appears
+        in the same utterance, that's much harder evidence than a cosine
+        score — return the structural intent and let the caller override.
+        """
+        if not text:
+            return None
+        if self._extract_app(text) is None:
+            return None
+        toks = {t.lower() for t in re.findall(r"[a-zA-Z]+", text)}
+        if toks & set(self._CLOSE_VERBS):
+            return "close_app"
+        if toks & set(self._OPEN_VERBS):
+            return "open_app"
+        return None
+
+    # ------------------------------------------------------------------ #
     #  Public API                                                         #
     # ------------------------------------------------------------------ #
     def extract(self, text: str, intent: str) -> dict[str, str]:

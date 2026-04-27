@@ -1,17 +1,34 @@
-import sys
-import os
+"""GUI entry point — launches the JARVIS v3.1 desktop app.
 
-# Add the root directory to path
+IMPORTANT: torch is pre-imported BEFORE PyQt5 to dodge a known Windows
+WinError 1114 (DLL initialization failure) that surfaces when PyQt5 binds
+its own MSVC runtime first and then torch tries to load conflicting CRT
+DLLs from a worker thread. The pre-import is wrapped in try/except so the
+GUI still launches even if torch is broken — the brain just stays unhealthy
+and the logs panel surfaces the error.
+
+Older UI variants are still in:
+  - ui/aeris_v4/main_window.py    (the previous AERIS layout)
+  - ui/dashboard.py               (legacy dashboard)
+"""
+import os
+import sys
+
+# ── Pre-import torch to fix Windows DLL load order ─────────────────────
+# Loading torch BEFORE Qt avoids 'WinError 1114: A dynamic link library
+# (DLL) initialization routine failed' that some PyTorch+PyQt5 combos
+# trigger on Windows when torch is imported on a worker thread.
+try:
+    import torch  # noqa: F401  -- intentional eager import
+except Exception as _torch_err:
+    # Don't crash the GUI; surface the error in stderr and let BrainWorker
+    # report a clean failure when it tries to use the brain.
+    sys.stderr.write(f"[run_gui] WARN: torch pre-import failed: {_torch_err}\n")
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from ui.dashboard import JarvisDashboard
-from PyQt5.QtWidgets import QApplication
+from ui.jarvis_v31.main_window import launch
 
-def main():
-    app = QApplication(sys.argv)
-    dashboard = JarvisDashboard()
-    dashboard.show()
-    sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    main()
+    sys.exit(launch())

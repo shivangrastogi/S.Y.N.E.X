@@ -16,9 +16,9 @@ import math
 import time
 from PyQt5.QtCore import Qt, QRectF, QPointF, QTimer, pyqtSignal, pyqtProperty
 from PyQt5.QtGui import QPainter, QPen, QColor, QBrush, QRadialGradient, QFont, QPainterPath
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from .theme import C, STATES, rgba, mono
+from .theme import C, STATES, rgba, inter, mono
 
 
 class ArcReactor(QWidget):
@@ -270,3 +270,189 @@ class ArcReactor(QWidget):
 
 def _now_ms() -> int:
     return int(time.monotonic() * 1000)
+
+
+# ─── State text below the reactor ──────────────────────────────────────── #
+
+# Per-state copy. Mirrors the jsx infoMap. `sub` may be a callable that
+# receives `last_input` so PROCESSING / LISTENING can echo the user's text.
+_INFO = {
+    "IDLE":       ("AWAITING INPUT",      lambda x: "System nominal. All modules active.",                                     None),
+    "LISTENING":  ("LISTENING",           lambda x: f'"{x}"' if x else '"Awaiting voice stream…"',                              "Voice capture active"),
+    "PROCESSING": ("PROCESSING",          lambda x: (f'Analyzing: "{x[:42]}…"' if len(x) > 42 else f'Analyzing: "{x}"') if x else "Running semantic engine…", "NLU inference active"),
+    "SPEAKING":   ("GENERATING RESPONSE", lambda x: "Streaming output to terminal…",                                            "TTS pipeline active"),
+    "ERROR":      ("SYSTEM ERROR",        lambda x: "Reconnecting to semantic core…",                                           "Attempting recovery"),
+}
+
+
+class _Pill(QWidget):
+    """Small status pill with a blinking dot + monospaced label.
+
+    Used by ReactorStateText to show 'Voice capture active', etc. Mirrors
+    the jsx <Pill> primitive from aeris-core.jsx.
+    """
+    def __init__(self, text: str = "", color: QColor = None, blink: bool = True, parent=None):
+        super().__init__(parent)
+        self._text = text
+        self._color = color or C.CYAN
+        self._blink = blink
+        self._start = time.monotonic()
+        self.setFixedHeight(20)
+        if blink:
+            t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+
+    def set_data(self, text: str, color: QColor) -> None:
+        self._text = text
+        self._color = color
+        self._sync_width()
+        self.update()
+
+    def _sync_width(self) -> None:
+        # auto-fit width to text + padding (dot + gap + label + side pad)
+        from PyQt5.QtGui import QFontMetrics
+        fm = QFontMetrics(mono(9, 700))
+        w = 8 + 5 + 6 + fm.horizontalAdvance(self._text) + 10
+        self.setFixedWidth(w)
+
+    def showEvent(self, e):
+        self._sync_width()
+        super().showEvent(e)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+
+        rect = QRectF(0, 0, self.width(), self.height())
+        p.setPen(QPen(rgba(self._color, 0.45), 1))
+        p.setBrush(rgba(self._color, 0.12))
+        p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+
+        # blinking dot
+        if self._blink:
+            phase = (time.monotonic() - self._start) * 2 * math.pi / 1.2
+            alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
+        else:
+            alpha = 1.0
+        dot_col = QColor(self._color); dot_col.setAlphaF(alpha)
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgba(self._color, alpha * 0.5))
+        p.drawEllipse(QPointF(8, self.height() / 2), 4, 4)
+        p.setBrush(dot_col)
+        p.drawEllipse(QPointF(8, self.height() / 2), 2.5, 2.5)
+
+        p.setPen(self._color)
+        p.setFont(mono(9, 700))
+        text_rect = QRectF(15, 0, self.width() - 18, self.height())
+        p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, self._text)
+
+
+class ReactorStateText(QWidget):
+    """Three-row caption shown below the ArcReactor.
+
+    Layout:
+        ● MAIN LABEL                <- spec.color, mono 20, letter-spaced 4px
+        sub line text…              <- TEXT_MUT, mono 11
+        [ status pill ]             <- only when state != IDLE
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._state = "IDLE"
+        self._last_input = ""
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(10)
+        root.setAlignment(Qt.AlignHCenter)
+
+        # Row 1: dot + main label (centered)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        row.setAlignment(Qt.AlignHCenter)
+
+        self._dot = _BlinkDotInline(C.CYAN)
+        self._dot.setVisible(False)
+        row.addWidget(self._dot)
+
+        self._main = QLabel("AWAITING INPUT")
+        self._main.setFont(mono(20, 700))
+        self._main.setAlignment(Qt.AlignCenter)
+        row.addWidget(self._main)
+        root.addLayout(row)
+
+        # Row 2: sub
+        self._sub = QLabel("System nominal. All modules active.")
+        self._sub.setFont(mono(11, 400))
+        self._sub.setAlignment(Qt.AlignCenter)
+        self._sub.setStyleSheet(f"color: {C.TEXT_MUT.name()}; letter-spacing: 0.4px;")
+        self._sub.setMaximumWidth(460)
+        self._sub.setWordWrap(True)
+        root.addWidget(self._sub, alignment=Qt.AlignHCenter)
+
+        # Row 3: pill (hidden in IDLE)
+        self._pill = _Pill("", C.CYAN, blink=True)
+        self._pill.setVisible(False)
+        root.addWidget(self._pill, alignment=Qt.AlignHCenter)
+
+        self._apply_state()
+
+    # ── Public API ───────────────────────────────────────────────────
+    def set_state(self, key: str) -> None:
+        if key in STATES and key != self._state:
+            self._state = key
+            self._apply_state()
+
+    def set_last_input(self, text: str) -> None:
+        self._last_input = text or ""
+        if self._state in ("LISTENING", "PROCESSING"):
+            self._apply_state()
+
+    # ── Internals ────────────────────────────────────────────────────
+    def _apply_state(self) -> None:
+        spec = STATES[self._state]
+        main_text, sub_fn, pill_text = _INFO.get(self._state, _INFO["IDLE"])
+
+        # Dot only shown when not idle
+        self._dot.setVisible(self._state != "IDLE")
+        self._dot.set_color(spec.color)
+
+        # Main label colour is the state colour
+        self._main.setStyleSheet(
+            f"color: {spec.color.name()}; letter-spacing: 4px;"
+        )
+        self._main.setText(main_text)
+
+        # Sub text (function so PROCESSING/LISTENING can echo user input)
+        self._sub.setText(sub_fn(self._last_input))
+
+        # Pill (hidden when no pill_text)
+        if pill_text:
+            self._pill.set_data(pill_text, spec.color)
+            self._pill.setVisible(True)
+        else:
+            self._pill.setVisible(False)
+
+
+class _BlinkDotInline(QWidget):
+    """Tiny 8x8 blinking dot used inline in the state text row."""
+    def __init__(self, color: QColor, parent=None):
+        super().__init__(parent)
+        self._color = color
+        self.setFixedSize(10, 10)
+        self._start = time.monotonic()
+        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+
+    def set_color(self, color: QColor) -> None:
+        self._color = color
+        self.update()
+
+    def paintEvent(self, _):
+        phase = (time.monotonic() - self._start) * 2 * math.pi / 1.2
+        alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgba(self._color, alpha * 0.6))
+        p.drawEllipse(self.rect())
+        p.setBrush(rgba(self._color, alpha))
+        p.drawEllipse(self.rect().adjusted(2, 2, -2, -2))
