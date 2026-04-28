@@ -118,34 +118,49 @@ class BrainWorker(QObject):
 
 
 class VoiceWorker(QObject):
-    """Owns STT. One-shot `listen_once()` slot returns captured text."""
+    """Wraps ContinuousVoiceEngine as a QObject for QThread use.
 
-    captured = pyqtSignal(str)
-    error    = pyqtSignal(str)
-    started  = pyqtSignal()
+    Continuous listening with sleep/wake keyword detection. The inner capture
+    loop runs on a daemon thread; all signals are emitted back to the Qt thread.
+    """
+
+    # Forwarded from ContinuousVoiceEngine
+    listening_started = pyqtSignal()
+    captured          = pyqtSignal(str)
+    sleep_detected    = pyqtSignal()
+    wake_detected     = pyqtSignal()
+    state_changed     = pyqtSignal(str)    # STOPPED / ACTIVE / SLEEPING
+    error             = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
-        self._stt = None
+        self._engine = None
 
     @pyqtSlot()
     def initialize(self):
         try:
-            from core.stt import STT
-            self._stt = STT()
+            from core.voice_engine import ContinuousVoiceEngine
+            eng = ContinuousVoiceEngine(self)
+            eng.listening_started.connect(self.listening_started)
+            eng.captured.connect(self.captured)
+            eng.sleep_detected.connect(self.sleep_detected)
+            eng.wake_detected.connect(self.wake_detected)
+            eng.state_changed.connect(self.state_changed)
+            eng.error.connect(self.error)
+            self._engine = eng
+            eng.initialize()
         except Exception as e:
-            self.error.emit(f"STT init failed: {e}")
+            self.error.emit(f"Voice init failed: {e}")
 
     @pyqtSlot()
-    def listen_once(self):
-        if self._stt is None:
-            self.error.emit("STT not initialised."); return
-        self.started.emit()
-        try:
-            text = self._stt.listen() or ""
-        except Exception as e:
-            self.error.emit(f"STT failed: {e}"); return
-        self.captured.emit(text.strip())
+    def start_listening(self):
+        if self._engine:
+            self._engine.start_listening()
+
+    @pyqtSlot()
+    def stop_listening(self):
+        if self._engine:
+            self._engine.stop_listening()
 
 
 class SpeakWorker(QObject):
@@ -182,12 +197,13 @@ class SpeakWorker(QObject):
 class JarvisV31Window(QMainWindow):
     """Frameless 1440x900 JARVIS v3.1 desktop assembly."""
 
-    request_brain_init  = pyqtSignal()
-    request_brain_proc  = pyqtSignal(str)
-    request_voice_init  = pyqtSignal()
-    request_listen      = pyqtSignal()
-    request_speak_init  = pyqtSignal()
-    request_speak       = pyqtSignal(str)
+    request_brain_init   = pyqtSignal()
+    request_brain_proc   = pyqtSignal(str)
+    request_voice_init   = pyqtSignal()
+    request_voice_start  = pyqtSignal()
+    request_voice_stop   = pyqtSignal()
+    request_speak_init   = pyqtSignal()
+    request_speak        = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -269,6 +285,8 @@ class JarvisV31Window(QMainWindow):
 
         # ── Initial state + boot logs ───────────────────────────────
         self._current_state = "IDLE"
+        self._voice_state   = "STOPPED"   # tracks ContinuousVoiceEngine state
+        self._pending_voice: Optional[str] = None   # captured while busy
         self._set_state("IDLE")
         for typ, txt, hl in [
             ("SYS", "Neural core online · wiring grid initialized", False),
@@ -307,14 +325,18 @@ class JarvisV31Window(QMainWindow):
         self._brain_thread.start()
         QTimer.singleShot(60, self.request_brain_init.emit)
 
-        # Voice (STT) — lazily initialised so no mic permission prompt at boot
+        # Voice (continuous STT with sleep/wake) — runs on its own thread
         self._voice_thread = QThread(self)
         self._voice = VoiceWorker()
         self._voice.moveToThread(self._voice_thread)
         self.request_voice_init.connect(self._voice.initialize)
-        self.request_listen.connect(self._voice.listen_once)
-        self._voice.started.connect(self._on_voice_started)
+        self.request_voice_start.connect(self._voice.start_listening)
+        self.request_voice_stop.connect(self._voice.stop_listening)
+        self._voice.listening_started.connect(self._on_voice_started)
         self._voice.captured.connect(self._on_voice_captured)
+        self._voice.sleep_detected.connect(self._on_voice_sleep)
+        self._voice.wake_detected.connect(self._on_voice_wake)
+        self._voice.state_changed.connect(self._on_voice_state_changed)
         self._voice.error.connect(self._on_voice_error)
         self._voice_thread.start()
 
@@ -370,12 +392,31 @@ class JarvisV31Window(QMainWindow):
         if key not in JSTATES:
             return
         self._current_state = key
-        self.title_bar.pill.set_state(key)
-        self.reactor.set_state(key)
-        self.state_text.set_state(key)
-        self.state_sw.set_active(key)
-        self.wiring.set_state(key)
-        self.chat.set_state(key)
+        self._refresh_display_state()
+
+    def _refresh_display_state(self) -> None:
+        """Compute displayed reactor state from voice + system state.
+
+        Priority (highest → lowest):
+          1. PROCESSING / SPEAKING  — system is actively working
+          2. LISTENING              — voice engine is ACTIVE (or manual override)
+          3. IDLE                   — nothing happening
+        """
+        sys   = self._current_state
+        voice = self._voice_state
+        if sys in ("PROCESSING", "SPEAKING"):
+            display = sys
+        elif voice == "ACTIVE" or sys == "LISTENING":
+            display = "LISTENING"
+        else:
+            display = "IDLE"
+        self.title_bar.pill.set_state(display)
+        self.reactor.set_state(display)
+        self.state_text.set_state(display)
+        self.state_sw.set_active(display)
+        self.wiring.set_state(display)
+        self.chat.set_state(display)
+        self.chat.set_voice_state(self._voice_state)
 
     def _toggle_maximize(self):
         if self.isMaximized():
@@ -470,31 +511,52 @@ class JarvisV31Window(QMainWindow):
 
     # ── Voice wiring ────────────────────────────────────────────────
     def _on_mic(self):
-        # Toggle: if currently LISTENING, ignore (no clean way to abort
-        # speech_recognition mid-call). Otherwise start a one-shot capture.
-        if self._current_state in ("PROCESSING", "SPEAKING"):
+        """Toggle continuous voice mode on/off — 600 ms debounce guard.
+
+        Rapid taps (start → stop → start before the old capture thread exits)
+        would put two threads on the same PyAudio stream and crash. The debounce
+        ensures the engine has at least 600 ms to drain between toggles.
+        """
+        import time as _time
+        now = _time.monotonic()
+        if now - getattr(self, "_last_mic_toggle", 0.0) < 0.6:
             return
-        if self._current_state == "LISTENING":
-            return
-        self.logs.add_log("MIC", "Voice capture requested · listening…")
-        self.request_listen.emit()
+        self._last_mic_toggle = now
+
+        if self._voice_state == "STOPPED":
+            self.logs.add_log("MIC", "Voice mode ON · continuous listening started")
+            self.request_voice_start.emit()
+        else:
+            self.logs.add_log("MIC", "Voice mode OFF · mic deactivated")
+            self.request_voice_stop.emit()
 
     def _on_voice_started(self):
-        self._set_state("LISTENING")
+        self.logs.add_log("MIC", "Mic active · say 'jarvis sleep' to pause")
+
+    def _on_voice_state_changed(self, state: str) -> None:
+        self._voice_state = state
+        self._refresh_display_state()
+
+    def _on_voice_sleep(self):
+        self.logs.add_log("MIC", "Sleep mode · say 'wake up' to resume",
+                          highlight=True)
+
+    def _on_voice_wake(self):
+        self.logs.add_log("MIC", "Wake word detected · listening resumed",
+                          highlight=True)
 
     def _on_voice_captured(self, text: str):
         if not text:
-            self.logs.add_log("MIC", "No speech detected.", highlight=True)
-            self._set_state("IDLE")
             return
-        self.logs.add_log("MIC", f'Captured: "{text}"', highlight=True)
-        # Same path as a typed message
+        self.logs.add_log("MIC", f'Captured: "{text[:48]}"', highlight=True)
+        if self._current_state in ("PROCESSING", "SPEAKING"):
+            # Brain is busy — hold the last captured phrase; process when idle
+            self._pending_voice = text
+            return
         self._on_user_send(text)
 
     def _on_voice_error(self, msg: str):
         self.logs.add_log("ERR", msg, highlight=True)
-        if self._current_state == "LISTENING":
-            self._set_state("IDLE")
 
     # ── TTS wiring ──────────────────────────────────────────────────
     def _on_tts_done(self, _spoken: str):
@@ -509,10 +571,19 @@ class JarvisV31Window(QMainWindow):
 
     def _maybe_back_to_idle(self):
         if self._current_state == "SPEAKING" and self._tts_done:
-            self._set_state("IDLE")
+            if self._pending_voice:
+                pending = self._pending_voice
+                self._pending_voice = None
+                # Small delay so TTS audio finishes before next request starts
+                QTimer.singleShot(200, lambda: self._on_user_send(pending))
+            else:
+                self._set_state("IDLE")
 
     # ── Cleanup ─────────────────────────────────────────────────────
     def closeEvent(self, e):
+        # Stop voice engine so the daemon capture thread exits cleanly
+        if self._voice_state != "STOPPED":
+            self.request_voice_stop.emit()
         for th in (getattr(self, "_brain_thread", None),
                    getattr(self, "_voice_thread", None),
                    getattr(self, "_speak_thread", None)):

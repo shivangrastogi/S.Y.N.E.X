@@ -168,6 +168,10 @@ class GlassChatPanel(QWidget):
         """Show/hide the suggestion-chip grid (driven by the dock's nav tab)."""
         self._automation.setVisible(on)
 
+    def set_voice_state(self, state: str) -> None:
+        """Voice engine state (STOPPED / ACTIVE / SLEEPING) → chat input bar."""
+        self._input_bar.set_voice_state(state)
+
     def _on_chip_picked(self, label: str) -> None:
         """A suggestion chip was clicked — send it as a message and signal
         the parent so the dock can flip back to the 'chat' tab."""
@@ -493,6 +497,7 @@ class _BubbleBody(QWidget):
         self._is_ai = is_ai
         self._streaming = streaming
         self._text = text
+        self._cursor_on = True   # must be set before _render() is called
 
         self._label = QLabel(self._render())
         self._label.setWordWrap(True)
@@ -504,7 +509,6 @@ class _BubbleBody(QWidget):
         lay.addWidget(self._label)
         self.setMaximumWidth(335)
 
-        self._cursor_on = True
         self._cursor_timer = QTimer(self)
         self._cursor_timer.timeout.connect(self._blink_cursor)
         if streaming:
@@ -702,10 +706,47 @@ class _ListeningWave(QWidget):
             p.drawRoundedRect(QRectF(x, cy - h / 2, bar_w, h), 1.5, 1.5)
 
 
+# ─── Sleep mode pill ─────────────────────────────────────────────── #
+
+class _SleepPill(QWidget):
+    """Animated banner shown inside the input area when voice is sleeping."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(26)
+        self._start = time.monotonic()
+        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        rect = QRectF(0, 0, self.width(), self.height())
+        p.setPen(QPen(rgba(J.PURPLE, 0.40), 1))
+        p.setBrush(rgba(J.PURPLE, 0.10))
+        p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 11, 11)
+        # Slow-blink dot
+        ph = (time.monotonic() - self._start) * 2 * math.pi / 2.5
+        alpha = 0.35 + 0.35 * (0.5 + 0.5 * math.sin(ph))
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgba(J.PURPLE, alpha * 0.5))
+        p.drawEllipse(QPointF(11, self.height() / 2), 4, 4)
+        p.setBrush(rgba(J.PURPLE, alpha))
+        p.drawEllipse(QPointF(11, self.height() / 2), 2.5, 2.5)
+        p.setPen(rgba(J.PURPLE, 0.90))
+        p.setFont(mono(9, 700))
+        p.drawText(QRectF(20, 0, self.width() - 24, self.height()),
+                   Qt.AlignVCenter | Qt.AlignLeft,
+                   "SLEEP MODE · mic on · say 'wake up' to resume")
+
+
 # ─── Chat input bar ──────────────────────────────────────────────── #
 
 class _ChatInput(QWidget):
-    """Rounded glass input row with mic + gradient send + listening wave."""
+    """Glass input bar with continuous-voice support.
+
+    Voice state (STOPPED / ACTIVE / SLEEPING) is independent from the system
+    state (IDLE / PROCESSING / SPEAKING). The text field stays editable while
+    voice is active so the user can type AND speak freely.
+    """
 
     send = pyqtSignal(str)
     mic  = pyqtSignal()
@@ -713,18 +754,24 @@ class _ChatInput(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumHeight(86)
-        self._state = "IDLE"
+        self._sys_state   = "IDLE"
+        self._voice_state = "STOPPED"
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 10, 14, 14)
-        root.setSpacing(8)
+        root.setSpacing(6)
 
-        # listening waveform (hidden unless LISTENING)
+        # Sleep mode banner (shown when voice is SLEEPING)
+        self._sleep_pill = _SleepPill()
+        self._sleep_pill.setVisible(False)
+        root.addWidget(self._sleep_pill)
+
+        # Listening waveform (shown when voice is ACTIVE)
         self._wave = _ListeningWave()
         self._wave.setVisible(False)
         root.addWidget(self._wave)
 
-        # input row
+        # Input row
         self._input_row = _InputRow()
         self._field = self._input_row.field
         self._field.returnPressed.connect(self._emit_send)
@@ -732,7 +779,7 @@ class _ChatInput(QWidget):
         self._input_row.send_clicked.connect(self._emit_send)
         root.addWidget(self._input_row)
 
-        # hints row
+        # Hints row
         hints = QHBoxLayout(); hints.setSpacing(14); hints.setContentsMargins(4, 0, 0, 0)
         for h in ("↵ send", "⌥ mic", "Hinglish OK"):
             lbl = QLabel(h); lbl.setFont(mono(9, 400))
@@ -742,16 +789,27 @@ class _ChatInput(QWidget):
         root.addLayout(hints)
 
     def set_state(self, key: str) -> None:
-        self._state = key
-        self._input_row.set_state(key)
+        """System processing state — controls placeholder and field lock."""
+        self._sys_state = key
+        self._input_row.set_sys_state(key)
         placeholder = {
             "LISTENING":  "Listening…",
             "PROCESSING": "A.E.R.I.S thinking…",
             "SPEAKING":   "A.E.R.I.S responding…",
         }.get(key, "Ask anything…")
         self._field.setPlaceholderText(placeholder)
-        self._field.setDisabled(key in ("LISTENING", "PROCESSING", "SPEAKING"))
-        self._wave.setVisible(key == "LISTENING")
+        # Lock typing only while brain is processing/responding — not during voice
+        self._field.setDisabled(key in ("PROCESSING", "SPEAKING"))
+        # Wave for legacy one-shot mode (voice_state == STOPPED but LISTENING state)
+        if self._voice_state == "STOPPED":
+            self._wave.setVisible(key == "LISTENING")
+
+    def set_voice_state(self, state: str) -> None:
+        """Voice engine state: STOPPED / ACTIVE / SLEEPING."""
+        self._voice_state = state
+        self._input_row.set_voice_state(state)
+        self._wave.setVisible(state == "ACTIVE")
+        self._sleep_pill.setVisible(state == "SLEEPING")
 
     def _emit_send(self):
         t = self._field.text().strip()
@@ -768,7 +826,7 @@ class _InputRow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(46)
-        self._state = "IDLE"
+        self._sys_state = "IDLE"
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 5, 5, 5); lay.setSpacing(8)
@@ -791,16 +849,20 @@ class _InputRow(QWidget):
         self._send.clicked.connect(self.send_clicked.emit)
         lay.addWidget(self._send)
 
-    def set_state(self, key: str) -> None:
-        self._state = key
-        self._mic.set_active(key == "LISTENING")
+    def set_sys_state(self, key: str) -> None:
+        """System state — only affects the input-row border color."""
+        self._sys_state = key
         self.update()
+
+    def set_voice_state(self, state: str) -> None:
+        """Voice engine state — forwarded directly to the mic button."""
+        self._mic.set_voice_state(state)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         rect = QRectF(0, 0, self.width() - 1, self.height() - 1)
-        busy = self._state in ("PROCESSING", "SPEAKING")
+        busy = self._sys_state in ("PROCESSING", "SPEAKING")
         p.setPen(QPen(rgba(J.CYAN, 0.12 if busy else 0.38), 1))
         bg = QColor(J.BG); bg.setAlphaF(0.9)
         p.setBrush(bg)
@@ -808,17 +870,25 @@ class _InputRow(QWidget):
 
 
 class _RoundIconButton(QPushButton):
+    """Mic or send button.
+
+    The mic button has three visual modes driven by the continuous voice engine:
+      STOPPED  — normal mic icon (cyan)
+      ACTIVE   — "END" label (red)   — click to stop voice entirely
+      SLEEPING — "END" label (purple, dimmed) — click to stop voice entirely
+    """
+
     def __init__(self, kind: str, parent=None):
         super().__init__(parent)
-        self._kind = kind
-        self._active = False
+        self._kind        = kind
+        self._voice_state = "STOPPED"   # relevant only for kind == "mic"
         self.setFixedSize(36, 36)
         self.setCursor(Qt.PointingHandCursor)
         self.setFlat(True)
         self.setStyleSheet("border: none;")
 
-    def set_active(self, v: bool) -> None:
-        self._active = v
+    def set_voice_state(self, state: str) -> None:
+        self._voice_state = state
         self.update()
 
     def paintEvent(self, _):
@@ -827,36 +897,49 @@ class _RoundIconButton(QPushButton):
         rect = QRectF(1, 1, self.width() - 2, self.height() - 2)
 
         if self._kind == "mic":
-            if self._active:
-                p.setPen(QPen(rgba(J.GREEN, 0.7), 1))
-                p.setBrush(rgba(J.GREEN, 0.20))
+            vs = self._voice_state
+            cx, cy = self.width() / 2, self.height() / 2
+
+            if vs == "ACTIVE":
+                # Red "END" — voice is listening, click stops it
+                p.setPen(QPen(rgba(J.RED, 0.70), 1))
+                p.setBrush(rgba(J.RED, 0.18))
+                p.drawEllipse(rect)
+                p.setPen(J.RED)
+                p.setFont(inter(8, 800))
+                p.drawText(QRectF(0, 0, self.width(), self.height()),
+                           Qt.AlignCenter, "END")
+
+            elif vs == "SLEEPING":
+                # Purple "END" — voice sleeping, click still stops it
+                p.setPen(QPen(rgba(J.PURPLE, 0.55), 1))
+                p.setBrush(rgba(J.PURPLE, 0.15))
+                p.drawEllipse(rect)
+                p.setPen(rgba(J.PURPLE, 0.85))
+                p.setFont(inter(8, 800))
+                p.drawText(QRectF(0, 0, self.width(), self.height()),
+                           Qt.AlignCenter, "END")
+
             else:
+                # Normal mic icon (STOPPED)
                 p.setPen(QPen(rgba(J.CYAN, 0.45), 1))
                 p.setBrush(rgba(J.CYAN, 0.12))
-            p.drawEllipse(rect)
-            col = J.GREEN if self._active else J.CYAN
-            cx, cy = self.width() / 2, self.height() / 2
-            if self._active:
-                # stop square
-                p.setBrush(col); p.setPen(Qt.NoPen)
-                p.drawRoundedRect(QRectF(cx - 6, cy - 6, 12, 12), 2, 2)
-            else:
-                p.setBrush(col); p.setPen(Qt.NoPen)
+                p.drawEllipse(rect)
+                p.setBrush(J.CYAN); p.setPen(Qt.NoPen)
                 p.drawRoundedRect(QRectF(cx - 3, cy - 9, 6, 12), 3, 3)
-                pen = QPen(col, 1.5); pen.setCapStyle(Qt.RoundCap)
+                pen = QPen(J.CYAN, 1.5); pen.setCapStyle(Qt.RoundCap)
                 p.setPen(pen); p.setBrush(Qt.NoBrush)
                 p.drawArc(QRectF(cx - 7, cy - 6, 14, 16), 200 * 16, 140 * 16)
                 p.drawLine(QPointF(cx, cy + 7), QPointF(cx, cy + 10))
                 p.drawLine(QPointF(cx - 4, cy + 10), QPointF(cx + 4, cy + 10))
 
-        else:  # send: cyan→purple gradient circle with white arrow
+        else:  # send: cyan→purple gradient circle with arrow
             grad = QLinearGradient(0, 0, self.width(), self.height())
             grad.setColorAt(0.0, J.CYAN)
             grad.setColorAt(1.0, J.PURPLE)
             p.setPen(Qt.NoPen)
             p.setBrush(QBrush(grad))
             p.drawEllipse(rect)
-            # arrow
             cx, cy = self.width() / 2, self.height() / 2
             pen = QPen(J.BG, 2); pen.setCapStyle(Qt.RoundCap); pen.setJoinStyle(Qt.RoundJoin)
             p.setPen(pen); p.setBrush(Qt.NoBrush)
