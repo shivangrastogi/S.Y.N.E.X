@@ -14,6 +14,9 @@ Older UI variants are still in:
 import os
 import sys
 
+# Fix duplicate OpenMP DLL conflict on Windows (torch + Qt both ship libiomp5md.dll)
+os.environ.setdefault('KMP_DUPLICATE_LIB_OK', 'TRUE')
+
 # ── Pre-import torch to fix Windows DLL load order ─────────────────────
 # Loading torch BEFORE Qt avoids 'WinError 1114: A dynamic link library
 # (DLL) initialization routine failed' that some PyTorch+PyQt5 combos

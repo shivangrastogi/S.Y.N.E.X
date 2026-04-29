@@ -44,8 +44,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from ui.jarvis_v31.floating_dock import FloatingDock
-from ui.jarvis_v31.glass_chat_panel import GlassChatPanel
 from ui.jarvis_v31.logs_bar import LogsBar
+from ui.jarvis_v31.tab_panels import RightPanelStack
 from ui.jarvis_v31.reactor import (
     ParticleField, ReactorRings, ReactorStateText, StateSwitcher,
 )
@@ -232,9 +232,10 @@ class JarvisV31Window(QMainWindow):
         self._center_col.setStyleSheet(f"background: {J.BG.name()};")
         body_lay.addWidget(self._center_col, stretch=1)
 
-        # Right rail — chat panel
-        self.chat = GlassChatPanel()
-        body_lay.addWidget(self.chat)
+        # Right rail — tabbed panel stack (chat is index 1)
+        self._right = RightPanelStack()
+        self.chat   = self._right.chat_panel
+        body_lay.addWidget(self._right)
 
         root.addWidget(body, stretch=1)
 
@@ -275,6 +276,7 @@ class JarvisV31Window(QMainWindow):
         self.state_sw.state_picked.connect(self._set_state)
         self.chat.send_text.connect(self._on_user_send)
         self.chat.mic_clicked.connect(self._on_mic)
+        self.chat.stop_requested.connect(self._on_stop_requested)
 
         # Dock nav → chat panel: only show the suggestion chips when the
         # 'Automation' tab is active (they were overlapping in the header
@@ -287,6 +289,7 @@ class JarvisV31Window(QMainWindow):
         self._current_state = "IDLE"
         self._voice_state   = "STOPPED"   # tracks ContinuousVoiceEngine state
         self._pending_voice: Optional[str] = None   # captured while busy
+        self._cancelled     = False        # True when user hits STOP mid-request
         self._set_state("IDLE")
         for typ, txt, hl in [
             ("SYS", "Neural core online · wiring grid initialized", False),
@@ -323,6 +326,7 @@ class JarvisV31Window(QMainWindow):
         self._brain.responded.connect(self._on_brain_responded)
         self._brain.error.connect(self._on_brain_error)
         self._brain_thread.start()
+        QTimer.singleShot(50, self.chat.start_boot)
         QTimer.singleShot(60, self.request_brain_init.emit)
 
         # Voice (continuous STT with sleep/wake) — runs on its own thread
@@ -435,13 +439,11 @@ class JarvisV31Window(QMainWindow):
 
     # ── Dock tab → automation panel visibility ───────────────────────
     def _on_dock_tab_changed(self, key: str) -> None:
-        self.chat.set_automation_visible(key == "auto")
+        self._right.switch_tab(key)
 
     def _on_chip_used(self) -> None:
-        # After a chip fires its message, flip the dock back to the chat
-        # tab so the automation grid hides itself naturally.
         self.dock._on_nav("chat")
-        self.chat.set_automation_visible(False)
+        self._right.switch_tab("chat")
 
     def _on_profile_action(self, key: str) -> None:
         labels = {
@@ -456,9 +458,11 @@ class JarvisV31Window(QMainWindow):
     # ── Brain wiring ─────────────────────────────────────────────────
     def _on_load_progress(self, log_type, msg):
         self.logs.add_log(log_type, msg)
+        self.chat.add_boot_step(log_type, msg)
 
     def _on_brain_ready(self):
         self.logs.add_log("ACT", "Brain ready · accepting commands", highlight=True)
+        self.chat.finish_boot()
         self._set_state("IDLE")
 
     def _on_user_send(self, text: str):
@@ -472,7 +476,17 @@ class JarvisV31Window(QMainWindow):
         self.logs.add_log("NLU", f'Input: "{text[:48]}"', highlight=True)
         self.request_brain_proc.emit(text)
 
+    def _on_stop_requested(self):
+        self._cancelled = True
+        self._pending_voice = None
+        self.chat.cancel_stream()
+        self._set_state("IDLE")
+        self.logs.add_log("SYS", "Request cancelled by user · awaiting brain to drain")
+
     def _on_brain_responded(self, reply: str, meta: dict):
+        if self._cancelled:
+            self._cancelled = False
+            return
         intent     = meta.get("intent", "general")
         confidence = meta.get("confidence", 0.0)
         latency    = meta.get("latency_ms", 0)
@@ -507,6 +521,7 @@ class JarvisV31Window(QMainWindow):
 
     def _on_brain_error(self, msg: str):
         self.logs.add_log("ERR", msg, highlight=True)
+        self.chat.finish_boot()
         self._set_state("IDLE")
 
     # ── Voice wiring ────────────────────────────────────────────────

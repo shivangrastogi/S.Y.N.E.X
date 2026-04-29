@@ -238,12 +238,8 @@ class ReactorRings(QWidget):
         # Wireframe sphere inside
         self._draw_sphere(p, center, col, t)
 
-        # Mode-specific bottom content (spinner / wavebars) — sits NEAR the
-        # bottom inside the core, like jv3's paddingBottom:80.
-        st = self._state
-        if st == "PROCESSING":
-            self._draw_spinner(p, QPointF(center.x(), center.y() + 60), col, t)
-        elif st == "SPEAKING":
+        # Speaking wavebars inside core bottom
+        if self._state == "SPEAKING":
             self._draw_wavebars(p, QPointF(center.x(), center.y() + 60),
                                 J.PURPLE, n=6, max_h=24, t=t)
 

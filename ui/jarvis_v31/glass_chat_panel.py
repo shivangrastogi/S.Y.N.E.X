@@ -48,8 +48,9 @@ class GlassChatPanel(QWidget):
         set_state(key)
     """
 
-    send_text     = pyqtSignal(str)
-    mic_clicked   = pyqtSignal()
+    send_text      = pyqtSignal(str)
+    mic_clicked    = pyqtSignal()
+    stop_requested = pyqtSignal()         # user hit STOP while brain was busy
     automation_chip_used = pyqtSignal()   # fired when a chip is picked, so
                                           # the dock can revert to 'chat' tab
 
@@ -105,6 +106,7 @@ class GlassChatPanel(QWidget):
         self._input_bar = _ChatInput()
         self._input_bar.send.connect(self._on_send)
         self._input_bar.mic.connect(self.mic_clicked.emit)
+        self._input_bar.stop.connect(self.stop_requested.emit)
         root.addWidget(self._input_bar)
 
         # ── Streaming bookkeeping ───────────────────────────────────
@@ -112,6 +114,17 @@ class GlassChatPanel(QWidget):
         self._stream_timer: Optional[QTimer] = None
         self._stream_full = ""
         self._stream_idx  = 0
+
+        # ── Boot progress tracking ──────────────────────────────────
+        self._boot_bubble: Optional["_BootBubble"] = None
+        self._boot_step_pcts = [15, 55, 85, 100]
+        self._boot_step_idx  = 0
+
+        # ── Scroll-to-bottom button (floating overlay) ──────────────
+        self._scroll_btn = _ScrollToBottomBtn(self)
+        self._scroll_btn.clicked.connect(self._scroll_to_bottom)
+        self._scroll.verticalScrollBar().valueChanged.connect(self._on_scroll_changed)
+        QTimer.singleShot(0, self._reposition_scroll_btn)
 
     # ── Public API ──────────────────────────────────────────────────
     def add_message(self, role: str, text: str,
@@ -151,6 +164,13 @@ class GlassChatPanel(QWidget):
         self._stream_timer.start(speed_ms)
         QTimer.singleShot(40, self._scroll_to_bottom)
 
+    def cancel_stream(self) -> None:
+        """Abort any in-progress streaming bubble immediately."""
+        if self._stream_bubble is not None:
+            self._stream_bubble.set_streaming(False)
+        self._cancel_stream()
+        self._typing_dots.setVisible(False)
+
     def set_state(self, key: str) -> None:
         if key not in JSTATES:
             return
@@ -182,9 +202,52 @@ class GlassChatPanel(QWidget):
     def _on_send(self, text: str) -> None:
         self.send_text.emit(text)
 
+    # ── Boot progress ────────────────────────────────────────────
+    def start_boot(self) -> None:
+        self._boot_bubble = _BootBubble()
+        self._msg_lay.insertWidget(self._msg_lay.count() - 2, self._boot_bubble)
+        self._boot_step_idx = 0
+        QTimer.singleShot(60, self._scroll_to_bottom)
+
+    def add_boot_step(self, log_type: str, msg: str) -> None:
+        if self._boot_bubble is None:
+            return
+        pcts = self._boot_step_pcts
+        pct = pcts[min(self._boot_step_idx, len(pcts) - 1)]
+        self._boot_step_idx += 1
+        self._boot_bubble.add_step(log_type, msg, pct)
+        QTimer.singleShot(80, self._scroll_to_bottom)
+
+    def finish_boot(self) -> None:
+        if self._boot_bubble is not None:
+            self._boot_bubble.set_done()
+        self._boot_bubble = None
+
+    # ── Scroll button ─────────────────────────────────────────────
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._reposition_scroll_btn()
+
+    def _reposition_scroll_btn(self):
+        if not hasattr(self, '_scroll_btn'):
+            return
+        bw = 36
+        x  = self.width() - bw - 10
+        sa = self._scroll
+        y  = sa.y() + sa.height() - bw - 10
+        self._scroll_btn.move(x, y)
+        self._scroll_btn.raise_()
+
+    def _on_scroll_changed(self, value: int) -> None:
+        sb = self._scroll.verticalScrollBar()
+        at_bottom = value >= sb.maximum() - 40
+        self._scroll_btn.setVisible(not at_bottom and sb.maximum() > 80)
+
     def _scroll_to_bottom(self) -> None:
         sb = self._scroll.verticalScrollBar()
         sb.setValue(sb.maximum())
+        if hasattr(self, '_scroll_btn'):
+            self._scroll_btn.setVisible(False)
 
     def _stream_tick(self) -> None:
         if self._stream_bubble is None:
@@ -750,6 +813,7 @@ class _ChatInput(QWidget):
 
     send = pyqtSignal(str)
     mic  = pyqtSignal()
+    stop = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -777,6 +841,7 @@ class _ChatInput(QWidget):
         self._field.returnPressed.connect(self._emit_send)
         self._input_row.mic_clicked.connect(self.mic.emit)
         self._input_row.send_clicked.connect(self._emit_send)
+        self._input_row.stop_clicked.connect(self.stop.emit)
         root.addWidget(self._input_row)
 
         # Hints row
@@ -812,6 +877,8 @@ class _ChatInput(QWidget):
         self._sleep_pill.setVisible(state == "SLEEPING")
 
     def _emit_send(self):
+        if self._sys_state in ("PROCESSING", "SPEAKING"):
+            return
         t = self._field.text().strip()
         if not t:
             return
@@ -822,6 +889,7 @@ class _ChatInput(QWidget):
 class _InputRow(QWidget):
     mic_clicked  = pyqtSignal()
     send_clicked = pyqtSignal()
+    stop_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -846,13 +914,19 @@ class _InputRow(QWidget):
         lay.addWidget(self._mic)
 
         self._send = _RoundIconButton("send")
-        self._send.clicked.connect(self.send_clicked.emit)
+        self._send.clicked.connect(self._on_send_click)
         lay.addWidget(self._send)
 
     def set_sys_state(self, key: str) -> None:
-        """System state — only affects the input-row border color."""
         self._sys_state = key
+        self._send.set_sys_state(key)
         self.update()
+
+    def _on_send_click(self) -> None:
+        if self._sys_state in ("PROCESSING", "SPEAKING"):
+            self.stop_clicked.emit()
+        else:
+            self.send_clicked.emit()
 
     def set_voice_state(self, state: str) -> None:
         """Voice engine state — forwarded directly to the mic button."""
@@ -882,6 +956,7 @@ class _RoundIconButton(QPushButton):
         super().__init__(parent)
         self._kind        = kind
         self._voice_state = "STOPPED"   # relevant only for kind == "mic"
+        self._sys_state   = "IDLE"      # relevant only for kind == "send"
         self.setFixedSize(36, 36)
         self.setCursor(Qt.PointingHandCursor)
         self.setFlat(True)
@@ -889,6 +964,10 @@ class _RoundIconButton(QPushButton):
 
     def set_voice_state(self, state: str) -> None:
         self._voice_state = state
+        self.update()
+
+    def set_sys_state(self, key: str) -> None:
+        self._sys_state = key
         self.update()
 
     def paintEvent(self, _):
@@ -933,16 +1012,229 @@ class _RoundIconButton(QPushButton):
                 p.drawLine(QPointF(cx, cy + 7), QPointF(cx, cy + 10))
                 p.drawLine(QPointF(cx - 4, cy + 10), QPointF(cx + 4, cy + 10))
 
-        else:  # send: cyan→purple gradient circle with arrow
-            grad = QLinearGradient(0, 0, self.width(), self.height())
-            grad.setColorAt(0.0, J.CYAN)
-            grad.setColorAt(1.0, J.PURPLE)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QBrush(grad))
-            p.drawEllipse(rect)
+        else:  # send / stop button
             cx, cy = self.width() / 2, self.height() / 2
-            pen = QPen(J.BG, 2); pen.setCapStyle(Qt.RoundCap); pen.setJoinStyle(Qt.RoundJoin)
-            p.setPen(pen); p.setBrush(Qt.NoBrush)
-            p.drawLine(QPointF(cx - 5, cy), QPointF(cx + 5, cy))
-            p.drawLine(QPointF(cx + 1, cy - 4), QPointF(cx + 5, cy))
-            p.drawLine(QPointF(cx + 1, cy + 4), QPointF(cx + 5, cy))
+            busy = self._sys_state in ("PROCESSING", "SPEAKING")
+            if busy:
+                # STOP mode: red circle with filled square icon
+                p.setPen(QPen(rgba(J.RED, 0.70), 1))
+                p.setBrush(rgba(J.RED, 0.18))
+                p.drawEllipse(rect)
+                p.setPen(Qt.NoPen)
+                p.setBrush(J.RED)
+                p.drawRoundedRect(QRectF(cx - 5, cy - 5, 10, 10), 2, 2)
+            else:
+                # Normal send: cyan→purple gradient circle with arrow
+                grad = QLinearGradient(0, 0, self.width(), self.height())
+                grad.setColorAt(0.0, J.CYAN)
+                grad.setColorAt(1.0, J.PURPLE)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QBrush(grad))
+                p.drawEllipse(rect)
+                pen = QPen(J.BG, 2); pen.setCapStyle(Qt.RoundCap); pen.setJoinStyle(Qt.RoundJoin)
+                p.setPen(pen); p.setBrush(Qt.NoBrush)
+                p.drawLine(QPointF(cx - 5, cy), QPointF(cx + 5, cy))
+                p.drawLine(QPointF(cx + 1, cy - 4), QPointF(cx + 5, cy))
+                p.drawLine(QPointF(cx + 1, cy + 4), QPointF(cx + 5, cy))
+
+
+# ─── Boot progress bubble ─────────────────────────────────────── #
+
+class _ProgressBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pct = 0
+        self._display = 0.0
+        self.setFixedHeight(6)
+        t = QTimer(self); t.timeout.connect(self._tick); t.start(16)
+
+    def set_pct(self, pct: int) -> None:
+        self._pct = max(0, min(100, pct))
+
+    def _tick(self):
+        if self._display < self._pct:
+            self._display = min(self._display + 1.2, self._pct)
+            self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        r = QRectF(0, 0, self.width(), self.height())
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgba(J.CYAN, 0.12))
+        p.drawRoundedRect(r, 3, 3)
+        fw = (self._display / 100) * self.width()
+        if fw > 0:
+            col = J.GREEN if self._pct >= 100 else J.CYAN
+            grad = QLinearGradient(0, 0, fw, 0)
+            grad.setColorAt(0.0, rgba(col, 0.55))
+            grad.setColorAt(1.0, col)
+            p.setBrush(QBrush(grad))
+            p.drawRoundedRect(QRectF(0, 0, fw, self.height()), 3, 3)
+
+
+class _BootStepRow(QWidget):
+    def __init__(self, log_type: str, msg: str, done: bool = False, parent=None):
+        super().__init__(parent)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(6)
+        _COLORS = {"SYS": J.CYAN, "NLU": J.MAGENTA, "MEM": J.PURPLE,
+                   "TTS": J.GREEN, "ACT": J.AMBER}
+        col = _COLORS.get(log_type, J.TEXT_MUT)
+        badge = QLabel(log_type); badge.setFont(mono(8, 700))
+        badge.setStyleSheet(f"color:{col.name()};"); badge.setFixedWidth(26)
+        lay.addWidget(badge)
+        txt = msg[:50] + "…" if len(msg) > 50 else msg
+        ml = QLabel(txt); ml.setFont(mono(10, 400))
+        ml.setStyleSheet(f"color:{J.TEXT_SEC.name()};")
+        lay.addWidget(ml, 1)
+        self._st = QLabel("···"); self._st.setFont(mono(9, 400))
+        self._st.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+        lay.addWidget(self._st)
+        if done:
+            self.set_done(True)
+
+    def set_done(self, done: bool) -> None:
+        if done:
+            self._st.setText("✓")
+            self._st.setStyleSheet(f"color:{J.GREEN.name()};")
+        else:
+            self._st.setText("···")
+            self._st.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+
+
+class _BootCard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._done = False
+        self.setMaximumWidth(335)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 12, 14, 12); lay.setSpacing(8)
+
+        title_row = QHBoxLayout(); title_row.setSpacing(8)
+        title = QLabel("SYSTEM BOOT"); title.setFont(mono(10, 700))
+        title.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:2px;")
+        title_row.addWidget(title); title_row.addStretch(1)
+        self._pct_lbl = QLabel("0 %"); self._pct_lbl.setFont(mono(10, 700))
+        self._pct_lbl.setStyleSheet(f"color:{J.CYAN.name()};")
+        title_row.addWidget(self._pct_lbl)
+        lay.addLayout(title_row)
+
+        self._pb = _ProgressBar()
+        lay.addWidget(self._pb)
+
+        sep = QWidget(); sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background:rgba({J.BORDER.red()},{J.BORDER.green()},{J.BORDER.blue()},0.35);")
+        lay.addWidget(sep)
+
+        self._steps_lay = QVBoxLayout()
+        self._steps_lay.setContentsMargins(0, 0, 0, 0); self._steps_lay.setSpacing(3)
+        lay.addLayout(self._steps_lay)
+
+    def add_step(self, log_type: str, msg: str, pct: int) -> None:
+        for i in range(self._steps_lay.count()):
+            w = self._steps_lay.itemAt(i).widget()
+            if isinstance(w, _BootStepRow):
+                w.set_done(True)
+        self._steps_lay.addWidget(_BootStepRow(log_type, msg, done=False))
+        self._pb.set_pct(pct)
+        col = J.GREEN if pct >= 100 else J.CYAN
+        self._pct_lbl.setText(f"{pct} %")
+        self._pct_lbl.setStyleSheet(f"color:{col.name()};")
+
+    def set_done(self) -> None:
+        self._done = True
+        for i in range(self._steps_lay.count()):
+            w = self._steps_lay.itemAt(i).widget()
+            if isinstance(w, _BootStepRow):
+                w.set_done(True)
+        self._pb.set_pct(100)
+        self._pct_lbl.setText("100 %")
+        self._pct_lbl.setStyleSheet(f"color:{J.GREEN.name()};")
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        rect = QRectF(0, 0, self.width() - 1, self.height() - 1)
+        path = _asymmetric_round_rect(rect, tl=4, tr=14, br=14, bl=14)
+        col = J.GREEN if self._done else J.CYAN
+        p.setPen(QPen(rgba(col, 0.30), 1))
+        bg = QColor(J.PANEL); bg.setAlphaF(0.92)
+        p.setBrush(bg)
+        p.drawPath(path)
+
+
+class _BootBubble(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        v = QVBoxLayout(self); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(5)
+
+        row = QHBoxLayout(); row.setSpacing(6)
+        self._dot = _SmallDot(J.CYAN, blink=True)
+        row.addWidget(self._dot)
+        name = QLabel("A.E.R.I.S"); name.setFont(mono(9, 700))
+        name.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:1px;")
+        row.addWidget(name)
+        t_lbl = QLabel(time.strftime("%H:%M")); t_lbl.setFont(mono(8, 400))
+        t_lbl.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+        row.addWidget(t_lbl); row.addStretch(1)
+        v.addLayout(row)
+
+        self._card = _BootCard()
+        br = QHBoxLayout(); br.setContentsMargins(0, 0, 0, 0)
+        br.addWidget(self._card); br.addStretch(1)
+        v.addLayout(br)
+
+    def add_step(self, log_type: str, msg: str, pct: int) -> None:
+        self._card.add_step(log_type, msg, pct)
+
+    def set_done(self) -> None:
+        self._dot.set_blink(False)
+        self._card.set_done()
+
+
+# ─── Scroll-to-bottom button ──────────────────────────────────── #
+
+class _ScrollToBottomBtn(QWidget):
+    clicked = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(34, 34)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setVisible(False)
+        self._hover = False
+        self._start = time.monotonic()
+        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+
+    def enterEvent(self, _): self._hover = True; self.update()
+    def leaveEvent(self, _): self._hover = False; self.update()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        rect = QRectF(1, 1, self.width() - 2, self.height() - 2)
+
+        ph = (time.monotonic() - self._start) * 2 * math.pi / 2.2
+        pulse = 0.28 + 0.12 * (0.5 + 0.5 * math.sin(ph))
+
+        p.setPen(QPen(rgba(J.CYAN, 0.65 if self._hover else 0.40), 1))
+        bg = QColor(J.PANEL); bg.setAlphaF(0.96)
+        p.setBrush(bg)
+        p.drawEllipse(rect)
+
+        p.setPen(QPen(rgba(J.CYAN, pulse), 2.5))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(rect.adjusted(-2, -2, 2, 2))
+
+        cx, cy = self.width() / 2, self.height() / 2
+        pen = QPen(J.CYAN if self._hover else rgba(J.CYAN, 0.85), 2)
+        pen.setCapStyle(Qt.RoundCap); pen.setJoinStyle(Qt.RoundJoin)
+        p.setPen(pen)
+        p.drawLine(QPointF(cx, cy - 5), QPointF(cx, cy + 4))
+        p.drawLine(QPointF(cx - 4, cy), QPointF(cx, cy + 4))
+        p.drawLine(QPointF(cx + 4, cy), QPointF(cx, cy + 4))
