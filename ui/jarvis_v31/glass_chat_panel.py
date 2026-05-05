@@ -116,9 +116,9 @@ class GlassChatPanel(QWidget):
         self._stream_idx  = 0
 
         # ── Boot progress tracking ──────────────────────────────────
+        # Percentages are now driven by the brain worker (passed in via
+        # add_boot_step) — no fixed step-index → pct table here.
         self._boot_bubble: Optional["_BootBubble"] = None
-        self._boot_step_pcts = [15, 55, 85, 100]
-        self._boot_step_idx  = 0
 
         # ── Scroll-to-bottom button (floating overlay) ──────────────
         self._scroll_btn = _ScrollToBottomBtn(self)
@@ -209,12 +209,9 @@ class GlassChatPanel(QWidget):
         self._boot_step_idx = 0
         QTimer.singleShot(60, self._scroll_to_bottom)
 
-    def add_boot_step(self, log_type: str, msg: str) -> None:
+    def add_boot_step(self, log_type: str, msg: str, pct: int) -> None:
         if self._boot_bubble is None:
             return
-        pcts = self._boot_step_pcts
-        pct = pcts[min(self._boot_step_idx, len(pcts) - 1)]
-        self._boot_step_idx += 1
         self._boot_bubble.add_step(log_type, msg, pct)
         QTimer.singleShot(80, self._scroll_to_bottom)
 

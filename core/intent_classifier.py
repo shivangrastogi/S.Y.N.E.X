@@ -53,7 +53,7 @@ class IntentClassifier:
         rebuild()                     -> force re-embed and re-cache
     """
 
-    def __init__(self, intents_path: str, models_dir: str):
+    def __init__(self, intents_path: str, models_dir: str, *, lazy: bool = False):
         self.intents_path = intents_path
         self.models_dir = models_dir
         self.index_path = os.path.join(models_dir, "intent_index.pkl")
@@ -67,13 +67,32 @@ class IntentClassifier:
         self.labels: list[str] = []
         self.embeddings: Optional[np.ndarray] = None
 
-        self._boot()
+        # Eager mode (default): drive both sub-phases now so callers see
+        # a fully-initialised classifier. Lazy mode is for the GUI worker
+        # which paints progress between the two phases.
+        if not lazy:
+            self.load_encoder()
+            self.build_or_load_index()
 
     # ------------------------------------------------------------------ #
-    #  Boot                                                               #
+    #  Boot — split into two callable sub-phases                          #
     # ------------------------------------------------------------------ #
 
-    def _boot(self) -> None:
+    def load_encoder(self) -> None:
+        """Phase A — load the sentence encoder.
+
+        Dominant cost on cold boot (multi-second SentenceTransformer
+        init). Idempotent: subsequent calls are no-ops.
+        """
+        self._ensure_encoder()
+
+    def build_or_load_index(self) -> None:
+        """Phase B — load the cached k-NN index, or rebuild it.
+
+        Cheap when the intents.json hash matches the cached metadata;
+        a few seconds when it has to re-embed every pattern. Requires
+        that ``load_encoder`` has already been called.
+        """
         cached_hash = self._cached_hash()
         current_hash = self._intents_hash()
 

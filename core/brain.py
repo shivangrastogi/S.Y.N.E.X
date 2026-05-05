@@ -22,13 +22,28 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class JarvisBrain:
-    def __init__(self):
+    def __init__(self, *, lazy: bool = False):
         log.info("[Brain] Initialising...")
+        # Build the classifier shell without doing the heavy load. In
+        # eager mode (``lazy=False``, the default), drive both phases
+        # immediately so callers see a fully-initialised brain.
         self.classifier = IntentClassifier(
             intents_path=os.path.join(_ROOT, "data", "intents.json"),
             models_dir=os.path.join(_ROOT, "data", "models"),
+            lazy=True,
         )
-        log.info("[Brain] Ready.")
+        if not lazy:
+            self.load_encoder()
+            self.build_or_load_index()
+            log.info("[Brain] Ready.")
+
+    def load_encoder(self) -> None:
+        """Phase A — heavy: SentenceTransformer init."""
+        self.classifier.load_encoder()
+
+    def build_or_load_index(self) -> None:
+        """Phase B — cache hit fast, rebuild slow."""
+        self.classifier.build_or_load_index()
 
     def predict(self, text: str, threshold: float = 0.5) -> Prediction:
         return self.classifier.predict(text, threshold=threshold)

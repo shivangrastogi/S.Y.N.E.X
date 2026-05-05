@@ -79,7 +79,8 @@ class JarvisMainEngine:
     def __init__(self, stt=None, tts=None, *,
                  memory_path: Optional[str] = None,
                  feedback_db_path: Optional[str] = None,
-                 verbose: bool = True):
+                 verbose: bool = True,
+                 lazy: bool = False):
         if verbose:
             print("Initialising A.E.R.I.S v3.2 (full brain stack)...")
 
@@ -87,33 +88,91 @@ class JarvisMainEngine:
         # Keeping these optional makes the engine testable without pyaudio.
         self._stt = stt
         self._tts = tts
+        self._memory_path = memory_path
+        self._feedback_db_path = feedback_db_path
+        self._verbose = verbose
 
-        # Brain stack
-        self.brain = JarvisBrain()
-        self.entity_extractor = EntityExtractor(
-            entities_path=os.path.join(_ROOT, "data", "entities.json"),
-            intents_path=os.path.join(_ROOT, "data", "intents.json"),
-        )
-        self.sentiment = SentimentAnalyzer()
-        self.memory = UserMemory(memory_path
-                                 or os.path.join(_ROOT, "data", "user_memory.json"))
-        self.history = ConversationHistory(max_turns=8)
-        self.disambiguator = Disambiguator()
-        self.feedback = FeedbackStore(feedback_db_path
-                                      or os.path.join(_ROOT, "data", "feedback_log.sqlite"))
-        self.llm = LLMChat()
-
-        # State + execution
-        self.state = StateManager()
-        self.executor = ActionExecutor()
+        # Brain-stack slots — populated by setup_iter(). Listed up-front so
+        # static analyzers see the public surface even before init runs.
+        self.brain = None
+        self.entity_extractor = None
+        self.sentiment = None
+        self.memory = None
+        self.history = None
+        self.disambiguator = None
+        self.feedback = None
+        self.llm = None
+        self.state = None
+        self.executor = None
 
         # Pending-feedback tracker: id of the most recent executed utterance
         # awaiting a one-turn-window correction signal.
         self._pending_utterance_id: Optional[int] = None
-
         self.is_running = True
-        if verbose:
-            print("A.E.R.I.S is online.")
+
+        # Default path: build everything synchronously (used by main.py and
+        # the test suite). The GUI worker opts into `lazy=True` and drives
+        # `setup_iter()` itself so it can paint progress between chunks.
+        if not lazy:
+            for _ in self.setup_iter():
+                pass
+            if verbose:
+                print("A.E.R.I.S is online.")
+
+    # ------------------------------------------------------------------ #
+    #  Chunked initialization                                              #
+    # ------------------------------------------------------------------ #
+
+    def setup_iter(self):
+        """Generator that builds the brain stack in small chunks.
+
+        Yields ``(log_type, label, pct)`` BEFORE each chunk runs so a GUI
+        worker can paint progress and process pending events between
+        chunks. The pct is cumulative over the whole boot (0 → 100).
+
+        Why per-chunk yields matter: the heaviest step (sentence-encoder
+        load + index build) holds the GIL for several seconds. Splitting
+        the boot into 6 phases gives the Qt main thread regular windows
+        to repaint, so the bubble doesn't appear stuck at 15%.
+        """
+        # Phase 1 — Sentence encoder. Multi-second on cold boot; this
+        # is the dominant cost of brain init.
+        self.brain = JarvisBrain(lazy=True)
+        yield ("NLU", "Loading sentence encoder", 10)
+        self.brain.load_encoder()
+
+        # Phase 2 — Intent index (cache-load fast path; rebuild slow path).
+        yield ("NLU", "Loading intent index", 32)
+        self.brain.build_or_load_index()
+
+        # Phase 3 — Entity extractor (also loads spaCy en_core_web_sm).
+        yield ("NLU", "Loading entity extractor + spaCy NER", 50)
+        self.entity_extractor = EntityExtractor(
+            entities_path=os.path.join(_ROOT, "data", "entities.json"),
+            intents_path=os.path.join(_ROOT, "data", "intents.json"),
+        )
+
+        # Phase 4 — Sentiment, memory, conversation history, disambiguator.
+        yield ("NLU", "Loading sentiment + memory", 68)
+        self.sentiment = SentimentAnalyzer()
+        self.memory = UserMemory(self._memory_path
+                                 or os.path.join(_ROOT, "data", "user_memory.json"))
+        self.history = ConversationHistory(max_turns=8)
+        self.disambiguator = Disambiguator()
+
+        # Phase 5 — Feedback DB + LLM client.
+        yield ("MEM", "Attaching feedback DB + LLM fallback", 82)
+        self.feedback = FeedbackStore(self._feedback_db_path
+                                      or os.path.join(_ROOT, "data", "feedback_log.sqlite"))
+        self.llm = LLMChat()
+
+        # Phase 6 — State machine + action executor.
+        yield ("SYS", "Wiring state machine + executor", 93)
+        self.state = StateManager()
+        self.executor = ActionExecutor()
+
+        # Phase 7 — Done.
+        yield ("SYS", "All modules nominal · brain ready", 100)
 
     # ------------------------------------------------------------------ #
     #  Audio                                                               #

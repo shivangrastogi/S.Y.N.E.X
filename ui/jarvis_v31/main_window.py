@@ -57,11 +57,18 @@ from ui.jarvis_v31.wiring_system import REACTOR_CX, REACTOR_CY, WiringSystem
 # ─── Background workers ────────────────────────────────────────────── #
 
 class BrainWorker(QObject):
-    """Owns JarvisMainEngine on its own QThread. Heavy load happens here."""
+    """Owns JarvisMainEngine on its own QThread. Heavy load happens here.
+
+    Boot is driven through ``JarvisMainEngine.setup_iter()`` so the worker
+    can emit fine-grained progress between chunks. Each emit is a queued
+    signal — the main thread gets a chance to repaint between phases
+    instead of seeing the boot bubble freeze at 15 % during the
+    sentence-encoder load.
+    """
 
     ready         = pyqtSignal()
-    responded     = pyqtSignal(str, dict)       # (reply_text, meta)
-    load_progress = pyqtSignal(str, str)        # (log_type, msg)
+    responded     = pyqtSignal(str, dict)            # (reply_text, meta)
+    load_progress = pyqtSignal(str, str, int)        # (log_type, msg, pct)
     error         = pyqtSignal(str)
 
     def __init__(self):
@@ -71,12 +78,16 @@ class BrainWorker(QObject):
     @pyqtSlot()
     def initialize(self):
         try:
-            self.load_progress.emit("SYS", "Booting JarvisMainEngine…")
+            self.load_progress.emit("SYS", "Booting JarvisMainEngine…", 4)
             from core.main_engine import JarvisMainEngine
-            self._engine = JarvisMainEngine(stt="SKIP", tts="SKIP", verbose=False)
-            self.load_progress.emit("NLU", "Brain online · 21 intents loaded")
-            self.load_progress.emit("MEM", "Memory + feedback DB attached")
-            self.load_progress.emit("SYS", "All modules nominal · JARVIS v3.1 ready")
+            # `lazy=True` defers all heavy work to setup_iter() so we can
+            # paint progress between chunks instead of blocking on a single
+            # multi-second constructor call.
+            self._engine = JarvisMainEngine(
+                stt="SKIP", tts="SKIP", verbose=False, lazy=True,
+            )
+            for log_type, msg, pct in self._engine.setup_iter():
+                self.load_progress.emit(log_type, msg, pct)
             self.ready.emit()
         except Exception as e:
             # Make the error actionable — point at the most common Windows
@@ -325,7 +336,18 @@ class JarvisV31Window(QMainWindow):
         self._brain.ready.connect(self._on_brain_ready)
         self._brain.responded.connect(self._on_brain_responded)
         self._brain.error.connect(self._on_brain_error)
-        self._brain_thread.start()
+        # LowestPriority: when the OS scheduler picks between this worker
+        # and the GUI thread, the GUI always wins. Critical because the
+        # sentence-transformers / spaCy import burns CPU and holds the GIL
+        # for ~50-200 ms windows that would otherwise stutter animations.
+        self._brain_thread.start(QThread.LowestPriority)
+        # Pause the heaviest paint timers (particles, reactor, wiring grid)
+        # while the brain is booting. Their 16 ms QTimers each fire ~60
+        # times/sec and trigger expensive paintEvents; suspending them
+        # frees the GUI thread to repaint just the boot bubble + chat.
+        self._heavy_anim_widgets = (self.particles, self.reactor, self.wiring)
+        for w in self._heavy_anim_widgets:
+            self._pause_widget_timers(w)
         QTimer.singleShot(50, self.chat.start_boot)
         QTimer.singleShot(60, self.request_brain_init.emit)
 
@@ -456,14 +478,42 @@ class JarvisV31Window(QMainWindow):
                           highlight=True)
 
     # ── Brain wiring ─────────────────────────────────────────────────
-    def _on_load_progress(self, log_type, msg):
+    def _on_load_progress(self, log_type: str, msg: str, pct: int) -> None:
         self.logs.add_log(log_type, msg)
-        self.chat.add_boot_step(log_type, msg)
+        self.chat.add_boot_step(log_type, msg, pct)
 
     def _on_brain_ready(self):
         self.logs.add_log("ACT", "Brain ready · accepting commands", highlight=True)
         self.chat.finish_boot()
+        # Heavy animations were paused in _wire_workers to keep the GUI
+        # smooth while the brain hammered the GIL. Now that we're idle,
+        # bring them back to life.
+        for w in getattr(self, "_heavy_anim_widgets", ()):
+            self._resume_widget_timers(w)
         self._set_state("IDLE")
+
+    @staticmethod
+    def _pause_widget_timers(widget: QWidget) -> None:
+        """Stop every active QTimer in ``widget`` (and its children).
+
+        Each paused timer remembers its previous interval via a Qt dynamic
+        property, so ``_resume_widget_timers`` can restore it exactly.
+        """
+        for tmr in widget.findChildren(QTimer):
+            if tmr.isActive():
+                tmr.setProperty("_paused_interval", int(tmr.interval()))
+                tmr.stop()
+
+    @staticmethod
+    def _resume_widget_timers(widget: QWidget) -> None:
+        for tmr in widget.findChildren(QTimer):
+            v = tmr.property("_paused_interval")
+            if v is not None:
+                try:
+                    tmr.start(int(v))
+                except (TypeError, ValueError):
+                    pass
+                tmr.setProperty("_paused_interval", None)
 
     def _on_user_send(self, text: str):
         """Common path: chat-typed text OR suggestion-chip OR voice-captured."""
@@ -522,6 +572,10 @@ class JarvisV31Window(QMainWindow):
     def _on_brain_error(self, msg: str):
         self.logs.add_log("ERR", msg, highlight=True)
         self.chat.finish_boot()
+        # Even on init failure, resume animations so the user isn't
+        # stuck staring at a half-frozen reactor.
+        for w in getattr(self, "_heavy_anim_widgets", ()):
+            self._resume_widget_timers(w)
         self._set_state("IDLE")
 
     # ── Voice wiring ────────────────────────────────────────────────

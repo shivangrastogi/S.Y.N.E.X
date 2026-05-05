@@ -17,6 +17,14 @@ import sys
 # Fix duplicate OpenMP DLL conflict on Windows (torch + Qt both ship libiomp5md.dll)
 os.environ.setdefault('KMP_DUPLICATE_LIB_OK', 'TRUE')
 
+# Halve the Python GIL switch interval (default 5 ms → 2 ms) so the GUI
+# thread gets more frequent windows to repaint while the BrainWorker
+# thread is busy importing sentence-transformers / spaCy. The brain
+# thread runs at LowestPriority (see main_window._wire_workers) so the
+# scheduler still favors the GUI; this just makes the GIL hand-off more
+# responsive during the boot window.
+sys.setswitchinterval(0.002)
+
 # ── Pre-import torch to fix Windows DLL load order ─────────────────────
 # Loading torch BEFORE Qt avoids 'WinError 1114: A dynamic link library
 # (DLL) initialization routine failed' that some PyTorch+PyQt5 combos
