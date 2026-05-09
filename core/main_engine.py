@@ -44,7 +44,9 @@ from core.feedback import FeedbackStore
 from core.llm_chat import LLMChat
 from core.memory import UserMemory
 from core.sentiment import SentimentAnalyzer
+from core.skill_registry import discover_skills, tools_manifest
 from core.state_manager import StateManager
+from core.tool_router import ToolRouter, parse_tool_response
 from core.utterance_parser import find_best_interpretation, split_into_segments
 
 log = logging.getLogger(__name__)
@@ -79,21 +81,23 @@ class JarvisMainEngine:
     def __init__(self, stt=None, tts=None, *,
                  memory_path: Optional[str] = None,
                  feedback_db_path: Optional[str] = None,
+                 memory_passphrase: Optional[str] = None,
+                 enable_scheduler: bool = True,
+                 enable_tool_calls: bool = True,
                  verbose: bool = True,
                  lazy: bool = False):
         if verbose:
-            print("Initialising A.E.R.I.S v3.2 (full brain stack)...")
+            print("Initialising A.E.R.I.S v3.3 (brain + plugins + tool calling)...")
 
-        # Audio I/O — instantiated lazily in run() if not injected.
-        # Keeping these optional makes the engine testable without pyaudio.
         self._stt = stt
         self._tts = tts
         self._memory_path = memory_path
         self._feedback_db_path = feedback_db_path
+        self._memory_passphrase = memory_passphrase
+        self._enable_scheduler = enable_scheduler
+        self._enable_tool_calls = enable_tool_calls
         self._verbose = verbose
 
-        # Brain-stack slots — populated by setup_iter(). Listed up-front so
-        # static analyzers see the public surface even before init runs.
         self.brain = None
         self.entity_extractor = None
         self.sentiment = None
@@ -104,6 +108,8 @@ class JarvisMainEngine:
         self.llm = None
         self.state = None
         self.executor = None
+        self.scheduler = None
+        self.tool_router = None
 
         # Pending-feedback tracker: id of the most recent executed utterance
         # awaiting a one-turn-window correction signal.
@@ -127,52 +133,64 @@ class JarvisMainEngine:
         """Generator that builds the brain stack in small chunks.
 
         Yields ``(log_type, label, pct)`` BEFORE each chunk runs so a GUI
-        worker can paint progress and process pending events between
-        chunks. The pct is cumulative over the whole boot (0 → 100).
-
-        Why per-chunk yields matter: the heaviest step (sentence-encoder
-        load + index build) holds the GIL for several seconds. Splitting
-        the boot into 6 phases gives the Qt main thread regular windows
-        to repaint, so the bubble doesn't appear stuck at 15%.
+        worker can paint progress and process pending events between chunks.
         """
-        # Phase 1 — Sentence encoder. Multi-second on cold boot; this
-        # is the dominant cost of brain init.
+        # Phase 0 — Discover plugin skills BEFORE the brain builds its index,
+        # so plugin patterns participate in k-NN classification.
+        yield ("SYS", "Discovering plugin skills", 4)
+        n_skills = discover_skills("skills")
+        if self._verbose and n_skills:
+            print(f"  Loaded {n_skills} plugin skills.")
+
         self.brain = JarvisBrain(lazy=True)
-        yield ("NLU", "Loading sentence encoder", 10)
+        yield ("NLU", "Loading sentence encoder", 12)
         self.brain.load_encoder()
 
-        # Phase 2 — Intent index (cache-load fast path; rebuild slow path).
         yield ("NLU", "Loading intent index", 32)
         self.brain.build_or_load_index()
 
-        # Phase 3 — Entity extractor (also loads spaCy en_core_web_sm).
         yield ("NLU", "Loading entity extractor + spaCy NER", 50)
         self.entity_extractor = EntityExtractor(
             entities_path=os.path.join(_ROOT, "data", "entities.json"),
             intents_path=os.path.join(_ROOT, "data", "intents.json"),
         )
 
-        # Phase 4 — Sentiment, memory, conversation history, disambiguator.
-        yield ("NLU", "Loading sentiment + memory", 68)
+        yield ("NLU", "Loading sentiment + memory", 65)
         self.sentiment = SentimentAnalyzer()
-        self.memory = UserMemory(self._memory_path
-                                 or os.path.join(_ROOT, "data", "user_memory.json"))
+        self.memory = UserMemory(
+            self._memory_path or os.path.join(_ROOT, "data", "user_memory.json"),
+            passphrase=self._memory_passphrase,
+        )
         self.history = ConversationHistory(max_turns=8)
         self.disambiguator = Disambiguator()
 
-        # Phase 5 — Feedback DB + LLM client.
-        yield ("MEM", "Attaching feedback DB + LLM fallback", 82)
+        yield ("MEM", "Attaching feedback DB + LLM client", 78)
         self.feedback = FeedbackStore(self._feedback_db_path
                                       or os.path.join(_ROOT, "data", "feedback_log.sqlite"))
         self.llm = LLMChat()
 
-        # Phase 6 — State machine + action executor.
-        yield ("SYS", "Wiring state machine + executor", 93)
+        yield ("SYS", "Wiring scheduler + state machine + executor", 90)
+        self.scheduler = self._build_scheduler() if self._enable_scheduler else None
         self.state = StateManager()
-        self.executor = ActionExecutor()
+        self.executor = ActionExecutor(scheduler=self.scheduler)
+        self.tool_router = ToolRouter(executor=self.executor, memory=self.memory)
 
-        # Phase 7 — Done.
         yield ("SYS", "All modules nominal · brain ready", 100)
+
+    def _build_scheduler(self):
+        """Create the reminder scheduler if APScheduler is available."""
+        try:
+            from core.scheduler import ReminderScheduler
+        except ImportError:
+            return None
+
+        def _on_fire(message: str) -> None:
+            self._speak(f"Reminder, sir: {message}")
+
+        try:
+            return ReminderScheduler(_on_fire)
+        except ImportError:
+            return None
 
     # ------------------------------------------------------------------ #
     #  Audio                                                               #
@@ -406,7 +424,8 @@ class JarvisMainEngine:
         return response
 
     def _fallback(self, text: str, pred, sentiment) -> str:
-        action = "chat_fallback" if self.llm.is_available() else "rejected"
+        llm_up = self.llm.is_available()
+        action = "chat_fallback" if llm_up else "rejected"
         utterance_id = self.feedback.log_utterance(
             raw_text=text,
             normalized_text=pred.normalized_text,
@@ -418,7 +437,25 @@ class JarvisMainEngine:
             action_taken=action,
         )
 
-        if self.llm.is_available():
+        if llm_up and self._enable_tool_calls:
+            tools = tools_manifest() + self._builtin_tools_manifest()
+            raw = self.llm.reply_with_tools(
+                user_text=text,
+                sentiment_label=sentiment.label,
+                memory_facts=self.memory.all_facts(),
+                history=self.history.as_messages(),
+                tools=tools,
+            )
+            if raw:
+                call = parse_tool_response(raw)
+                routed = self.tool_router.execute(call)
+                if routed:
+                    self.history.add_assistant(routed)
+                    if call.kind == "tool":
+                        self._pending_utterance_id = utterance_id
+                    return routed
+
+        if llm_up:
             reply = self.llm.reply(
                 user_text=text,
                 sentiment_label=sentiment.label,
@@ -429,11 +466,32 @@ class JarvisMainEngine:
                 self.history.add_assistant(reply)
                 return reply
 
-        # No LLM (or LLM failed): queue as a learning candidate.
         self.feedback.queue_low_confidence(utterance_id, text, pred.top3)
         msg = "Ye samajh nahi paaya, sir. Aap thoda clear bolenge?"
         self.history.add_assistant(msg)
         return msg
+
+    def _builtin_tools_manifest(self) -> list[dict]:
+        """Tools backed by core/executor.py (not yet @skill-decorated)."""
+        return [
+            {"name": "open_app",        "description": "Launch a desktop application", "args": ["app_name"]},
+            {"name": "close_app",       "description": "Kill a running application",   "args": ["app_name"]},
+            {"name": "get_weather",     "description": "Stub weather (use real_weather if available)", "args": []},
+            {"name": "get_time",        "description": "Current time and date",        "args": []},
+            {"name": "take_screenshot", "description": "Capture screen to file",       "args": []},
+            {"name": "search_web",      "description": "Google search a query",        "args": ["query"]},
+            {"name": "play_youtube",    "description": "YouTube search a query",       "args": ["query"]},
+            {"name": "open_website",    "description": "Open a URL in browser",        "args": ["url"]},
+            {"name": "system_info",     "description": "Battery, CPU, RAM stats",      "args": []},
+            {"name": "volume_up",       "description": "Increase system volume",       "args": []},
+            {"name": "volume_down",     "description": "Decrease system volume",       "args": []},
+            {"name": "volume_mute",     "description": "Mute system volume",           "args": []},
+            {"name": "lock_screen",     "description": "Lock the workstation",         "args": []},
+            {"name": "calculate",       "description": "Evaluate a math expression",   "args": ["expression"]},
+            {"name": "create_note",     "description": "Save a timestamped text note", "args": ["content"]},
+            {"name": "set_reminder",    "description": "Schedule a real reminder",     "args": ["message", "time"]},
+            {"name": "schedule_meeting","description": "Schedule a meeting",           "args": ["person", "time"]},
+        ]
 
     def _render_state_result(self, result: str) -> Optional[str]:
         """Convert state_manager output (SUCCESS_EXECUTE|...|... or prompt) to spoken text."""

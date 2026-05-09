@@ -158,8 +158,9 @@ def _titlecase_clean(s: str) -> str:
 
 
 class UserMemory:
-    def __init__(self, path: str):
+    def __init__(self, path: str, passphrase: Optional[str] = None):
         self.path = path
+        self._passphrase = passphrase
         self._data: dict = {"facts": {}, "notes": [], "preferences": {}}
         self._load()
 
@@ -170,9 +171,18 @@ class UserMemory:
     def _load(self) -> None:
         if not os.path.exists(self.path):
             return
+
+        from core import vault
+
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
+            if vault.is_vault_file(self.path):
+                if not self._passphrase:
+                    raise vault.VaultError("memory is encrypted but no passphrase was given")
+                loaded = vault.decrypt_from_file(self.path, self._passphrase)
+            else:
+                with open(self.path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+
             if isinstance(loaded, dict):
                 loaded.setdefault("facts", {})
                 loaded.setdefault("notes", [])
@@ -183,10 +193,35 @@ class UserMemory:
 
     def _save(self) -> None:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        if self._passphrase:
+            from core import vault
+            vault.encrypt_to_file(self.path, self._data, self._passphrase)
+            return
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, self.path)
+
+    # ------------------------------------------------------------------ #
+    #  Vault control                                                      #
+    # ------------------------------------------------------------------ #
+
+    def is_encrypted(self) -> bool:
+        return self._passphrase is not None
+
+    def enable_vault(self, passphrase: str) -> None:
+        """Switch this memory store into encrypted mode and re-write the file."""
+        if not passphrase:
+            raise ValueError("passphrase cannot be empty")
+        self._passphrase = passphrase
+        self._save()
+
+    def disable_vault(self, passphrase: str) -> None:
+        """Decrypt and re-write as plaintext. Caller must supply the current passphrase."""
+        if self._passphrase != passphrase:
+            raise ValueError("passphrase mismatch")
+        self._passphrase = None
+        self._save()
 
     # ------------------------------------------------------------------ #
     #  Public API                                                         #

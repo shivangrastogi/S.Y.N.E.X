@@ -5,14 +5,19 @@ import shutil
 import subprocess
 import webbrowser
 from datetime import datetime
+from typing import Optional
 
 import psutil
+
+from core.skill_registry import get_skill
+from core.time_parser import parse_time_string
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class ActionExecutor:
-    def __init__(self):
+    def __init__(self, scheduler=None):
+        self.scheduler = scheduler
         self.app_aliases = {
             "chrome": ["chrome", "google-chrome"],
             "edge": ["msedge"],
@@ -81,6 +86,14 @@ class ActionExecutor:
                 return handler()
             except Exception as e:
                 return f"Error executing {intent}: {str(e)}"
+
+        plugin = get_skill(intent)
+        if plugin:
+            try:
+                return plugin.run(slots)
+            except Exception as e:
+                return f"Error executing {intent}: {str(e)}"
+
         return f"Ye kaam karna seekh raha hoon: {intent}."
 
     # ------------------------------------------------------------------ #
@@ -249,9 +262,24 @@ class ActionExecutor:
         return f"Note save kar liya."
 
     def set_reminder(self, slots: dict) -> str:
-        msg = slots.get("message", "kuch")
-        t = slots.get("time", "baad mein")
-        return f"Reminder set kar diya: '{msg}' — {t} pe."
+        msg = (slots.get("message") or "kuch yaad karna hai").strip()
+        time_str = (slots.get("time") or "").strip()
+
+        if not self.scheduler:
+            return f"Reminder note kar liya: '{msg}' — {time_str or 'baad mein'} pe."
+
+        fire_at = parse_time_string(time_str)
+        if not fire_at:
+            return f"'{time_str}' samajh nahi aaya. Time clearer batao — jaise '5 pm' ya '10 minute mein'."
+
+        try:
+            self.scheduler.schedule(msg, fire_at)
+        except ValueError:
+            return f"'{time_str}' to past mein hai. Future ka time batao."
+        except Exception as e:
+            return f"Reminder set nahi ho paya: {e}"
+
+        return f"Reminder set: '{msg}' — {fire_at.strftime('%I:%M %p, %d %b')} pe yaad dilaoonga."
 
     def schedule_meeting(self, slots: dict) -> str:
         person = slots.get("person", "unknown")

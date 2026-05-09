@@ -59,6 +59,35 @@ _TONE_HINTS = {
 }
 
 
+_TOOL_SYSTEM_PROMPT = """You are AERIS, a Hinglish-native personal assistant for {user_name}.
+
+You can call these tools:
+{tool_list}
+
+For every user input you MUST respond with EXACTLY ONE valid JSON object — no prose, no fences, no extra keys. Pick the form that fits:
+
+  Single tool call:
+    {{"tool": "<tool_name>", "args": {{...}}}}
+
+  Multi-step plan (use only when one input clearly maps to several actions):
+    {{"tool": "plan", "steps": [{{"tool": "...", "args": {{...}}}}, ...]}}
+
+  Plain conversation reply (chit-chat, questions, thank-you, etc.):
+    {{"tool": "chat", "reply": "<short Hinglish reply>"}}
+
+Rules:
+- If the user asks about themselves and you already know the fact (see "Known facts"), use chat with the answer.
+- For reminders: extract message + a clear time string (e.g. "5 pm", "10 minutes", "kal 9 am") and call set_reminder.
+- For weather: prefer real_weather if available, else get_weather.
+- Keep chat replies under 2 short sentences.
+- Never invent tool names. Only the ones listed above.
+
+Known facts about {user_name}:
+{user_facts_block}
+
+Current sentiment: {sentiment_label}. {tone_hint}"""
+
+
 def _format_user_facts(facts: dict) -> str:
     if not facts:
         return "(none yet)"
@@ -150,6 +179,66 @@ class LLMChat:
             return content or None
         except requests.RequestException as e:
             log.warning(f"[LLMChat] Request failed: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            log.warning(f"[LLMChat] Bad JSON from Ollama: {e}")
+            return None
+
+
+    # ------------------------------------------------------------------ #
+    #  Tool-calling reply                                                 #
+    # ------------------------------------------------------------------ #
+
+    def reply_with_tools(
+        self,
+        user_text: str,
+        sentiment_label: str,
+        memory_facts: dict,
+        history: list[dict],
+        tools: list[dict],
+    ) -> Optional[str]:
+        """Ask the LLM to either call a tool (JSON) or chat. Returns raw model output."""
+        user_name = memory_facts.get("name", "sir")
+        tool_lines = []
+        for t in tools:
+            args = t.get("args") or []
+            arg_str = ", ".join(args) if args else "(no args)"
+            tool_lines.append(f"  - {t['name']}({arg_str}) — {t.get('description','')}")
+        system_prompt = _TOOL_SYSTEM_PROMPT.format(
+            user_name=user_name,
+            tool_list="\n".join(tool_lines) if tool_lines else "  (no tools registered)",
+            user_facts_block=_format_user_facts(memory_facts),
+            sentiment_label=sentiment_label,
+            tone_hint=_TONE_HINTS.get(sentiment_label, ""),
+        )
+
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history or [])
+        if not history or history[-1].get("content") != user_text:
+            messages.append({"role": "user", "content": user_text})
+
+        payload = {
+            "model": self.cfg.model,
+            "messages": messages,
+            "stream": False,
+            "format": "json",
+            "options": {
+                "temperature": 0.1,
+                "num_predict": self.cfg.max_tokens,
+            },
+        }
+
+        try:
+            r = requests.post(
+                f"{self.cfg.host}/api/chat",
+                json=payload,
+                timeout=self.cfg.timeout_seconds,
+            )
+            r.raise_for_status()
+            body = r.json()
+            return (body.get("message", {}).get("content") or "").strip() or None
+        except requests.RequestException as e:
+            log.warning(f"[LLMChat] Tool-call request failed: {e}")
             return None
         except json.JSONDecodeError as e:
             log.warning(f"[LLMChat] Bad JSON from Ollama: {e}")

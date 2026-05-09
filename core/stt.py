@@ -70,6 +70,78 @@ class STT:
         except:
             return ""
 
+    # ------------------------------------------------------------------ #
+    #  Streaming mode (Vosk partial results — live transcription)         #
+    # ------------------------------------------------------------------ #
+
+    def listen_streaming(self, on_partial=None, on_final=None,
+                         max_silence_chunks: int = 8,
+                         sample_rate: int = 16000):
+        """Stream mic audio through Vosk, firing on_partial/on_final callbacks.
+
+        on_partial(text) — called repeatedly while user speaks
+        on_final(text)   — called once when silence is detected, then returns
+
+        Uses the offline Vosk model so it works without internet. Falls back
+        to ``listen()`` if the model isn't loaded yet.
+        """
+        if not self.vosk_model:
+            text = self.listen()
+            if on_final:
+                on_final(text)
+            return text
+
+        try:
+            import pyaudio
+        except ImportError:
+            text = self.listen()
+            if on_final:
+                on_final(text)
+            return text
+
+        rec = KaldiRecognizer(self.vosk_model, sample_rate)
+        rec.SetWords(True)
+
+        p = pyaudio.PyAudio()
+        stream = p.open(
+            format=pyaudio.paInt16, channels=1,
+            rate=sample_rate, input=True,
+            frames_per_buffer=4000,
+        )
+        stream.start_stream()
+
+        last_partial = ""
+        silence_counter = 0
+        final_text = ""
+        try:
+            while True:
+                data = stream.read(4000, exception_on_overflow=False)
+                if rec.AcceptWaveform(data):
+                    final_text = json.loads(rec.Result()).get("text", "").lower().strip()
+                    if final_text:
+                        break
+                else:
+                    partial = json.loads(rec.PartialResult()).get("partial", "").lower().strip()
+                    if partial and partial != last_partial:
+                        last_partial = partial
+                        silence_counter = 0
+                        if on_partial:
+                            on_partial(partial)
+                    else:
+                        silence_counter += 1
+                        if last_partial and silence_counter >= max_silence_chunks:
+                            final_text = last_partial
+                            break
+        finally:
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+
+        if on_final:
+            on_final(final_text)
+        return final_text
+
+
 if __name__ == "__main__":
     # Quick test
     stt = STT()

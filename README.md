@@ -1,1362 +1,1732 @@
-# A.E.R.I.S / JARVIS v3.2
+# AERIS / Jarvis 3.0
 
-**Adaptive Emotional Reasoning & Intelligent System** — a production-grade,
-Hinglish-native personal AI assistant for Windows, written in Python with
-a PyQt5 GUI.
-
-This README is written so that another person — or a language model — can
-read it once and have an accurate, complete mental model of the project:
-what each piece is, **why it was designed that way**, and how the pieces
-interact at runtime. If you are pasting this into ChatGPT or another LLM
-to get help, this is everything you need.
+**A.E.R.I.S** — Adaptive Engine for Reasoning, Intelligence & Speech  
+A fully-local, Hinglish-native personal AI assistant built from scratch in Python.
 
 ---
 
 ## Table of Contents
 
-1. [Briefing — the project in one page](#1-briefing--the-project-in-one-page)
-2. [Design principles — the *why*](#2-design-principles--the-why)
-3. [Quick start](#3-quick-start)
-4. [Repository layout](#4-repository-layout)
-5. [Pipeline at a glance](#5-pipeline-at-a-glance)
-6. [The Brain — how it "learns" and why there is no training step](#6-the-brain--how-it-learns-and-why-there-is-no-training-step)
-7. [Core module reference](#7-core-module-reference)
-8. [Skills, intents, and the action executor](#8-skills-intents-and-the-action-executor)
-9. [GUI architecture (jarvis_v31)](#9-gui-architecture-jarvis_v31)
-10. [Threading model](#10-threading-model)
-11. [Boot smoothness — keeping the GUI silky during heavy ML loads](#11-boot-smoothness--keeping-the-gui-silky-during-heavy-ml-loads)
-12. [Data files — schemas and ground-truth assets](#12-data-files--schemas-and-ground-truth-assets)
-13. [Testing strategy](#13-testing-strategy)
-14. [Dependencies and setup](#14-dependencies-and-setup)
-15. [Common workflows](#15-common-workflows)
-16. [Roadmap](#16-roadmap)
-17. [Glossary](#17-glossary)
+0. [Latest Changelog (v3.3 — Phase F + G shipped)](#0-latest-changelog-v33--phase-f--g-shipped)
+1. [What This Is](#1-what-this-is)
+2. [Quick Start](#2-quick-start)
+3. [Full Architecture](#3-full-architecture)
+4. [Module Reference](#4-module-reference)
+5. [All Skills / Intents](#5-all-skills--intents)
+6. [Memory System](#6-memory-system)
+7. [Continual Learning (Feedback Bandit)](#7-continual-learning-feedback-bandit)
+8. [GUI](#8-gui)
+9. [Tests](#9-tests)
+10. [Configuration](#10-configuration)
+11. [Known Limitations of the Current k-NN Brain](#11-known-limitations-of-the-current-k-nn-brain)
+12. [Phase F — Feature Parity & Bug Fixes](#12-phase-f--feature-parity--bug-fixes)
+13. [Phase G — Next-Level Upgrades](#13-phase-g--next-level-upgrades)
+14. [Dependency Reference](#14-dependency-reference)
+15. [Project Layout](#15-project-layout)
+16. [Build Status](#16-build-status)
 
 ---
 
-## 1. Briefing — the project in one page
-
-**Who it is for.** A single power user (Shivang) on Windows. AERIS is a
-personal voice assistant that runs locally, understands mixed
-Hindi-English (Hinglish) commands, executes desktop automations
-(opening apps, search, screenshots, system info, notes, reminders, etc.),
-remembers facts about the user, and falls back to a local LLM (Ollama)
-for free-form chat when the intent classifier doesn't recognize a command.
-
-**What runs locally.** Everything except optional cloud TTS and Google
-SR speech recognition. The intent classifier, entity extractor, sentiment
-analyzer, memory store, feedback database, and LLM (Ollama) all run on
-the user's machine.
-
-**Languages.** Hinglish is first-class. The encoder is multilingual; the
-sentiment lexicon is augmented with ~40 Romanized-Hindi words; the
-entity extractor recognizes Hinglish trigger words; the LLM prompt
-tells the model to respond in whatever mix the user used.
-
-**Surfaces.**
-- `python main.py` — voice REPL (mic in → text out → speaker)
-- `python main.py --text` — text REPL (no audio dependencies needed)
-- `python run_gui.py` — full PyQt5 desktop app (this is the primary surface)
-
-**Brain stack at a glance.**
-
-```
-text in → normalize → memory check → split into sub-commands
-       → per segment: sentiment → intent classify → disambiguate?
-       → extract entities → run state machine → execute skill
-       → if low confidence: LLM chit-chat or queue for review
-       → reply text → TTS out
-```
-
-There is **no training step in the traditional sense**. The intent
-classifier embeds a few hundred labeled patterns from `data/intents.json`
-through a frozen multilingual transformer and stores them in a k-NN
-index. New utterances are routed by nearest-neighbor cosine vote. See
-§6 for the full rationale.
-
-**Memory and feedback.**
-- Long-term facts live in `data/user_memory.json`.
-- Every utterance plus its outcome is logged to `data/feedback_log.sqlite`.
-- A per-intent acceptance threshold floats with an exponential-moving
-  average over user reward (+1 accepted, -1 corrected, 0 ignored).
-  Low-confidence utterances queue for an interactive review CLI
-  (`python -m core.review_cli`).
-
-**Recent work (April-May 2026).**
-The brain stack takes 5-10 s to initialize on cold boot — sentence-
-transformers, spaCy, SQLite, etc. — which used to freeze the GUI at
-"15 %" during boot. The current code splits init into 7 chunks, runs
-the brain worker at QThread.LowestPriority, and pauses the heaviest
-60 fps animations while loading so the UI stays smooth. See §11.
-
----
-
-## 2. Design principles — the *why*
-
-Every architectural choice in AERIS came from one of these guard rails.
-When you read the codebase and see a quirk, it almost always traces
-back to one of these:
-
-1. **No cloud dependency for inference.** Speech recognition can use
-   Google SR online, but the *brain* (intent classification, entity
-   extraction, sentiment, memory, LLM) is fully local. The user owns
-   their own utterances. Cloud calls fail open: when offline, AERIS
-   falls back to Vosk for STT, pyttsx3 for TTS, and an "I didn't
-   understand" message if Ollama is also down.
-
-2. **Hinglish is first-class, not bolted-on.** The encoder is multilingual.
-   The sentiment lexicon includes Romanized Hindi. The entity extractor
-   strips Hinglish filler words ("bhai", "yaar", "ek kam karo") before
-   classification. The LLM system prompt tells the model to match the
-   user's language mix instead of normalizing to English.
-
-3. **No backprop, no GPUs.** Adding new commands should not require
-   training a model. New patterns are added to a JSON file; the index
-   rebuilds in seconds via embed-and-cache. The user can review queued
-   low-confidence patterns and approve them, growing the catalog over
-   time without ever touching a learning rate.
-
-4. **Graceful degradation.** spaCy missing → entity extractor still
-   works without NER. Ollama down → low-confidence utterances queue
-   for review instead of crashing. Vosk missing → falls back to Google
-   SR. PyTorch DLL broken → window still opens; brain reports a clean
-   error in the chat panel. Nothing in this codebase fails by exception
-   when a soft fallback would do.
-
-5. **Single user, single machine.** No auth, no multi-tenancy, no
-   horizontal scaling concerns. SQLite is fine because there is exactly
-   one writer. Memory lives in a JSON file because it is a few KB.
-   Decisions that would be wrong at scale (e.g., string-keyed dicts
-   for app aliases) are correct for n=1.
-
-6. **GUI smoothness is non-negotiable.** Backend can take time to load.
-   The GUI must not stutter, freeze, or block while it does. The
-   threading model and boot-smoothness work in §10 and §11 exist
-   entirely to honor this principle.
-
-7. **Tests are at the brain layer, not the GUI layer.** PyQt is
-   awkward to test in CI; the brain is pure Python and can be exercised
-   end-to-end via `JarvisMainEngine.process_text(text)`. The pytest
-   suite goes deep on the brain modules and stubs out audio I/O.
-
----
-
-## 3. Quick start
-
-```bash
-# Install
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm    # optional: nicer NER
-
-# Optional: install Ollama (https://ollama.com), then
-ollama pull phi3:mini                       # 3.8 B, ~2.4 GB
-
-# Run
-python run_gui.py        # PyQt5 desktop app — primary surface
-python main.py           # voice REPL
-python main.py --text    # text REPL (no microphone, no audio)
-python -m pytest tests/  # ~3-4 minutes; full brain coverage
-python -m core.review_cli   # interactive low-confidence pattern review
-```
-
-**Cold-boot expectations.**
-- `run_gui.py`: torch + PyQt5 import takes ~3-5 s before window paints
-  (Windows DLL ordering — see §11). Then the brain stack initializes
-  on a worker thread for another 5-10 s while the boot bubble walks
-  4 % → 100 %. The window itself is interactive throughout.
-- `python main.py`: ~5-10 s before the prompt appears.
-
----
-
-## 4. Repository layout
-
-```
-new version- 3.0/
-│
-├── main.py                          Terminal entry point (voice + text REPL)
-├── run_gui.py                       PyQt5 GUI launcher (JARVIS v3.1 window)
-├── requirements.txt                 Full dependency list
-│
-├── core/                            Brain pipeline — ~3,700 lines, the heart of AERIS
-│   ├── __init__.py
-│   ├── main_engine.py              Orchestrator. process_text() runs full pipeline
-│   ├── brain.py                    Thin wrapper over IntentClassifier
-│   ├── intent_classifier.py        Sentence encoder + k-NN; the "model"
-│   ├── intent_engine.py            Optional fuzzy fallback (rapidfuzz)
-│   ├── entity_extractor.py         4-layer extractor (regex + gazetteer + NER + residual)
-│   ├── normalizer.py               Hinglish text cleaner (lowercase, punctuation, ws)
-│   ├── sentiment.py                VADER + Hinglish lexicon extension
-│   ├── memory.py                   Long-term JSON-backed user facts
-│   ├── conversation.py             Rolling 8-turn context buffer
-│   ├── llm_chat.py                 Ollama HTTP client for chit-chat fallback
-│   ├── disambiguator.py            "Close-call" intent clarification prompts
-│   ├── state_manager.py            Slot-fill / disambig multi-turn state machine
-│   ├── feedback.py                 SQLite logger + EMA threshold learner (the "bandit")
-│   ├── utterance_parser.py         Multi-command splitter ("X aur Y") + subspan scanner
-│   ├── stt.py                      Speech-to-text (Google SR online → Vosk offline)
-│   ├── tts.py                      Text-to-speech (Edge-TTS online → pyttsx3 offline)
-│   ├── voice_engine.py             Continuous mic listener with wake/sleep states
-│   ├── executor.py                 Skill dispatcher (21 intents, 25+ apps, Win32 calls)
-│   └── review_cli.py               Interactive review of low-confidence pending patterns
-│
-├── ui/
-│   ├── jarvis_v31/                  Current production UI
-│   │   ├── main_window.py          Qt main window + BrainWorker / VoiceWorker / SpeakWorker
-│   │   ├── glass_chat_panel.py     390 px right rail — header, automation chips, chat
-│   │   ├── reactor.py              460 × 460 animated core + particles + state switcher
-│   │   ├── floating_dock.py        Left sidebar dock (collapsing, with profile menu)
-│   │   ├── tab_panels.py           Right-rail tabbed panel stack
-│   │   ├── wiring_system.py        Background grid of interconnected node cards
-│   │   ├── logs_bar.py             Bottom collapsible log feed
-│   │   ├── title_bar.py            Frameless title bar with state pill + window buttons
-│   │   └── tokens.py               Design tokens (J colors, JSTATES, font helpers)
-│   ├── aeris_v4/                    Previous AERIS layout (preserved, not active)
-│   ├── ui_laptop/                   Earlier desktop variant
-│   └── ui_legacy/                   Archived earlier prototypes
-│
-├── data/
-│   ├── intents.json                 21 intent definitions + Hinglish patterns + slot prompts
-│   ├── entities.json                Gazetteer of app aliases (chrome → ["chrome", "google-chrome"])
-│   ├── user_memory.json             Persistent user facts (created on first save)
-│   ├── hinglish_dict.json           Vocabulary reference (not used at runtime)
-│   ├── feedback_log.sqlite          Utterance log + per-intent thresholds + pending patterns
-│   ├── models/
-│   │   ├── intent_index.pkl         Cached k-NN embeddings (auto-rebuilt on intents.json change)
-│   │   ├── intent_metadata.json     Hash, encoder name, build timestamp
-│   │   └── hand_landmarker.task     MediaPipe gesture model (utils/gesture.py)
-│   ├── audio_cache/                 TTS output (speech.mp3 — overwritten per call)
-│   ├── logs/                        System logs (rotated externally)
-│   └── notes/                       User-created notes (one JSON per note)
-│
-├── tests/                           pytest suite — 13 files, ~25 active tests
-│   ├── conftest.py                  Shared fixtures (tmp_memory_path, tmp_feedback_db)
-│   ├── test_brain.py                JarvisBrain end-to-end predict
-│   ├── test_intent_classifier.py    Encoder load, k-NN, cache rebuild on hash change
-│   ├── test_entity_extractor.py     All 4 extractor layers
-│   ├── test_sentiment.py            VADER + Hinglish lexicon
-│   ├── test_memory.py               Pattern detection, fact storage, recall
-│   ├── test_conversation.py         Rolling buffer + OpenAI message format
-│   ├── test_disambiguator.py        Close-call detection + answer parsing
-│   ├── test_feedback.py             SQLite logger + EMA threshold drift
-│   ├── test_normalizer.py           Punctuation strip + URL/math preservation
-│   ├── test_pipeline.py             End-to-end JarvisMainEngine.process_text()
-│   ├── test_stt.py                  Mocked STT
-│   └── test_tts.py                  Mocked TTS
-│
-├── utils/
-│   ├── gesture.py                   OpenCV + MediaPipe hand-tracking sandbox
-│   ├── monitor.py                   System monitoring helpers
-│   └── __init__.py
-│
-├── BRAIN_BUILD_PLAN.md              Original 9-checkpoint architecture plan
-├── BRAIN_CHECKPOINTS.md             Implementation status tracker
-├── BRAIN_REVIEW.md                  Code review notes
-├── _aeris_smoke.py                  Standalone visual smoke test (older AERIS UI)
-└── _jv31_smoke.py                   JARVIS v3.1 visual smoke test
-```
-
----
-
-## 5. Pipeline at a glance
-
-A single utterance, end-to-end, in `JarvisMainEngine.process_text(text)`:
-
-```
-                    raw user text
-                          │
-                          ▼
-            ┌─────────────────────────────┐
-            │ Step 0a: state.is_waiting?  │  yes → fill slot, return
-            ├─────────────────────────────┤
-            │ Step 0b: state.is_disambig? │  yes → route to chosen intent
-            ├─────────────────────────────┤
-            │ Step 1: pending feedback?   │  yes → record accept/correct
-            ├─────────────────────────────┤
-            │ Step 2a: memory recall?     │  yes → return the fact
-            ├─────────────────────────────┤
-            │ Step 2b: memory store?      │  yes → save + acknowledge
-            ├─────────────────────────────┤
-            │ Step 3: cancel keyword?     │  yes → "kuch chal nahi raha"
-            ├─────────────────────────────┤
-            │ Step 4: split into segments │  utterance_parser.split_into_segments
-            └────────────┬────────────────┘
-                         │  for each segment:
-                         ▼
-            ┌─────────────────────────────┐
-            │  sentiment.classify         │  VADER (with Hinglish boost)
-            ├─────────────────────────────┤
-            │  find_best_interpretation   │  try the segment + 5 trimmed variants
-            │                             │  keep the one with highest confidence
-            ├─────────────────────────────┤
-            │  gazetteer override?        │  app_name + open/close verb seen?
-            │                             │  yes → force the structural intent
-            ├─────────────────────────────┤
-            │  feedback.get_threshold     │  per-intent EMA-learned floor
-            ├─────────────────────────────┤
-            │  confidence ≥ threshold?    │
-            │   ├─ no → LLM fallback or queue for review
-            │   └─ yes → continue
-            ├─────────────────────────────┤
-            │  disambiguator.is_close?    │  top1-top2 < 0.05 and top1 < 0.85?
-            │   ├─ yes → ask + wait one turn
-            │   └─ no → continue
-            ├─────────────────────────────┤
-            │  entity_extractor.extract   │  regex → gazetteer → spaCy → residual
-            ├─────────────────────────────┤
-            │  state.process_prediction   │  all required slots present?
-            │   ├─ no → ask + wait one turn
-            │   └─ yes → SUCCESS_EXECUTE
-            ├─────────────────────────────┤
-            │  executor.execute           │  21 skill handlers
-            ├─────────────────────────────┤
-            │  feedback.log_utterance     │  row in SQLite for later analysis
-            └─────────────────────────────┘
-                         │
-                         ▼
-                   response text
-```
-
-The pipeline is purposefully linear and side-effect-light. Each step is
-testable in isolation. The only stateful concerns are the multi-turn
-state machine (`StateManager`) and the SQLite feedback log; everything
-else is a function of (text, in-memory state) → (text, log entries).
-
----
-
-## 6. The Brain — how it "learns" and why there is no training step
-
-This is the most-asked question about the project, so it gets its own
-section. **There is no gradient-based training in AERIS.** The intent
-classifier is a *retrieval* system over a small, hand-curated catalog
-of labeled phrases.
-
-### 6.1 The encoder
-
-```python
-ENCODER_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-```
-
-**What it is.** A 12-layer MiniLM transformer, pre-trained on parallel
-text in 50+ languages with a paraphrase-detection objective. Output is
-a 384-dimensional sentence embedding. ~120 MB on disk.
-
-**Why this specific encoder.**
-
-- **Multilingual.** It understands Hinglish natively. We do not have
-  to translate "kholo" to "open" before embedding — the encoder
-  already maps "open chrome" and "chrome kholo" to nearby points in
-  embedding space.
-- **Small.** 384 dims, ~120 MB. Loads in 2-3 s on cold boot, fits in
-  user RAM. A larger model (e.g., 768-dim mBERT) would not move the
-  needle on accuracy at this catalog size and would balloon load time.
-- **Frozen.** We never fine-tune it. Adding a new intent does not
-  require GPU training, just adding patterns to `intents.json`.
-- **Pre-trained for similarity.** Paraphrase-detection objective means
-  "open chrome" and "chrome launch karo" are already close in
-  embedding space without any tuning on our part.
-
-The encoder is loaded once per process (in `IntentClassifier.load_encoder`)
-and shared across all queries.
-
-### 6.2 The "training" step (which is just embed-and-cache)
-
-`data/intents.json` looks like this:
-
-```json
-{
-  "open_app": {
-    "patterns": [
-      "open chrome", "chrome kholo", "launch browser",
-      "brave open karo", "vs code start kar"
-    ],
-    "required_entities": ["app_name"],
-    "prompts": { "app_name": "Kaunsa app kholna hai?" }
-  },
-  "get_weather": {
-    "patterns": ["weather batao", "mausam kya hai", "what's the weather"],
-    "required_entities": [],
-    "prompts": {}
-  }
-  // ...19 more intents
-}
-```
-
-At boot time, `IntentClassifier` does this **once**:
-
-1. Read every `(pattern, intent)` pair from intents.json (~250-300 pairs).
-2. Run each pattern through `HinglishNormalizer.clean(text)` (lowercase,
-   strip non-essential punctuation, collapse whitespace).
-3. Embed every cleaned pattern via `SentenceTransformer.encode(...)` →
-   one 384-dim vector per pattern.
-4. Stack vectors into a numpy array; fit a `sklearn.NearestNeighbors`
-   index with `metric="cosine"`, `k=5`.
-5. Pickle the embeddings + labels into `data/models/intent_index.pkl`,
-   and write `intent_metadata.json` with the MD5 hash of intents.json.
-
-On subsequent boots, the metadata hash is checked against the current
-intents.json hash. If they match, the pickle is loaded and step 1-4
-are skipped. If they differ, the index rebuilds automatically. This is
-the closest thing to a "training pipeline" AERIS has — and it costs
-zero data scientist time.
-
-**Why k-NN over a softmax classifier.**
-
-- **No training.** Adding a new intent is a JSON edit + a few-second
-  rebuild, not a gradient descent run.
-- **Robust to small data.** With 5-15 patterns per intent, a softmax
-  classifier on top of frozen embeddings would overfit. k-NN does not
-  overfit — it just looks up nearest neighbors.
-- **Top-K is free.** The disambiguator needs the top-3 candidate
-  intents to decide whether to ask the user. k-NN gives this directly;
-  a softmax would need a second-step calibration.
-- **Easy to audit.** When prediction is wrong, we can inspect *which*
-  patterns it matched against. With a softmax we'd be debugging
-  weights.
-
-### 6.3 The voting rule
-
-```python
-similarities = max(0, 1 - distances)        # cosine sims of top-5
-weights      = exp(10 * similarities)       # exponential weighting
-scores       = group-by-intent and sum(weights)
-winner       = argmax(scores)
-confidence   = top-1 cosine similarity (raw, not vote-share)
-```
-
-**Why exponential weighting.** A naive k-NN sums up the votes of the
-top-5 neighbors equally. That can lose to a competitor when a single
-near-perfect match for intent A is outvoted by 4 mediocre matches for
-intent B. The exponential weight means a single similarity-0.95 neighbor
-contributes ~e⁹·⁵ ≈ 13,360 weight, while a similarity-0.7 neighbor
-contributes ~e⁷ ≈ 1,096. One excellent match dominates several mediocre
-ones — which is the right behavior when intent boundaries are sharp.
-
-**Why confidence is top-1 cosine similarity, not vote share.** Vote
-share (e.g., "open_app: 0.6, close_app: 0.4") depends on how many
-sibling intents share the neighborhood, which is unstable. Top-1
-cosine similarity is the raw semantic match strength and is well-
-calibrated across intents — it answers the question "how similar is
-this utterance to my closest known phrasing of any intent?".
-
-### 6.4 Per-intent threshold learning (the "bandit")
-
-The brain does not have a single fixed acceptance threshold (e.g.,
-"trust intent classification when confidence ≥ 0.5"). Instead, every
-intent has its own threshold that drifts over time based on user
-reward.
-
-**Setup (`core/feedback.py`).**
-
-```
-ALPHA                       0.10    EMA smoothing factor
-DEFAULT_THRESHOLD           0.50    starting point for any new intent
-MIN_THRESHOLD               0.40    floor — never refuse this much
-MAX_THRESHOLD               0.90    ceiling — never trust above this
-DRIFT_DOWN_AFTER_SAMPLES    5       need this many samples before lowering
-DRIFT_DOWN_REWARD_GATE      +0.5    avg reward must exceed this to lower
-DRIFT_UP_REWARD_GATE        −0.2    avg reward below this raises threshold
-
-reward map:
-   accepted   → +1   (user did not correct in next turn)
-   corrected  → -1   (user said "galat" / "wrong" within one turn)
-   cancelled  → -1   (user aborted slot-fill or disambig)
-   ignored    →  0   (no signal observed)
-```
-
-**Why this is a contextual bandit, not RL.**
-
-- Each utterance is a one-shot decision — there is no sequential state.
-- The reward arrives at most one turn later (the "did you say galat?"
-  window).
-- The action set is small: {execute, ask disambig, fall back to LLM}.
-
-A full RL loop (Q-learning, policy gradients) would be wildly
-overpowered here. A per-arm EMA over a +1/0/-1 reward is the well-
-known correct tool for this shape.
-
-**What the threshold actually controls.** When the brain emits a
-prediction with confidence c for intent X, AERIS executes only if
-c ≥ get_threshold(X). Below threshold, the utterance falls through
-to the LLM chit-chat fallback (or, if Ollama is down, queues for
-manual review).
-
-Over time, an intent that the user reliably accepts will have its
-threshold *drop* (accept earlier — the bandit has learned the user
-trusts it). An intent the user keeps correcting will have its threshold
-*rise* until either confidence is overwhelming or the brain refuses.
-
-**Why this approach works for n=1.** A real ML system would A/B test
-across users. Here we have one user; their feedback IS the training
-signal. The EMA + sample-count gate prevents one bad feedback from
-swinging the threshold wildly.
-
-### 6.5 The disambiguator
-
-When top-1 and top-2 vote shares are very close (delta < 0.05) AND
-top-1 cosine is below 0.85, AERIS asks the user instead of guessing:
-
-> "Aap chahte ho main app open karu, ya app close karu?"
-
-The user's answer ("open" / "close" / "1" / "2" / "open_app") routes
-to the chosen intent. If the user picked top-1, the bandit records
-"accepted"; if they picked top-2 or further, "corrected" (and the
-correct intent is logged). This is the highest-quality reward signal
-in the system because the user has explicitly chosen.
-
-### 6.6 Active learning queue
-
-When the classifier rejects an utterance for low confidence and Ollama
-is also unavailable (or even when Ollama replied), the raw text plus
-its top-3 candidates are queued in `pending_patterns`. Run
-`python -m core.review_cli` to walk through the queue and either:
-
-- Approve as one of the top-3 candidates (1, 2, 3)
-- Approve under a custom intent name
-- Skip
-- Reject
-
-Approved patterns are appended to `intents.json`, which causes the
-hash to change, which causes the index to rebuild on next boot. This
-is how AERIS grows its catalog without anyone training a model.
-
----
-
-## 7. Core module reference
-
-Each entry: **what it does → why it exists → key public surface**.
-
-### `main_engine.py` — the orchestrator
-Contains `JarvisMainEngine`. Public methods: `process_text(text) → str`
-(pure pipeline), `run()` (audio loop), and `setup_iter()` (chunked
-init generator used by the GUI; see §11).
-
-`__init__` accepts `lazy=True` to skip the heavy work and let the
-caller drive `setup_iter()` chunk by chunk. The default `lazy=False`
-behavior is identical to the historical eager path (used by main.py
-and the test suite).
-
-### `brain.py` — the intent shim
-Thin wrapper around `IntentClassifier`. Exists so the rest of the code
-imports `JarvisBrain` and we can swap the classifier internals (e.g.,
-to FAISS for 10K+ patterns) without changing the import surface.
-Exposes `load_encoder()` and `build_or_load_index()` so the boot can
-yield between the two heavy steps.
-
-### `intent_classifier.py` — the model
-The encoder + k-NN core. Public surface:
-- `predict(text, threshold=0.5) → Prediction(intent, confidence, top3, ...)`
-- `rebuild()` — force re-embed and re-cache (use after hot-editing
-  intents.json without restarting)
-- `load_encoder()` and `build_or_load_index()` — the two split phases.
-
-The `Prediction` dataclass carries everything downstream needs:
-the chosen intent, raw confidence, top-3 with vote shares, and
-raw + normalized text for logging.
-
-### `entity_extractor.py` — slot filling in 4 layers
-For a given (text, intent), returns `{slot_name: value}`. Layers
-applied in order; first hit per slot wins:
-
-1. **Regex layer.** Time, URL, number, math expression, "with X" / "X
-   ke saath" person.
-2. **Gazetteer layer.** App names from `data/entities.json` (25+ apps
-   with Hinglish aliases).
-3. **spaCy NER (optional).** PERSON, DATE, GPE, etc. Skipped silently
-   if spaCy is not installed — the system still works.
-4. **Residual span.** For free-form slots (search query, note content,
-   reminder message), strip the intent's trigger words from the
-   utterance and use whatever is left as the slot value.
-
-**Why 4 layers instead of one ML model.** Each layer has different
-strengths and failure modes. Regex is brittle but precise (a time is
-a time). Gazetteer is exhaustive within its domain (we know our app
-list). spaCy is general but optional. Residual is the catch-all. By
-chaining them, we get good coverage with minimal training data.
-
-`intent_hint(text)` is a separate helper that returns the most
-probable intent based purely on structural evidence (a known app name
-+ an open-ish verb). This is how we override the brain's prediction
-when it disagrees with obvious structural cues — e.g., "brave open
-karo" is unambiguously `open_app` even when the brain hesitates.
-
-### `normalizer.py` — light text cleaner
-Lowercase, replace non-essential punctuation with spaces, collapse
-whitespace. Preserves URL-safe characters (`/`, `:`, `.`, `-`, `+`,
-`%`) so the entity extractor can still find URLs and math expressions
-in cleaned text. Used by both the classifier (on patterns at index
-time AND on inputs at predict time) and the rest of the pipeline.
-
-**Why not a translation layer.** An earlier version of AERIS had a
-Hinglish-to-English translation step (kholo → open, etc.). It was
-deleted because it was actively harmful — the multilingual encoder
-understands Hinglish natively, and translation stripped useful
-context (the user's specific phrasing is part of the signal).
-
-### `sentiment.py` — VADER + Hinglish lexicon
-Wraps VADER (pure-Python, lexicon-based) and extends its English
-lexicon with ~40 Romanized Hindi words ("accha" +2.0, "bakwaas" -3.0,
-etc.). Produces `Sentiment(label, score)` per segment.
-
-Sentiment is per-segment, not per-utterance, so a "weather batao aur
-tu bekaar hai" reply picks up the negative tone of the second clause.
-The label is currently used by the LLM fallback to tell phi3 to be
-gentle / direct / energetic.
-
-Upgrade path: swap `_classify` to `cardiffnlp/twitter-xlm-roberta-base
--sentiment` (multilingual transformer) for true Hindi quality. VADER
-is the v1 because it has zero load time and works decently on
-Romanized Hindi.
-
-### `memory.py` — long-term user facts
-JSON-backed at `data/user_memory.json`. Three storage shapes:
-- `facts`: single key-value pairs ("name", "location", "employer").
-- `notes`: list of free-form note objects.
-- `preferences`: assistant-level prefs (language, etc.).
-
-Public API: `detect_and_store(text)` returns an ack string if the
-text matches a "remember"-style pattern (and saves the fact); returns
-None otherwise. `detect_and_recall(text)` returns the fact string if
-text is an interrogative ("mera naam kya hai") matching a saved key.
-`all_facts()` for the LLM prompt context.
-
-**Why the recall check runs BEFORE the store check.** "mera naam kya
-hai" superficially matches both "what is my name?" (recall) and
-"my name is..." (store). Running recall first means interrogative
-questions are answered, not accidentally treated as a name update to
-the literal value "kya hai".
-
-### `conversation.py` — short-term context
-Rolling deque of the last 8 turns (= 16 messages). Used to give the
-LLM fallback some context. Per-turn append; oldest evicted. Exposes
-`as_messages()` in OpenAI message format because that's what Ollama
-expects too.
-
-### `disambiguator.py` — close-call routing
-`is_close_call(prediction)` returns True when top-1 minus top-2 vote
-share is below 0.05 AND top-1 cosine is below 0.85. `prompt(prediction)`
-generates a Hinglish "do you want X or Y?" question. `parse_answer
-(text, prediction)` maps the user's reply ("1", "open", "open_app")
-back to the chosen intent.
-
-The 0.05/0.85 thresholds are tuned conservatively — we'd rather ask
-once and be sure than execute the wrong thing.
-
-### `state_manager.py` — multi-turn state machine
-Two parallel modes, mutually exclusive:
-- **slot-fill** (`is_waiting_slot()`): asking the user for a missing
-  required entity. The waiting intent + collected slots persist across
-  turns. The user can cancel ("cancel", "ruko", "rok do", "rehne do",
-  ...) to abort.
-- **disambig** (`is_waiting_disambig()`): asking the user to choose
-  between top-1 / top-2 candidates. The original utterance + prediction
-  persist; the answer routes the original text to the chosen intent.
-
-Both modes are aborted by `reset()`. The pipeline checks both modes
-at the very top of each turn (steps 0a + 0b above).
-
-### `executor.py` — the skill dispatcher
-21 skill handlers. Each method takes a `slots` dict and returns a
-response string. Side effects (subprocess.Popen for `open_app`, PIL
-screenshot, JSON file write, etc.) happen here.
-
-**Why all skills live in one file.** Single-user, single-machine; the
-indirection of a plugin registry would not pay off yet. When the
-catalog grows to 40+, splitting into per-skill modules with a registry
-pattern is on the roadmap (Phase 2).
-
-### `feedback.py` — SQLite logger + EMA bandit
-Three tables (utterances, intent_thresholds, pending_patterns).
-`log_utterance(...)` records every prediction outcome. `record_feedback
-(utterance_id, label, correct_intent=None)` updates the row AND
-drifts the threshold per the EMA rules. `queue_low_confidence(...)`
-pushes a row into pending_patterns for the review CLI. `approve_pattern
-(pending_id, intent)` promotes the pattern into intents.json.
-
-This is the single piece of the brain stack with persistent state
-across runs. Tests use a per-test tmp SQLite path so there's no
-cross-test pollution.
-
-### `llm_chat.py` — Ollama fallback
-HTTP client for Ollama at `http://localhost:11434`. `is_available()`
-pings `/api/tags` with a 1 s timeout. `reply(user_text, sentiment_label,
-memory_facts, history)` POSTs to `/api/chat` with a system prompt
-that:
-- Tells phi3 it is AERIS, a personal Hinglish assistant.
-- Lists the user's saved facts.
-- Tells the model to match the user's language mix.
-- Caps replies at 3 short sentences.
-
-Default model is `phi3:mini` (3.8 B params, ~2.4 GB). The user can
-edit `LLMConfig.model` to use llama3.2:3b or larger.
-
-### `utterance_parser.py` — multi-command + subspan
-Two pure functions used by `_process_segment`:
-
-- `split_into_segments(text)`: splits on Hinglish/English connectors
-  ("aur", "and", "phir", "then", commas) and reattaches verbs that
-  apply across the split ("brave aur chrome open karo" →
-  ["brave open karo", "chrome open karo"]).
-- `find_best_interpretation(text, brain)`: tries the full segment plus
-  up to 5 trimmed variants (filler-stripped, leading-particle-stripped,
-  etc.), picks the one with highest brain confidence. Returns
-  `(prediction, winning_span)`. The winning span is used only for
-  intent classification — entity extraction still runs on the full
-  segment so app names / queries living outside the trimmed span
-  aren't lost.
-
-This is what lets "ek kam karo notepad open karo" be recognized as
-`open_app` with `app_name=notepad`. The "ek kam karo" prefix is filler
-that confuses the brain; trimming it produces "notepad open karo"
-which the brain handles correctly.
-
-### `stt.py` / `tts.py` / `voice_engine.py` — audio I/O
-- `stt.py`: `STT.listen()` blocks the current thread, returns a
-  string. Tries Google SR (en-IN) first, falls back to Vosk if Vosk
-  model is present at `data/models/vosk-model/`. Used by terminal mode.
-- `tts.py`: `TTS.speak(text)` blocks the current thread until audio
-  finishes. Tries Edge-TTS (`en-IN-NeerjaNeural` voice, network
-  required), falls back to pyttsx3 (offline, OS-default voice). Audio
-  goes through pygame.mixer.
-- `voice_engine.py`: `ContinuousVoiceEngine` is the GUI's continuous
-  listener. Manages STOPPED / ACTIVE / SLEEPING states. Inner capture
-  loop runs on a daemon thread; events emit as Qt signals. Wake words:
-  "jarvis wake up", "ok jarvis", "hey jarvis", "wake up", "activate".
-  Sleep words: "jarvis sleep", "go to sleep", "sleep mode", "stand by".
-
----
-
-## 8. Skills, intents, and the action executor
-
-### The 21 intents
-
-| # | Intent | Trigger examples | Required entity |
-|---|---|---|---|
-| 1 | `open_app` | `chrome kholo`, `launch brave` | `app_name` |
-| 2 | `close_app` | `chrome band karo`, `close notepad` | `app_name` |
-| 3 | `get_weather` | `mausam kya hai`, `what's the weather` | — |
-| 4 | `play_music` | `music chala`, `song bajao` | — |
-| 5 | `stop_music` | `music band karo`, `stop song` | — |
-| 6 | `set_reminder` | `reminder set karo 5 baje` | `message`, `time` |
-| 7 | `get_time` | `time kya hai`, `what time is it` | — |
-| 8 | `take_screenshot` | `screenshot lo`, `screen capture karo` | — |
-| 9 | `search_web` | `google karo machine learning` | `query` |
-| 10 | `system_info` | `system info dikha`, `CPU kitna` | — |
-| 11 | `volume_up` | `volume badhao`, `louder` | — |
-| 12 | `volume_down` | `volume kam karo`, `quieter` | — |
-| 13 | `volume_mute` | `mute karo`, `sound band karo` | — |
-| 14 | `lock_screen` | `screen lock karo` | — |
-| 15 | `shutdown_system` | `computer band karo`, `shutdown karo` | — |
-| 16 | `calculate` | `5 + 3 kya hai`, `20 percent of 500` | `expression` |
-| 17 | `create_note` | `note likho meeting at 3pm` | `content` |
-| 18 | `greet` | `hello`, `namaste`, `hi jarvis` | — |
-| 19 | `schedule_meeting` | `meeting Raj ke saath` | `person` |
-| 20 | `play_youtube` | `youtube pe lofi chala` | `query` |
-| 21 | `open_website` | `open github.com` | `url` |
-
-### App gazetteer
-
-25+ Windows apps recognized with Hinglish aliases. See
-`data/entities.json` for the full mapping. Examples: `chrome` →
-{chrome, google chrome, browser, web browser, google}; `vs code` →
-{vs code, vscode, code editor, visual studio code}.
-
-### How the executor implements skills
-
-Most "skills" are 5-15 lines of subprocess.Popen, ctypes Windows API
-calls, or PIL operations. The "real" parts of the integration (a
-weather API, a real reminder engine, a calendar) are explicit roadmap
-items (Phase 2). The current executor returns plausible-looking
-strings for stubbed skills so the brain pipeline is fully testable
-even when the underlying integrations are placeholders.
-
----
-
-## 9. GUI architecture (jarvis_v31)
-
-The current production UI lives in `ui/jarvis_v31/`. Layout:
-
-```
-┌────────────────────── TitleBar ──────────────────────────────┐
-│  [AERIS]  state-pill  ─────────────────  [─][□][✕]            │
-├──────────────────────────────────────────────────────────────┤
-│          │                                │                   │
-│ Floating │   ParticleField (background)   │  GlassChatPanel  │
-│  Dock    │                                │   ┌───────────┐  │
-│          │   ┌─────────────────────┐      │   │  Header   │  │
-│  [Chat]  │   │                     │      │   │  pills    │  │
-│  [Auto]  │   │    ReactorRings     │      │   ├───────────┤  │
-│  [Sets]  │   │   460×460 animated  │      │   │ Auto chips│  │
-│  [Brain] │   │   rings + sphere    │      │   ├───────────┤  │
-│  [Mem]   │   │                     │      │   │  Messages │  │
-│          │   └─────────────────────┘      │   │  scroll   │  │
-│          │                                │   ├───────────┤  │
-│          │   ReactorStateText [IDLE]      │   │   Input   │  │
-│          │   StateSwitcher buttons        │   │  + Send   │  │
-│          │                                │   └───────────┘  │
-├──────────────────────────────────────────────────────────────┤
-│              LogsBar (collapsible)                            │
-│  SYS ▪ NLU ▪ MEM ──────────────────── [▼ collapse]           │
-└──────────────────────────────────────────────────────────────┘
-```
-
-Window is 1440 × 900, frameless, draggable via the title bar.
-Background is dark navy (`J.BG = #0a0e1a`). Accents are cyan, magenta,
-purple, green, amber, red — defined in `ui/jarvis_v31/tokens.py`.
-
-### Widgets and their roles
-
-| Widget | What it does | File |
-|---|---|---|
-| `TitleBar` | App name, state pill, window buttons (min/max/close) | `title_bar.py` |
-| `FloatingDock` | Left navigation; tabs for chat / automation / settings / brain / memory | `floating_dock.py` |
-| `RightPanelStack` | Stacked panels on the right; chat panel is index 1 | `tab_panels.py` |
-| `GlassChatPanel` | Conversation UI: header pills, automation chips, messages, input | `glass_chat_panel.py` |
-| `ParticleField` | Drifting Lissajous particles in the center column background | `reactor.py` |
-| `WiringSystem` | Background grid of "node cards" + traveling-packet animation | `wiring_system.py` |
-| `ReactorRings` | 460×460 animated core (rings + 3D wireframe sphere) | `reactor.py` |
-| `ReactorStateText` | "IDLE"/"PROCESSING"/etc. label below the reactor | `reactor.py` |
-| `StateSwitcher` | Manual state-override row (debugging) | `reactor.py` |
-| `LogsBar` | Bottom collapsible log feed (SYS/NLU/MEM/ACT/ERR/MIC/TTS) | `logs_bar.py` |
-
-### Visual state machine
-
-| State | Reactor color | Pill | What it means |
-|---|---|---|---|
-| IDLE | Cyan | LIVE | Waiting for input, mic may or may not be active |
-| LISTENING | Green | LIVE + LISTENING | Voice engine is capturing |
-| PROCESSING | Magenta | THINKING | Brain is running pipeline on user text |
-| SPEAKING | Purple | GENERATING | TTS is playing the response |
-
-State transitions are computed in `_refresh_display_state` from two
-inputs: the current "system" state (driven by what the brain is
-doing) and the voice engine state.
-
-### Boot bubble
-
-When the brain starts loading, a "SYSTEM BOOT" bubble appears in the
-chat panel with a progress bar. It walks 4 % → 100 % across seven
-phases driven by the chunked brain init (§11). Each phase posts a
-log line to `LogsBar` and updates the bubble's progress + step list.
-
-### Suggestion chips
-
-`["Open Chrome", "Check Weather", "Play Music", "System Stats", "Schedule Meeting"]`
-Shown only when the dock's "Automation" tab is active (so they don't
-overlap the LIVE pill in the header). Clicking sends the chip text as
-a chat message and snaps the dock back to "Chat".
-
----
-
-## 10. Threading model
-
-Three QThreads + the Qt main thread + at most one daemon thread for
-voice capture.
-
-```
-┌───────────────────── Qt main thread ─────────────────────────┐
-│  Builds the window, runs the event loop, owns all painting.   │
-│  Receives queued signals from worker threads via Qt's signal- │
-│  slot mechanism (thread-safe).                                │
-└─┬───────────────────────────────────────────┬─────────────────┘
-  │ request_brain_init / request_brain_proc   │ request_voice_*  / request_speak_*
-  │                                           │
-  ▼                                           ▼
-┌─────────────── BrainWorker QThread ────────────────────────┐
-│ Owns JarvisMainEngine. Runs setup_iter() chunk-by-chunk on │
-│ initialize(). Runs process_text() per request. CPU/GIL-    │
-│ heavy. Started with QThread.LowestPriority so the OS       │
-│ scheduler always prefers the GUI thread when both want CPU.│
-└────────────────────────────────────────────────────────────┘
-
-┌─────────────── VoiceWorker QThread ────────────────────────┐
-│ Owns ContinuousVoiceEngine. Spawns an inner *daemon Python │
-│ thread* for the actual mic capture loop (PyAudio). The Qt  │
-│ thread just routes start/stop signals. The daemon thread   │
-│ emits captured() when speech is recognized.                │
-└────────────────────────────────────────────────────────────┘
-
-┌─────────────── SpeakWorker QThread ────────────────────────┐
-│ Owns TTS. speak(text) is a one-shot slot — runs Edge-TTS   │
-│ + pygame playback (or pyttsx3 fallback) and emits spoken().│
-└────────────────────────────────────────────────────────────┘
-```
-
-**Why the brain runs on its own thread.** A single brain prediction is
-~10-50 ms (intent classify + entity extract). A boot is 5-10 s
-(sentence-transformers + spaCy load). Neither should ever happen on
-the GUI thread, where they would freeze every animation, scroll, and
-input event.
-
-**Why voice has both a QThread AND a daemon thread.** The QThread is
-for Qt signal/slot routing. The daemon thread is because PyAudio's
-`recognize_listen` blocks for arbitrary durations and would not play
-nicely with Qt's event loop. The daemon emits Qt signals (which are
-thread-safe) when results are ready.
-
-**Why TTS is on its own thread.** Edge-TTS is async; pyttsx3 blocks.
-Either way, we don't want the brain thread to block on audio playback
-(it should be ready to process the next utterance), and we don't want
-the GUI thread to block at all.
-
----
-
-## 11. Boot smoothness — keeping the GUI silky during heavy ML loads
-
-This is the most-recently-iterated part of the project. The constraints
-are real and contradictory; here is the full story.
-
-### 11.1 The problem
-
-A cold boot of `run_gui.py` does this on the user's machine:
-
-1. ~3-5 s: `import torch` (must run before PyQt5 — see §11.4 below).
-2. ~500 ms: PyQt5 + UI module imports.
-3. ~50 ms: build the window + first paint.
-4. ~5-10 s: brain stack init on the BrainWorker thread.
-
-In a naive implementation, the user sees:
-- Black screen for 3-5 s (torch loading, no GUI yet).
-- Window appears but the boot bubble is stuck at 15 % for 5-10 s
-  (brain init holding the GIL, GUI animations stuttering).
-
-### 11.2 The fix — chunked init
-
-`JarvisMainEngine.__init__` accepts `lazy=True`. In lazy mode, no
-heavy work happens in the constructor; the caller drives `setup_iter()`,
-a generator that yields `(log_type, msg, pct)` between **7 phases**:
-
-| pct | phase | what happens |
-|---|---|---|
-| 4   | "Booting JarvisMainEngine…"          | first emit, before any chunk |
-| 10  | "Loading sentence encoder"           | `JarvisBrain.load_encoder()` (slow) |
-| 32  | "Loading intent index"               | `JarvisBrain.build_or_load_index()` |
-| 50  | "Loading entity extractor + spaCy"   | `EntityExtractor(...)` |
-| 68  | "Loading sentiment + memory"         | `SentimentAnalyzer`, `UserMemory`, `ConversationHistory`, `Disambiguator` |
-| 82  | "Attaching feedback DB + LLM"        | `FeedbackStore`, `LLMChat` |
-| 93  | "Wiring state machine + executor"    | `StateManager`, `ActionExecutor` |
-| 100 | "All modules nominal"                | done |
-
-Each yield is a Qt signal queued on the main thread. The boot bubble's
-progress bar smoothly tweens toward the new percentage (1.2 px per 16 ms
-tick), so the user perceives continuous motion instead of a frozen 15 %.
-
-### 11.3 Thread priority + GIL
-
-- `BrainWorker._brain_thread.start(QThread.LowestPriority)` — when the
-  OS scheduler picks between the brain worker and the GUI thread, the
-  GUI always wins.
-- `sys.setswitchinterval(0.002)` in `run_gui.py` — Python's GIL
-  switches to a different thread every 2 ms instead of the default
-  5 ms. This gives the GUI more frequent windows to repaint while the
-  brain is mid-import.
-
-### 11.4 Animations paused during boot
-
-`_wire_workers` in `JarvisV31Window` walks the heaviest paint widgets
-(`ParticleField`, `ReactorRings`, `WiringSystem`) and stops every
-active QTimer in their subtrees. Each timer's interval is saved on a
-Qt dynamic property so it can be resumed exactly. On `_on_brain_ready`
-(or `_on_brain_error`), the timers restart.
-
-The boot bubble itself, the LIVE pill, and the chat panel keep
-animating — those are user feedback, not background eye-candy.
-
-### 11.5 Windows DLL ordering — torch before PyQt5
-
-This is the single hardest constraint in the project.
-
-**The bug.** On Windows, both PyQt5 and PyTorch ship their own MSVC
-runtime DLLs (most notoriously `libiomp5md.dll`, but also `c10.dll`
-and friends). If Qt's runtime is bound first, a later torch import —
-**on any thread** — fails with:
-
-> `WinError 1114: A dynamic link library (DLL) initialization
-> routine failed`
-
-while loading `c10.dll`.
-
-**The fix.** In `run_gui.py`, `import torch` runs **before** any
-PyQt5 import. The `from ui.jarvis_v31.main_window import launch` line
-transitively pulls in PyQt5; torch must be in `sys.modules` before
-that. The pre-import is wrapped in try/except so the GUI still launches
-when torch is broken — the brain just reports a clean error in the
-chat panel.
-
-**`KMP_DUPLICATE_LIB_OK=TRUE`** is set in `os.environ` at the top of
-`run_gui.py` to suppress the OpenMP duplicate-library check that
-otherwise aborts on the same DLL collision.
-
-We **cannot** show the Qt window before torch loads to give the user
-faster feedback. The PyQt5 import has to come after torch. The
-trade-off accepted (after several iterations) is:
-- Print a stdout banner immediately so terminal-launched runs see
-  `[AERIS] Booting...` within ~50 ms.
-- Pay the 3-5 s torch import wait before the window appears.
-- Make the post-window boot completely smooth (chunks + thread
-  priority + paused animations).
-
-### 11.6 Failure paths
-
-- If torch import fails: warning to stderr, GUI launches anyway,
-  BrainWorker errors when it tries to import `core.main_engine` (which
-  pulls sentence-transformers → torch). The error surfaces in the
-  chat panel and `LogsBar` with a remediation hint
-  ("`pip install --upgrade --force-reinstall torch`").
-- If spaCy is not installed: `EntityExtractor._init_spacy` catches
-  the import error, logs an info message, sets `self.nlp = None`,
-  and the NER layer is skipped at extract time.
-- If Ollama is not running: `LLMChat.is_available()` returns False
-  on a 1 s timeout; the brain falls back to "Ye samajh nahi paaya"
-  and queues the utterance for review.
-
----
-
-## 12. Data files — schemas and ground-truth assets
-
-### `data/intents.json`
-
-```json
-{
-  "open_app": {
-    "patterns": [
-      "open chrome", "chrome kholo", "launch browser",
-      "...10-15 patterns total..."
-    ],
-    "required_entities": ["app_name"],
-    "prompts": {
-      "app_name": "Kaunsa app kholna hai? Batao."
-    }
-  }
-}
-```
-
-`patterns` are the seed phrases that get embedded. `required_entities`
-controls slot-filling; if any are missing after extraction, the
-state machine asks the prompt and waits one turn. `prompts` is keyed
-by entity name.
-
-### `data/entities.json`
-
-```json
-{
-  "app_name": {
-    "chrome": ["chrome", "google chrome", "browser", "web browser", "google"],
-    "vs code": ["vs code", "vscode", "visual studio code", "code editor"],
-    "...25+ apps..."
-  }
-}
-```
-
-The first key in each pair is the canonical name passed to the executor.
-Each value is the list of utterance-level aliases that should resolve
-to that canonical name.
-
-### `data/user_memory.json`
-
-```json
-{
-  "facts": {
-    "name":     {"value": "Shivang", "set_at": "2024-04-29T10:00:00", "source": "user_said"},
-    "location": {"value": "Delhi",   "set_at": "...",                "source": "user_said"}
-  },
-  "notes": [
-    {"text": "buy milk on tuesdays", "set_at": "..."}
-  ],
-  "preferences": {
-    "language": "hinglish"
-  }
-}
-```
-
-### `data/models/intent_metadata.json`
-
-```json
-{
-  "intents_hash": "abc123...md5 of intents.json...",
-  "encoder_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "num_patterns": 250,
-  "num_classes":  21,
-  "built_at":     "2024-04-29T17:30:00"
-}
-```
-
-The `intents_hash` is the cache invalidation key. If the current
-intents.json hash differs, the index is rebuilt automatically.
-
-### `data/feedback_log.sqlite` schema
-
-```sql
--- Every utterance, with its predicted intent and outcome
-CREATE TABLE utterances (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp          TEXT NOT NULL,
-    raw_text           TEXT NOT NULL,
-    normalized_text    TEXT,
-    predicted_intent   TEXT,
-    confidence         REAL,
-    top3_json          TEXT,           -- JSON array of [intent, score]
-    sentiment_label    TEXT,
-    sentiment_score    REAL,
-    action_taken       TEXT,           -- executed | asked_disambig | asked_slot | chat_fallback | rejected
-    user_feedback      TEXT,           -- accepted | corrected | cancelled | ignored
-    correct_intent     TEXT,           -- only set on corrected
-    reward             INTEGER         -- +1 / -1 / 0
-);
-
--- Per-intent acceptance threshold (the bandit's policy)
-CREATE TABLE intent_thresholds (
-    intent             TEXT PRIMARY KEY,
-    accept_threshold   REAL NOT NULL,
-    sample_count       INTEGER NOT NULL DEFAULT 0,
-    avg_reward         REAL NOT NULL DEFAULT 0,
-    updated_at         TEXT NOT NULL
-);
-
--- Low-confidence utterances queued for the review CLI
-CREATE TABLE pending_patterns (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    utterance_id       INTEGER REFERENCES utterances(id),
-    raw_text           TEXT NOT NULL,
-    top3_json          TEXT NOT NULL,
-    queued_at          TEXT NOT NULL,
-    status             TEXT NOT NULL DEFAULT 'pending'   -- pending | approved | rejected | skipped
-);
-```
-
----
-
-## 13. Testing strategy
-
-```bash
-pytest tests/                    # full suite, ~3-4 min
-pytest tests/test_pipeline.py    # end-to-end only, ~3 min
-pytest tests/test_brain.py       # quick smoke test, ~30 s
-```
+## 0. Latest Changelog (v3.3 — Phase F + G shipped)
+
+This release implements the structural pieces of Phase F and Phase G that don't require ~GB-scale model downloads or external OAuth setup. Everything below is fully wired and runnable today:
+
+### New core modules
+
+| File | What it does |
+|------|--------------|
+| `core/skill_registry.py` | `@skill` decorator + auto-discovery of `skills/*.py` plugins. Plugin patterns merged into the brain's k-NN index, plugin handlers dispatched by the executor. |
+| `core/wake_word.py` | Vosk grammar-restricted wake word detector. ~3-5% CPU, sub-second latency, fully offline. Pause/resume API for mic ownership. |
+| `core/scheduler.py` | APScheduler-backed reminder scheduler. Real reminders that actually fire — no more stub. |
+| `core/time_parser.py` | Hinglish/English time-string parser. Handles "5 pm", "5 baje", "subah 7 baje", "kal 9 baje", "10 minute mein", etc. |
+| `core/tool_router.py` | Parses LLM JSON tool calls (single tool / chat / multi-step plan) and dispatches through the executor + memory. |
+| `core/vault.py` | AES-256 (Fernet) encrypted memory vault. PBKDF2-SHA256 key derivation, 480k iterations. |
+
+### Existing modules upgraded
+
+| File | What changed |
+|------|--------------|
+| `core/intent_classifier.py` | `_load_intents()` merges plugin patterns from the registry. Hash now covers file + plugins so cache invalidates correctly. |
+| `core/executor.py` | `set_reminder` is now a real call into `ReminderScheduler`. Unknown intents fall through to the plugin registry. Constructor accepts a scheduler. |
+| `core/llm_chat.py` | New `reply_with_tools()` method. Dedicated tool-calling system prompt, `format=json`, low temperature for reliable structured output. |
+| `core/stt.py` | New `listen_streaming(on_partial, on_final)` that fires partial results live as the user speaks. |
+| `core/memory.py` | Optional `passphrase` constructor arg → all reads/writes routed through the vault. `enable_vault` / `disable_vault` migration methods. |
+| `core/main_engine.py` | Phase-0 plugin discovery, scheduler wiring, optional vault, LLM tool-call routing in `_fallback`. New constructor flags: `memory_passphrase`, `enable_scheduler`, `enable_tool_calls`. |
+| `main.py` | New `--wake` mode (Vosk wake word), new `--vault` flag (passphrase prompt), new REPL commands `:reminders`, `:skills`, `:vault on`. |
+
+### New plugin skills (in `skills/`)
+
+| Skill file | Tools registered | Status |
+|------------|------------------|--------|
+| `skills/clipboard.py` | `clipboard_copy`, `clipboard_paste` | Works after `pip install pyperclip` |
+| `skills/file_ops.py` | `open_file`, `create_folder`, `reveal_in_explorer` | Works out of the box |
+| `skills/news.py` | `news_briefing` | Works after `pip install feedparser` |
+| `skills/weather.py` | `real_weather` | Set `OPENWEATHER_API_KEY` env var |
+| `skills/translate.py` | `translate_to_english`, `translate_to_hindi` | Works after `pip install argostranslate` + downloading hi↔en model |
+| `skills/whatsapp.py` | `send_whatsapp` | Works after `pip install pywhatkit` + `data/contacts.json` |
+| `skills/vision.py` | `read_screen`, `click_text` | Works after installing Tesseract binary + `pip install pytesseract mss pillow` |
+| `skills/spotify_control.py` | `spotify_play_track`, `spotify_pause`, `spotify_next` | Works after `pip install spotipy` + Spotify Developer credentials |
+
+Every skill module fails gracefully when its optional dependency isn't installed — the skill simply tells the user what to install. The rest of AERIS keeps working.
+
+### New tests
 
 | Test file | Coverage |
-|---|---|
-| `test_normalizer.py`        | Punctuation strip, whitespace, URL/math preservation |
-| `test_sentiment.py`         | VADER + Hinglish lexicon, neutral band, fallback |
-| `test_intent_classifier.py` | Encoder load, k-NN, cache rebuild on hash mismatch |
-| `test_entity_extractor.py`  | All 4 layers (regex / gazetteer / NER / residual) |
-| `test_memory.py`            | Pattern detection, fact storage, recall, JSON I/O |
-| `test_disambiguator.py`     | Close-call detection, prompt gen, answer parsing |
-| `test_conversation.py`      | Rolling buffer, OpenAI message format |
-| `test_feedback.py`          | SQLite logger, EMA threshold drift, pending queue |
-| `test_pipeline.py`          | End-to-end: input → intent → entities → execution |
-| `test_stt.py`               | STT (mocked) |
-| `test_tts.py`               | TTS (mocked) |
-| `test_brain.py`             | JarvisBrain.predict end-to-end |
+|-----------|----------|
+| `tests/test_skill_registry.py` | Decorator registration, override, manifest, intent-dict shape |
+| `tests/test_time_parser.py` | All Hinglish/English time forms, relative/absolute, today/tomorrow rollover |
+| `tests/test_tool_router.py` | JSON parsing (fenced, prose-wrapped, malformed), single tool, chat, multi-step plans, exception handling, memory write |
+| `tests/test_vault.py` | Round-trip encrypt/decrypt, wrong-passphrase rejection, plaintext detection, `UserMemory` integration, plaintext→vault migration |
+| `tests/test_scheduler.py` | Job firing, past-time rejection, listing upcoming, cancellation |
 
-**Why no GUI tests.** PyQt is awkward to drive in CI. The brain layer
-is a pure function (`process_text`) and is fully exercised by
-`test_pipeline.py`. GUI changes are validated by running `run_gui.py`
-and `_jv31_smoke.py` (a standalone visual smoke launcher).
+### How to use the new features
 
-**Test fixtures.** `tests/conftest.py` defines `tmp_memory_path` and
-`tmp_feedback_db` fixtures that point at per-test temp files, so the
-real `data/user_memory.json` and `data/feedback_log.sqlite` are never
-touched by tests.
+**Wake word:**
+```bash
+# Download Vosk model once:
+# https://alphacephei.com/vosk/models  →  vosk-model-small-en-in-0.4
+# Unzip to: data/models/vosk-model-small-en-in-0.4/
+python main.py --wake
+```
+
+**Real reminders:**
+```
+You: 10 minute mein chai banane ka reminder lagao
+AERIS: Reminder set: 'chai banane ka' — 10:43 AM, 09 May pe yaad dilaoonga.
+[10 minutes later, AERIS speaks: "Reminder, sir: chai banane ka"]
+```
+
+**LLM tool calling** (with Ollama running):
+Anything outside the trained patterns now goes through the LLM-with-tools route. The LLM returns structured JSON like `{"tool": "set_reminder", "args": {...}}` and the tool router dispatches it. Multi-step plans and conditional logic work too.
+
+**Encrypted memory:**
+```bash
+python main.py --vault          # prompts for passphrase at boot
+# OR mid-session in text mode:
+You: :vault on
+New passphrase: ******
+AERIS: Memory vault enabled.
+```
+
+**Plugin skills (REPL):**
+```
+You: :skills
+  8 plugin skills loaded:
+    - clipboard_copy: Copy a piece of text to the system clipboard
+    - news_briefing: Fetch latest headlines and summarize them in Hinglish
+    ...
+```
+
+### What's still planned (not yet shipped)
+
+The following Phase F + G items require model downloads (>200 MB), external auth flows, or significant UI work and are still on the roadmap:
+
+- Hybrid transformer classifier (F1) — needs accumulated `feedback_log.sqlite` data first
+- LaBSE encoder swap (F2) — drop-in, but requires re-downloading 470 MB
+- faster-whisper local STT (F6) — 244 MB model
+- Multilingual sentiment (F10) — 500 MB model
+- GUI rewire to new engine (F8) — significant PyQt work
+- Google Calendar integration (G5) — OAuth flow
+- Voice cloning TTS (G9) — 2 GB Coqui XTTS model
+- Mobile companion (G10) — needs separate Flutter/RN app
+- Analytics dashboard (G12) — significant PyQt work
+
+See §12 and §13 below for full specs of these items.
 
 ---
 
-## 14. Dependencies and setup
+---
+
+## 1. What This Is
+
+Jarvis 3.0 / AERIS is a personal AI assistant that:
+
+- Understands **Hinglish** (Hindi + English mixed speech) natively — no translation layer
+- Runs **fully locally** for intent routing, memory, and system control — no mandatory cloud APIs
+- **Learns from your corrections** over time using a contextual bandit policy
+- Maintains **persistent memory** of facts you tell it ("my name is Shivang", "I work at Google")
+- Falls back to a **local LLM** (Ollama + Phi-3 / Llama 3.2) for open-ended conversation
+- Controls your Windows PC: open/close apps, search the web, take screenshots, control volume, lock screen, set reminders, create notes, and more
+
+This is version 3.0. It replaces a previous architecture (Keras dense classifier + manual Hinglish translation map) with a multilingual semantic encoder + k-NN pipeline that requires zero retraining when you add new patterns.
+
+---
+
+## 2. Quick Start
+
+### Prerequisites
+
+- Python 3.10 or 3.13
+- Windows 10/11 (most system actions use `ctypes`, `subprocess`, Windows paths)
+- A microphone (optional — text mode works without one)
+
+### Install
 
 ```bash
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm    # optional: nicer NER
-
-# Optional: Ollama for chit-chat fallback
-ollama pull phi3:mini
+python -m spacy download en_core_web_sm   # optional, improves NER
 ```
 
-`requirements.txt` (categorized):
+### First Run (text mode — no microphone needed)
 
-```
-# Audio I/O
-SpeechRecognition vosk pyaudio edge-tts pyttsx3 pygame
-
-# NLP / brain
-sentence-transformers scikit-learn spacy rapidfuzz nltk vaderSentiment
-
-# LLM chit-chat
-requests
-
-# UI + system
-PyQt5 psutil keyboard pyautogui
-
-# Gesture (optional sandbox)
-opencv-python mediapipe
-
-# Misc
-pyyaml
-
-# Dev / test
-pytest
+```bash
+python main.py --text
 ```
 
-**Windows-specific gotchas.**
-- `KMP_DUPLICATE_LIB_OK=TRUE` (set automatically by `run_gui.py`) is
-  required because torch and Qt both bundle `libiomp5md.dll`.
-- `pyaudio` may need `pipwin install pyaudio` instead of plain pip on
-  some Windows + Python combos.
-- `pyttsx3` uses SAPI5 on Windows (so the offline TTS voice depends
-  on the system's installed voices).
+The brain downloads and caches the sentence encoder (~120 MB) on first boot. Subsequent boots use the cached `data/models/intent_index.pkl`.
+
+### Voice Mode
+
+```bash
+python main.py
+```
+
+Uses Google STT (requires internet) with Vosk as offline fallback. Edge-TTS Neerja voice for speech output with pyttsx3 fallback.
+
+### GUI
+
+```bash
+python run_gui.py
+```
+
+### In-REPL Commands (text mode only)
+
+| Command | Action |
+|---------|--------|
+| `:facts` | Show all stored user facts |
+| `:stats` | Show feedback DB stats (utterances logged, pending patterns, learned thresholds) |
+| `:help` | List all commands |
+| `quit` / `exit` | Exit |
+
+### LLM Chit-chat Setup (optional but recommended)
+
+Install [Ollama](https://ollama.com), then pull a model:
+
+```bash
+ollama pull phi3:mini       # 2.4 GB — fast, good quality
+ollama pull llama3.2:3b     # 2.0 GB — slightly smaller
+```
+
+Ollama runs as a background daemon. AERIS detects it automatically. Without it, low-confidence utterances are queued for review instead of answered conversationally.
 
 ---
 
-## 15. Common workflows
+## 3. Full Architecture
 
-### Adding a new intent
+```
+┌──────────────────────────── Audio In ──────────────────────────────┐
+│  Mic → STT (Google en-IN / Vosk fallback) → raw text               │
+└────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────── Brain Pipeline ─────────────────────────────┐
+│                                                                      │
+│  raw text                                                            │
+│     │                                                                │
+│     ├─[0a]─ State: is slot-filling in progress?                     │
+│     │         yes → handle_follow_up(text) → executor               │
+│     │                                                                │
+│     ├─[0b]─ State: is disambiguation in progress?                   │
+│     │         yes → parse answer → execute chosen intent            │
+│     │                                                                │
+│     ├─[1]── Pending feedback window: did user say "galat"?          │
+│     │         yes → record correction reward on prior utterance      │
+│     │                                                                │
+│     ├─[2a]─ memory.detect_and_recall(text)                          │
+│     │         match → return stored fact immediately                 │
+│     │                                                                │
+│     ├─[2b]─ memory.detect_and_store(text)                           │
+│     │         match → save fact, return ack, skip pipeline           │
+│     │                                                                │
+│     ├─[3]── Is text a cancel keyword?                               │
+│     │         yes → state.reset(), return polite message            │
+│     │                                                                │
+│     ├─[4]── utterance_parser.split_into_segments(text)              │
+│     │         "chrome kholo aur notepad bhi" → two segments         │
+│     │                                                                │
+│     └─ Per segment:                                                  │
+│           │                                                          │
+│           ├─[5]── sentiment.classify(seg)                           │
+│           │         → (label: positive/neutral/negative, score)      │
+│           │                                                          │
+│           ├─[6]── utterance_parser.find_best_interpretation(seg)    │
+│           │         scans subspans, picks highest-confidence pred    │
+│           │                                                          │
+│           ├─[7]── entity_extractor.intent_hint(seg)                 │
+│           │         gazetteer override for open/close app commands   │
+│           │                                                          │
+│           ├─[8]── feedback.get_threshold(predicted_intent)          │
+│           │         per-intent learned acceptance threshold           │
+│           │                                                          │
+│           ├─ confidence ≥ threshold?                                 │
+│           │     YES:                                                 │
+│           │       ├─ disambiguator.is_close_call(pred)?             │
+│           │       │     yes → prompt "A ya B?" → await answer       │
+│           │       │                                                  │
+│           │       └─ entity_extractor.extract(seg, intent)          │
+│           │             → state_manager.process_prediction()        │
+│           │             → executor.execute(intent, slots)           │
+│           │             → feedback.log_utterance()                  │
+│           │                                                          │
+│           └─ NO (low confidence):                                    │
+│                 → llm_chat.reply() if Ollama available              │
+│                 → else: queue in feedback.sqlite + polite fallback  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────── Audio Out ─────────────────────────────────┐
+│  response text → TTS (Edge-TTS Neerja / pyttsx3 fallback)          │
+└────────────────────────────────────────────────────────────────────┘
+```
 
-1. Open `data/intents.json` and add an entry:
-   ```json
-   "lock_workstation": {
-     "patterns": ["lock my pc", "pc lock kar do", "windows lock", "..."],
-     "required_entities": [],
-     "prompts": {}
-   }
-   ```
-2. (If needed) Add a handler in `core/executor.py`:
-   ```python
-   def lock_workstation(self, slots):
-       ctypes.windll.user32.LockWorkStation()
-       return "Done sir."
-   ```
-3. (If needed) Add an entry in the dispatch table in
-   `ActionExecutor.execute(...)`.
-4. Restart AERIS — the index rebuilds automatically because
-   `intents.json` changed and the cached MD5 no longer matches.
-5. Test from the REPL: `python main.py --text` then `pc lock kar do`.
+---
 
-### Reviewing pending patterns
+## 4. Module Reference
+
+### `core/brain.py` — Orchestrator
+
+`JarvisBrain` wraps the intent classifier. It owns the sentence encoder and index lifecycle. The `lazy=True` constructor flag lets the GUI boot it progressively without blocking the main thread.
+
+Key methods:
+- `predict(text)` → `Prediction` dataclass: `intent`, `confidence`, `top3`, `raw_text`, `normalized_text`
+- `load_encoder()` — loads the sentence transformer (slow on first boot, fast on cache hit)
+- `build_or_load_index()` — rebuilds k-NN index if `intents.json` has changed (MD5 hash check), else loads from `data/models/intent_index.pkl`
+
+### `core/intent_classifier.py` — k-NN Intent Classifier
+
+**Encoder:** `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- 384-dimensional embeddings
+- 50+ languages including Hindi natively
+- ~120 MB download, ~30 ms encode per utterance on CPU
+
+**Classifier:** `sklearn.NearestNeighbors(n_neighbors=5, metric="cosine")`
+- No training step — patterns are embedded and stored directly
+- New patterns take effect on next boot without any retraining
+
+**Voting:** Exponential-weighted (temperature=10). The closest neighbour dominates. Confidence = top-1 cosine similarity across the 5-neighbour vote.
+
+**Index cache:** `data/models/intent_index.pkl` keyed by MD5 hash of `intents.json`. Auto-rebuilds on change in ~10 seconds.
+
+### `core/normalizer.py` — Text Normalizer
+
+Minimal: lowercase + strip punctuation only. URL-safe characters preserved. No translation map — the multilingual encoder handles Hindi/Hinglish natively.
+
+### `core/entity_extractor.py` — 4-Layer Entity Extractor
+
+Extracts slots (`app_name`, `time`, `url`, `query`, `expression`, `content`, `person`, etc.) from the raw utterance. Layers fire in order; first hit wins per slot:
+
+1. **Regex** — `time` patterns (`\d{1,2}(:\d{2})?\s*(am|pm|baje)`, `subah`, `shaam`), `url` patterns, `number`, math `expression`
+2. **Gazetteer** — `app_name` from `data/entities.json` (25 apps, longest-match-wins)
+3. **spaCy NER** (`en_core_web_sm`) — `PERSON` → `person` slot; `DATE/TIME` → `time` slot when regex misses
+4. **Residual span** — per-intent trigger-word stripping; remainder assigned to canonical free-form slot (`query` for search/YouTube, `content` for notes, `expression` for calculate)
+
+Also exposes `intent_hint(text)` — gazetteer + open/close verb check to override the brain's prediction when structural evidence is unambiguous. This prevents "brave open karo" from being classified as `volume_up`.
+
+### `core/sentiment.py` — Sentiment Analyzer
+
+VADER (`vaderSentiment`) extended with ~30 Hinglish booster terms: `mast`, `kharab`, `bakwaas`, `theek`, `shukriya`, `accha`, `bekar`, `zabardast`, etc.
+
+Returns a `Sentiment` dataclass: `label` (positive/neutral/negative), `score` (-1.0 to 1.0).
+
+Used by:
+- LLM chit-chat system prompt (tone-adapts replies: supportive when negative, enthusiastic when positive)
+- Conversation history (each user turn tagged with sentiment label)
+
+Upgrade path: swap to `cardiffnlp/twitter-xlm-roberta-base-sentiment` for true multilingual sentiment without the manual booster lexicon.
+
+### `core/memory.py` — Long-Term User Memory
+
+JSON-backed persistent store at `data/user_memory.json`. Detects natural-language fact assertions and stores them automatically. Survives restart.
+
+**Detection patterns (auto-store):**
+- `"my name is X"` / `"mera naam X hai"` / `"main hoon X"` → `name`
+- `"I live in X"` / `"main X mein rehta hoon"` → `location`
+- `"I work at X"` → `employer`
+- `"my favourite X is Y"` / `"mera fav X Y hai"` → `favorite_X`
+- `"remember that X"` → `notes` list
+
+**Hindi key aliases for recall:** `naam` → `name`, `ghar` → `location`, `kaam` → `employer`, `shahar` → `city`, `office` → `employer`
+
+Facts injected into the LLM system prompt so chit-chat replies are user-aware even on first mention.
+
+### `core/conversation.py` — Short-Term Context
+
+Rolling deque of the last 8 turns (user + assistant). Each user turn tagged with sentiment label. Exported in OpenAI message format for the LLM call. Cleared on restart.
+
+### `core/llm_chat.py` — Chit-Chat via Ollama
+
+Pings `http://localhost:11434` to check if Ollama is running. Routes low-confidence utterances to the local LLM when available.
+
+**System prompt includes:**
+- AERIS personality: warm, witty, concise, Hinglish-native
+- All stored user facts (injected from `memory.all_facts()`)
+- Sentiment-driven tone hint ("be gentle and supportive" / "match their energy" / "be direct")
+- Last N conversation turns as messages
+
+Model default: `phi3:mini`. Also works with `llama3.2:3b`.
+
+### `core/feedback.py` — Feedback Store & Bandit Policy
+
+SQLite store at `data/feedback_log.sqlite` with three tables: `utterances`, `intent_thresholds`, `pending_patterns`.
+
+Every utterance logged with: raw text, normalized text, predicted intent, confidence, top-3 alternatives, sentiment label/score, action taken. Feedback (accepted / corrected / cancelled) recorded after execution.
+
+**Bandit policy (EMA threshold drift):**
+- `α = 0.1` EMA smoothing factor
+- Default threshold: `0.5`
+- Drift down (accept faster): `avg_reward > 0.5 AND samples ≥ 5` → `threshold -= 0.01`
+- Drift up (be more cautious): `avg_reward < -0.2` → `threshold += 0.02`
+- Hard clamps: `[0.40, 0.90]`
+
+### `core/disambiguator.py` — Disambiguation
+
+Detects close calls when `top1.confidence - top2.confidence < 0.05 AND top1.confidence < 0.85`. Generates a Hinglish "A ya B?" prompt. Parses user's answer in 5 forms: digit (1/2/3), Hindi ordinal (pehla/doosra/teesra), intent name, keyword match, or defaults to top-1 on timeout.
+
+### `core/state_manager.py` — Slot-Filling State Machine
+
+Tracks multi-turn slot collection. When the executor is called with missing required entities, the state machine transitions to `WAITING_SLOT` and prompts for the missing value. Handles `cancel` and `reset`. Also manages `WAITING_DISAMBIG` state between turns.
+
+### `core/executor.py` — Action Executor
+
+Dispatches 21 intents to Python actions. All Windows-native — no external API keys required by default.
+
+### `core/utterance_parser.py` — Multi-Command Splitter
+
+Splits compound utterances ("chrome kholo aur notepad bhi") into segments that each run through the full pipeline independently. `find_best_interpretation` scans subspans of the segment to handle filler prefixes ("ek kaam karo notepad kholo" → recognizes `open_app` not `volume_down`).
+
+### `core/stt.py` — Speech-to-Text
+
+Google STT (en-IN locale) as primary. Vosk as offline fallback. Mic input via `pyaudio`. Both are hot-swappable: the engine accepts injected STT/TTS objects for testing.
+
+### `core/tts.py` — Text-to-Speech
+
+Edge-TTS (`hi-IN-NeerjaNeural`) as primary — best Hindi/Hinglish voice quality available online. `pyttsx3` as offline fallback. Audio played via `pygame` from cached `data/audio_cache/speech.mp3`.
+
+### `core/main_engine.py` — Top-Level Orchestrator
+
+`JarvisMainEngine` wires all modules. The `process_text(text)` method is a **pure function** of (text, internal state) → response string. Audio I/O is isolated to `run()`. This makes the entire brain testable without a microphone or speakers.
+
+The `setup_iter()` generator yields progress events in 7 phases for GUI splash screens (encoder load → index build → entity extractor → sentiment+memory → feedback DB → state machine → ready).
+
+### `core/review_cli.py` — Interactive Pattern Review
 
 ```bash
 python -m core.review_cli
 ```
 
-Walks every row in `pending_patterns` where `status = 'pending'`. For
-each, you see the raw text + top-3 candidates and choose:
-- `1` / `2` / `3` — approve as that candidate intent.
-- `<intent_name>` — approve as a custom intent name.
-- `s` — skip (re-asked next session).
-- `r` — reject (discarded, never re-surfaced).
-- `l` — list all pending.
-- `q` — quit.
+Shows pending low-confidence utterances from `data/feedback_log.sqlite`. For each: displays top-3 predictions, prompts you to assign the correct intent. Approved patterns are appended to `intents.json`. The k-NN index auto-rebuilds on next restart.
 
-Approved patterns are appended to `intents.json`. Restart AERIS to
-pick them up.
+### `utils/gesture.py` — Hand Gesture Control
 
-### Debugging an utterance
+Uses `mediapipe` + `data/models/hand_landmarker.task` for gesture-based command triggering. Separate from the voice pipeline.
+
+### `utils/monitor.py` — System Monitor
+
+Background system metrics poller.
+
+---
+
+## 5. All Skills / Intents
+
+21 intents currently in `data/intents.json` (~14 Hinglish patterns each):
+
+| Intent | Example Hinglish Triggers | What Happens |
+|--------|--------------------------|--------------|
+| `open_app` | "chrome kholo", "spotify open karo", "vs code chalu kar" | Launches the app via `subprocess` / `os.startfile` |
+| `close_app` | "chrome band karo", "notepad hatao", "close vlc" | Kills process via `psutil` |
+| `get_weather` | "weather batao", "mausam kaisa hai", "barish hogi kya" | Returns current weather (stub — upgrade in §12.4) |
+| `play_music` | "music chala do", "gaana lagao", "spotify kholo" | Opens Spotify app or Spotify Web |
+| `stop_music` | "music rok do", "band karo gaana" | Sends `VK_MEDIA_STOP` keybd event |
+| `get_time` | "time kya hai", "kitne baje hain" | Returns time + date in Hinglish |
+| `take_screenshot` | "screenshot lo", "screen capture karo" | `pyautogui.screenshot()` to `data/` |
+| `search_web` | "google pe X search karo", "X dhundo" | Opens Google search in browser |
+| `play_youtube` | "youtube pe X chala do" | Opens YouTube search in browser |
+| `open_website` | "github.com kholo", "X website open karo" | `webbrowser.open()` with auto-https |
+| `system_info` | "battery kitni hai", "CPU usage batao" | `psutil` battery + CPU% + RAM used/total |
+| `volume_up` | "volume badhao", "thoda louder" | `ctypes` VK_VOLUME_UP keybd event |
+| `volume_down` | "volume kam karo" | `ctypes` VK_VOLUME_DOWN keybd event |
+| `volume_mute` | "mute karo", "awaz band karo" | `ctypes` VK_VOLUME_MUTE keybd event |
+| `lock_screen` | "screen lock karo", "computer lock kar" | `ctypes.windll.user32.LockWorkStation()` |
+| `shutdown_system` | "system band karo", "shutdown karo" | `shutdown /s /t 30` (30s delay) |
+| `calculate` | "12 + 7 * 3 calculate karo" | `eval()` over safe math chars |
+| `create_note` | "note kar do X", "likh lo X" | Timestamped `.txt` in `data/notes/` |
+| `set_reminder` | "5 baje milk lena yaad dilana" | Returns confirmation string (stub — §12.3) |
+| `schedule_meeting` | "raj ke saath 5 baje meeting lagao" | Returns confirmation string |
+| `greet` | "hello", "hi jarvis", "hey aeris" | Time-aware greeting (morning/afternoon/evening) |
+
+---
+
+## 6. Memory System
+
+### Long-Term Memory (persists across restarts)
+
+Stored in `data/user_memory.json`:
+
+```json
+{
+  "facts": {
+    "name":     {"value": "Shivang", "set_at": "2026-05-01T10:00:00", "source": "user_said"},
+    "location": {"value": "Delhi",   "set_at": "...", "source": "user_said"},
+    "employer": {"value": "Google",  "set_at": "...", "source": "user_said"}
+  },
+  "notes": ["buy milk on tuesdays"]
+}
+```
+
+**Setting a fact — just say it naturally:**
+
+```
+"my name is Shivang"                    → name: Shivang
+"I live in Delhi"                       → location: Delhi
+"main Google mein kaam karta hoon"      → employer: Google
+"my favourite browser is Brave"         → favorite_browser: Brave
+"remember that I have a standup at 10"  → added to notes list
+"mera favourite gaana Shape of You hai" → favorite_gaana: Shape of You
+```
+
+**Recalling a fact:**
+
+```
+"mera naam kya hai"         → "Aapka naam Shivang hai."
+"where do I live"           → "Aap Delhi mein rehte hain."
+"mera kaam kya hai"         → "Aapka kaam Google hai."
+"what do you know about me" → lists all stored facts
+"what's my pet"             → "Mujhe aapka pet pata nahi hai abhi."
+```
+
+### Short-Term Context (current session only)
+
+Last 8 turns (user + assistant) stored in-memory as an OpenAI-format message list. Injected into every LLM call so chit-chat replies have conversation context. Cleared on restart.
+
+---
+
+## 7. Continual Learning (Feedback Bandit)
+
+Every utterance is logged to SQLite. The system learns per-intent confidence thresholds from your acceptance behaviour. This is a **contextual bandit** — the right tool for this problem (one utterance → one decision → one reward signal).
+
+### How It Works
+
+```
+You say something
+  → Brain predicts intent with confidence X
+  → Bandit checks: X ≥ learned_threshold[intent]?
+      YES → extract entities → execute
+      NO  → LLM fallback / disambiguation / queue for review
+
+After execution:
+  → If you say something unrelated → reward = +1 (implicitly accepted)
+  → If you say "galat" / "wrong" / "undo" → reward = -1 (corrected)
+
+Threshold update (EMA, α = 0.1):
+  avg_reward = 0.9 * avg_reward + 0.1 * latest_reward
+
+  if avg_reward < -0.2:
+      threshold += 0.02   (more cautious)
+  elif avg_reward > 0.5 AND samples ≥ 5:
+      threshold -= 0.01   (more confident)
+```
+
+### Reviewing Low-Confidence Utterances
 
 ```bash
-python main.py --text --verbose
+python -m core.review_cli
 ```
 
-The `--verbose` flag turns on INFO-level logging from every core
-module. You'll see:
-- `[Brain] Initialising...` → encoder load progress
-- `[IntentClassifier] Loading cached index.`
-- Per-utterance: predicted intent, confidence, top3
-- Per-utterance: extracted entities, action taken, executor result
+Shows utterances the brain couldn't confidently classify. You assign the correct intent. Approved patterns are appended to `intents.json` and the k-NN index rebuilds on next restart.
 
-You can also poke at the feedback log directly:
+### Correction Words
+
+Say one of these **immediately after** a wrong execution:
+- Hinglish: `galat`, `galat hai`, `yeh galat hai`, `wapas`, `galti`
+- English: `wrong`, `that's wrong`, `undo`, `no that's wrong`
+
+---
+
+## 8. GUI
+
+Three UI variants exist under `ui/`:
+
+| Folder | Style | Status |
+|--------|-------|--------|
+| `ui/aeris_v4/` | Dark cyan arc-reactor theme | Exists; not yet wired to new engine |
+| `ui/jarvis_v31/` | Glass morphism floating dock | Exists; not yet wired to new engine |
+| `ui/ui_laptop/` | Full laptop dashboard with sidebar, splash screen | Exists; not yet wired to new engine |
 
 ```bash
-sqlite3 data/feedback_log.sqlite "SELECT * FROM utterances ORDER BY id DESC LIMIT 10"
-sqlite3 data/feedback_log.sqlite "SELECT * FROM intent_thresholds ORDER BY updated_at DESC"
+python run_gui.py
 ```
 
-### Rebuilding the intent index manually
+The engine is loaded with `lazy=True` so `setup_iter()` yields progress events between phases. The GUI can paint a loading bar during the cold-boot encoder download (3–5 seconds) without freezing.
+
+All UIs built in PyQt5 and include: chat panel, system tray, custom title bar with window controls, arc-reactor animation, and a logs panel.
+
+---
+
+## 9. Tests
+
+```bash
+pytest                              # run all 89 tests (passes in ~3 minutes)
+pytest tests/test_pipeline.py       # end-to-end pipeline only
+pytest -v                           # verbose with test names
+```
+
+**Coverage:**
+
+| Test File | Tests | What It Covers |
+|-----------|-------|----------------|
+| `test_normalizer.py` | 8 | Lowercase, punctuation strip, URL-safe chars preserved |
+| `test_intent_classifier.py` | 13 | 10 canonical Hinglish sentences, top-1 intent, confidence ≥ 0.5 |
+| `test_entity_extractor.py` | 13 | App names, URLs, times, queries, person names across 10 inputs |
+| `test_sentiment.py` | 8 | Positive/negative/neutral labels, Hinglish booster terms |
+| `test_memory.py` | 14 | Store, recall, disk round-trip, Hindi key aliases, unknown-key fallback |
+| `test_conversation.py` | 4 | Max-turns rolling, sentiment tags, OpenAI message format |
+| `test_disambiguator.py` | 9 | Close-call detection, prompt format, 5 answer parsing forms |
+| `test_feedback.py` | 9 | Default threshold, drift down/up, clamp bounds, approve_pattern |
+| `test_pipeline.py` | 11 | End-to-end via `process_text()` — isolated tmp DBs, no audio I/O |
+
+All tests run against `process_text()` — no microphone or speaker required. The `conftest.py` provides `tmp_memory_path` and `tmp_feedback_db` fixtures so tests never touch the real data files. The `shared_brain`, `shared_extractor`, and `shared_sentiment` fixtures are session-scoped to avoid re-loading the encoder 89 times.
+
+---
+
+## 10. Configuration
+
+| Setting | File | Default |
+|---------|------|---------|
+| Sentence encoder model | `core/intent_classifier.py` | `paraphrase-multilingual-MiniLM-L12-v2` |
+| k-NN neighbours | `core/intent_classifier.py` | `k=5` |
+| Voting temperature | `core/intent_classifier.py` | `10` |
+| Conversation window (turns) | `core/main_engine.py` | `8` |
+| Bandit α (EMA smoothing) | `core/feedback.py` | `0.1` |
+| Default intent threshold | `core/feedback.py` | `0.5` |
+| Threshold floor / ceiling | `core/feedback.py` | `[0.40, 0.90]` |
+| Disambig close-call margin | `core/disambiguator.py` | `0.05` |
+| Ollama model | `core/llm_chat.py` | `phi3:mini` |
+| Ollama host | `core/llm_chat.py` | `http://localhost:11434` |
+| User memory path | `core/main_engine.py` | `data/user_memory.json` |
+| Feedback DB path | `core/main_engine.py` | `data/feedback_log.sqlite` |
+| Notes folder | `core/executor.py` | `data/notes/` |
+| TTS voice | `core/tts.py` | `hi-IN-NeerjaNeural` |
+| STT locale | `core/stt.py` | `en-IN` |
+
+---
+
+## 11. Known Limitations of the Current k-NN Brain
+
+This section is direct about where the current design has structural limits, especially for long-term daily use where your speech patterns, vocabulary, and needs will grow and shift.
+
+### 11.1 — k-NN Does Not Generalize
+
+A k-NN classifier is a lookup over stored patterns. It finds the most similar stored examples and votes. This means:
+
+- **It cannot extrapolate.** If no stored pattern is semantically close to what you said, confidence drops and the system falls back to the LLM. You are always dependent on pattern coverage.
+- **It cannot absorb lessons from use.** The review CLI lets you manually add approved patterns, but the brain never updates its own understanding from your actual speech. You must curate patterns yourself.
+- **It is stateless during classification.** The classifier sees only the current utterance — not what you said before, not what app is open, not what time it is. The main engine injects context manually for some edge cases, but the classifier itself has no memory of the conversation.
+
+### 11.2 — Confidence Is Cosine Similarity, Not Calibrated Probability
+
+The `confidence` value is the top-1 cosine similarity across the k-NN vote, not a calibrated probability. This means:
+
+- Two completely different utterances can both score `confidence=0.7` for different reasons
+- The number does not mean "70% likely to be correct" — it means "this embedding is 0.7 cosine-similar to its nearest neighbour"
+- The bandit's per-intent threshold drift partially compensates, but the underlying signal is noisy at the margin
+
+### 11.3 — Pattern Dilution at Scale
+
+Currently ~14 patterns per intent × 21 intents = ~294 patterns. This is the k-NN's comfortable operating range.
+
+As patterns grow:
+- **~1,000 patterns:** Multiple similar patterns for adjacent intents pull against each other, reducing confidence for inputs that were previously easy
+- **~5,000 patterns:** The 5-neighbour vote pool gets contaminated by patterns from adjacent intents, increasing close-call disambiguation
+- **~50,000 patterns:** `sklearn.NearestNeighbors` becomes slow (O(n) linear scan); would need FAISS/HNSW index
+
+The good news is that 5,000–10,000 is likely the realistic ceiling for a personal assistant. The bad news is that accuracy degrades before you get there if patterns are not carefully curated.
+
+### 11.4 — Hinglish Coverage Is Phrasing-Dependent
+
+The multilingual encoder handles semantic similarity between Hindi and English, but edge cases in code-switched speech (mid-sentence script mixing, regional slang, casual contractions) still require pattern coverage. If your natural phrasing differs from what's in `intents.json`, confidence drops.
+
+For example: `"isko launch maar"` instead of `"kholo"` will likely fail until you add that phrasing.
+
+### 11.5 — No Cross-Intent Reasoning
+
+The brain classifies one segment at a time. It has no model of how intents interact or depend on each other:
+- Conditional commands: `"agar baadal ho toh remind karo"` — not handled
+- Chained intents with shared context: limited by the segment splitter's accuracy
+- Pronoun resolution: `"close it"` after `"open chrome"` requires the main engine to explicitly pass the prior-intent context, which it does not currently do
+
+### 11.6 — Reminders Do Not Actually Fire
+
+`set_reminder` acknowledges the reminder verbally but does not schedule anything. There is no background thread watching for reminder times. See §12.3 for the fix.
+
+### 11.7 — Weather Is Hardcoded
+
+`get_weather` returns `"Mausam filhaal suhana hai, around 25 degrees Celsius."` regardless of actual weather, location, or date. See §12.4 for the fix.
+
+### 11.8 — STT Is Online-Dependent
+
+The primary STT is Google (`en-IN` locale). Vosk kicks in offline but its Hindi model quality is noticeably lower. There is no offline STT that matches Google quality in the current build. See §12.6 (faster-whisper) for the fix.
+
+---
+
+## 12. Phase F — Feature Parity & Bug Fixes
+
+This phase fixes what's missing or stubbed in the current build. These are not future ambitions — they are gaps that should be closed before claiming "v1 complete." Ordered by structural impact: §12.1 and §12.2 address the brain's core limitation.
+
+---
+
+### 12.1 — Hybrid Brain: k-NN + Fine-Tuned Transformer Classifier
+
+**The problem:** k-NN generalizes only to stored patterns. For long-term daily use where your speech evolves and new phrasing appears constantly, you need a model that has learned intent *structure*, not just pattern similarity.
+
+**The solution:** Keep k-NN as the fast zero-shot baseline. Add a fine-tunable transformer classifier that trains on your logged utterances as data accumulates from real usage.
+
+**Recommended base model for Hinglish:**
+
+| Model | Size | Why |
+|-------|------|-----|
+| `ai4bharat/indic-bert` | 592 MB | BERT fine-tuned specifically on Indic languages including Hindi |
+| `google/muril` | 892 MB | Google's Multilingual Representations for Indian Languages — strongest Hindi |
+| `distilbert-base-multilingual-cased` | 541 MB | Lighter option if RAM is tight |
+
+**Architecture — hybrid routing:**
+
+```
+Utterance
+    │
+    ├─► k-NN (always runs first — fast, ~30ms)
+    │       confidence ≥ 0.90  →  execute immediately (k-NN is certain)
+    │       confidence 0.60-0.89  →  cross-check with transformer
+    │       confidence < 0.60  →  transformer decides
+    │
+    └─► Transformer classifier (runs when k-NN is uncertain)
+            both agree  →  execute with high confidence
+            disagree   →  disambiguate between top-2
+            transformer low confidence  →  LLM fallback
+```
+
+**Training loop — automatic, incremental:**
+
+1. Every utterance in `feedback_log.sqlite` with `user_feedback = 'accepted'` is a positive training sample
+2. Every corrected utterance with `correct_intent` set is a negative + true label
+3. When 100+ new labelled samples have accumulated (or weekly): run `python -m core.classifier_trainer`
+4. New checkpoint replaces old; k-NN stays unchanged as the fast path
+
+```bash
+# Training command (create core/classifier_trainer.py for this)
+python -m core.classifier_trainer --min-samples 100 --epochs 3
+```
+
+**Expected improvement:** With ~500 labelled utterances from real usage, a fine-tuned `indic-bert` will handle out-of-pattern Hinglish phrasings that k-NN misses — especially regional variations and informal contractions.
+
+**Files to create:**
+- `core/transformer_classifier.py` — `AutoModelForSequenceClassification` + `AutoTokenizer` wrapper
+- `core/classifier_trainer.py` — reads from SQLite, batches training, saves HuggingFace checkpoint
+- Update `core/brain.py` — add hybrid routing logic with configurable threshold boundaries
+
+---
+
+### 12.2 — LaBSE Encoder Upgrade (Easy, Significant Impact)
+
+**The problem:** `paraphrase-multilingual-MiniLM-L12-v2` is a good general multilingual encoder but was not specifically optimized for Indic languages or code-switched text.
+
+**The solution:** Drop-in swap to `sentence-transformers/LaBSE` (Language-Agnostic BERT Sentence Embedding). Same API, one line change.
 
 ```python
-from core.intent_classifier import IntentClassifier
-clf = IntentClassifier(intents_path="data/intents.json", models_dir="data/models")
-clf.rebuild()
+# In core/intent_classifier.py — change this one constant:
+_ENCODER_MODEL = "sentence-transformers/LaBSE"
 ```
 
-This is rarely needed because the cache auto-invalidates on hash
-change. Use it if you've corrupted the pickle or want a fresh build.
+The k-NN index auto-rebuilds on next boot using the new embeddings.
 
-### Switching the LLM model
+**Why LaBSE is better for Hinglish:**
+- Trained on 109 languages with parallel corpus alignment (not just multilingual pretraining)
+- Produces tighter semantic clustering for code-switched sentences
+- Hindi + English embeddings land closer in the same semantic space
 
-Edit `core/llm_chat.py`:
+**Tradeoff:** LaBSE is ~470 MB vs ~120 MB for MiniLM. Encode time is ~50 ms vs ~30 ms on CPU. The accuracy gain on Hinglish inputs justifies this if you're running on hardware with 8GB+ RAM.
+
+---
+
+### 12.3 — Real Reminders with APScheduler
+
+**The problem:** `set_reminder` is a stub that says "reminder set" and immediately forgets.
+
+**Fix — 30 minutes of work:**
+
+```bash
+pip install apscheduler
+```
+
+Create `core/scheduler.py`:
 
 ```python
-@dataclass
-class LLMConfig:
-    model: str = "llama3.2:3b"   # or any model you've pulled with `ollama pull`
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
+
+class ReminderScheduler:
+    def __init__(self, tts):
+        self._scheduler = BackgroundScheduler(daemon=True)
+        self._scheduler.start()
+        self._tts = tts
+
+    def add(self, message: str, fire_at: datetime) -> bool:
+        self._scheduler.add_job(
+            func=lambda: self._tts.speak(f"Reminder sir: {message}"),
+            trigger='date',
+            run_date=fire_at,
+            id=f"reminder_{fire_at.timestamp()}"
+        )
+        return True
+
+    def list_upcoming(self) -> list:
+        return [(job.id, job.next_run_time) for job in self._scheduler.get_jobs()]
 ```
 
-Restart. The brain's chit-chat fallback now uses the new model.
+Update `core/executor.py`:
+```python
+def set_reminder(self, slots: dict) -> str:
+    msg = slots.get("message", "kuch yaad karna hai")
+    time_str = slots.get("time", "")
+    fire_at = parse_time(time_str)   # add a time parser utility
+    if self._scheduler and fire_at:
+        self._scheduler.add(msg, fire_at)
+        return f"Reminder set: '{msg}' — {time_str} pe yaad dilaoonga."
+    return f"Reminder note kar liya: '{msg}' — {time_str} pe."
+```
+
+The entity extractor already extracts `time` and `message` slots correctly. The only missing piece is the actual scheduler and a time-string-to-datetime parser.
 
 ---
 
-## 16. Roadmap
+### 12.4 — Real Weather via OpenWeatherMap
 
-(Preserved from earlier planning — adjust dates as the calendar moves.)
+**The problem:** `get_weather` returns a hardcoded string.
 
-**Phase 1 — Audio hardening.** Replace Google SR with `faster-whisper`
-(local Whisper) and Edge-TTS with Piper (local neural TTS). Add
-hotword detection via openwakeword. Goal: fully offline, sub-1 s
-speech-to-audio response latency.
+**Fix — 15 minutes:**
 
-**Phase 2 — Skill expansion.** Replace stub skills with real
-integrations: OpenWeatherMap, Windows Task Scheduler reminders,
-Google Calendar / Outlook COM, Outlook / Gmail API, file search via
-Windows Search index. Grow to 40+ intents.
+Free API key from [openweathermap.org/api](https://openweathermap.org/api) (no credit card required for the free tier).
 
-**Phase 3 — Intelligence upgrade.** FAISS HNSW for 10K+ pattern scale.
-Multilingual sentiment via XLM-RoBERTa. Conversation-aware entity
-linking ("usse band karo" resolves "usse" from history). Multi-turn
-skills (3-step set_reminder → confirm flow).
+```python
+import requests
 
-**Phase 4 — GUI polish.** First-run onboarding wizard, full settings
-panel + persistence, system tray mode, dark/light theme toggle,
-desktop notifications, multi-monitor handling.
+def get_weather(self, city: str = None) -> str:
+    city = city or self.memory.get("location") or "Delhi"
+    url = (
+        f"https://api.openweathermap.org/data/2.5/weather"
+        f"?q={city}&appid={OPENWEATHER_API_KEY}&units=metric&lang=hi"
+    )
+    try:
+        data = requests.get(url, timeout=5).json()
+        temp = data["main"]["temp"]
+        feels = data["main"]["feels_like"]
+        desc = data["weather"][0]["description"]
+        humidity = data["main"]["humidity"]
+        return (
+            f"{city} mein abhi {temp:.0f} degree hai, "
+            f"feel ho raha hai {feels:.0f} degree. "
+            f"{desc.capitalize()}. Humidity {humidity}%."
+        )
+    except Exception:
+        return "Mausam ka data abhi available nahi hai."
+```
 
-**Phase 5 — Learning + personalization.** Auto-approval of high-
-confidence pending patterns. Active learning queue surfaced in the
-GUI. App-launch frequency model. Conversation summarization →
-memory.
-
-**Phase 6 — Platform expansion.** PyInstaller / Nuitka one-exe
-installer, auto-update, REST API server (`localhost:5000`), Chrome
-/ Edge extension, Android companion app talking to the local REST API.
-
----
-
-## 17. Glossary
-
-| Term | Meaning in this project |
-|---|---|
-| **AERIS** | Adaptive Emotional Reasoning & Intelligent System — the project name |
-| **JARVIS v3.x** | Code name for the GUI iteration (v3.1 currently active) |
-| **Brain stack** | Everything in `core/` that runs in `JarvisMainEngine.process_text()` |
-| **Intent** | A class of user commands (e.g., `open_app`, `get_weather`) |
-| **Pattern** | A labeled example utterance for an intent (one of N per intent in intents.json) |
-| **Slot** | A required entity for an intent (e.g., `app_name` for `open_app`) |
-| **k-NN** | k-nearest-neighbors over sentence embeddings — the routing algorithm |
-| **MiniLM** | The frozen 384-dim multilingual encoder we use |
-| **Disambiguator** | The "should I ask the user?" decision logic for close-call predictions |
-| **Bandit** | The per-intent EMA threshold learner — formally a contextual bandit |
-| **Top-3** | The three highest-scoring intents from the k-NN vote |
-| **Threshold** | Per-intent acceptance floor: confidence below this routes to LLM fallback |
-| **Hinglish** | Mixed Hindi-English written in Roman script ("chrome kholo bhai") |
-| **Gazetteer** | A static dictionary of canonical names + aliases (we have one for apps) |
-| **Slot-fill** | Multi-turn flow where AERIS asks for missing entities one at a time |
-| **Boot bubble** | The "SYSTEM BOOT" chat bubble that shows brain init progress |
-| **BrainWorker / VoiceWorker / SpeakWorker** | The three QThreads (see §10) |
-| **WinError 1114** | The Windows DLL collision that forces torch-before-Qt import order |
-| **GIL** | Python's global interpreter lock — only one thread runs Python bytecode at a time |
-| **`lazy=True`** | The flag that puts `JarvisMainEngine.__init__` into chunked-init mode |
-| **`setup_iter()`** | The generator that yields progress between brain init phases |
+Store the API key in a `.env` file (already in `.gitignore`).
 
 ---
 
-*End of README. If you are an LLM reading this for context, the
-single-most-important things to remember are: (1) this is a single-
-user Windows project where simplicity beats scalability, (2) the
-"brain" is a retrieval system, not a trained classifier, (3) the
-threading and DLL ordering rules in §10–§11 are load-bearing — do
-not refactor them without understanding why they're shaped that way.*
+### 12.5 — Vosk-Based Wake Word Detection
+
+**The problem:** AERIS requires manual script launch. A real assistant should always be listening passively and activate only on "Hey Jarvis" or "Hey AERIS".
+
+**The solution:** Reuse the Vosk model that's already in the dependency stack. Vosk supports **grammar-restricted recognition** — by passing a small JSON grammar of just the wake-word vocabulary, the recognizer becomes a fast, accurate, fully-offline wake word detector. No Porcupine, no API keys, no licensing, no extra dependency.
+
+**Why Vosk grammar restriction is the right tool:**
+- Already installed (Vosk is the offline STT fallback)
+- ~40 MB model (`vosk-model-small-en-in-0.4` — Indian English, ideal for the user)
+- Sub-second latency once the wake word is spoken
+- Custom wake words — no need to train a model, just edit the grammar list
+- Runs at ~3–5% CPU (single thread)
+- Works fully offline, no external service dependency
+- Free, open-source (Apache 2.0)
+
+**Implementation — create `core/wake_word.py`:**
+
+```python
+import json
+import threading
+import pyaudio
+import vosk
+
+
+class WakeWordDetector:
+    """
+    Always-on wake word detector using Vosk grammar-restricted recognition.
+
+    Runs a continuous low-quality mic stream through Vosk constrained to a
+    fixed wake-word grammar. When the wake word fires:
+      1. Pauses listening (releases mic for the main pipeline)
+      2. Calls on_wake() — the main engine takes over for one turn
+      3. Resumes listening when on_wake() returns
+
+    Grammar restriction is the key trick: instead of running open-vocabulary
+    recognition (slow, hallucinates), we tell Vosk "you may only recognize
+    these phrases or [unk]". This makes it both faster and more accurate.
+    """
+
+    def __init__(
+        self,
+        model_path: str,
+        wake_words=("jarvis", "aeris", "hey jarvis", "hey aeris"),
+        sample_rate: int = 16000,
+    ):
+        self.model = vosk.Model(model_path)
+        self.wake_words = tuple(w.lower() for w in wake_words)
+        grammar = json.dumps(list(wake_words) + ["[unk]"])
+        self.recognizer = vosk.KaldiRecognizer(self.model, sample_rate, grammar)
+        self.sample_rate = sample_rate
+        self._listening = threading.Event()
+        self._listening.set()
+        self._stop = threading.Event()
+
+    def listen(self, on_wake):
+        """Block forever. Calls on_wake() once per detected wake event."""
+        p = pyaudio.PyAudio()
+        stream = p.open(
+            format=pyaudio.paInt16, channels=1,
+            rate=self.sample_rate, input=True,
+            frames_per_buffer=4000,
+        )
+        stream.start_stream()
+        try:
+            while not self._stop.is_set():
+                if not self._listening.is_set():
+                    self._listening.wait()  # paused while main pipeline owns mic
+
+                data = stream.read(4000, exception_on_overflow=False)
+                if self.recognizer.AcceptWaveform(data):
+                    text = json.loads(self.recognizer.Result()).get("text", "")
+                else:
+                    # Partial results give faster wake response (~200 ms)
+                    text = json.loads(self.recognizer.PartialResult()).get("partial", "")
+
+                text = text.lower().strip()
+                if any(w in text for w in self.wake_words):
+                    self.pause()
+                    self.recognizer.Reset()
+                    on_wake()
+                    self.resume()
+        finally:
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+
+    def pause(self):  self._listening.clear()
+    def resume(self): self._listening.set()
+    def stop(self):
+        self._stop.set()
+        self._listening.set()
+```
+
+**Wire it up in `main.py`:**
+
+```python
+def voice_mode_with_wake():
+    engine = JarvisMainEngine()
+    detector = WakeWordDetector(
+        model_path="data/models/vosk-model-small-en-in-0.4",
+        wake_words=("jarvis", "aeris", "hey jarvis", "hey aeris"),
+    )
+
+    def on_wake():
+        engine._speak("Yes sir?")
+        text = engine._stt.listen()      # main STT (Google or Vosk full model)
+        if text:
+            response = engine.process_text(text)
+            if response:
+                engine._speak(response)
+
+    print("Wake word listener active. Say 'Jarvis' or 'AERIS' to start.")
+    detector.listen(on_wake)
+```
+
+**Setup step (one-time):**
+```bash
+# Download the Indian English Vosk model (~42 MB)
+# https://alphacephei.com/vosk/models  →  vosk-model-small-en-in-0.4
+# Unzip into data/models/vosk-model-small-en-in-0.4/
+```
+
+**Definition of done:**
+- AERIS runs in background. CPU stays ~3–5%.
+- Saying "Hey Jarvis" within 2 seconds triggers the assistant. False trigger rate < 1 per hour in normal conversation.
+- Wake words are configurable in `main.py` (no code change to the detector).
+- Detector pauses cleanly when main pipeline owns the mic, resumes after.
+
+---
+
+### 12.6 — Local STT: faster-whisper (C12 — Deferred)
+
+**The problem:** Google STT requires internet. Vosk Hindi quality is poor.
+
+```bash
+pip install faster-whisper
+```
+
+```python
+from faster_whisper import WhisperModel
+
+class STT:
+    def __init__(self, model_size="small"):
+        self.model = WhisperModel(model_size, device="cpu", compute_type="int8")
+
+    def listen(self) -> str:
+        audio = self._record_audio()
+        segments, _ = self.model.transcribe(audio, language="hi")
+        return " ".join(s.text for s in segments).strip()
+```
+
+`whisper-small` (~244 MB): transcribes Hinglish well, real-time on a modern CPU, fully offline.
+`whisper-medium` (~769 MB): better Hindi accuracy, ~2x slower.
+
+---
+
+### 12.7 — Spotify API Integration
+
+**The problem:** `play_music` opens Spotify but cannot play a specific track/artist.
+
+```bash
+pip install spotipy
+```
+
+Free Spotify Developer App: [developer.spotify.com](https://developer.spotify.com) (takes 2 minutes).
+
+```python
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+
+sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+    scope="user-modify-playback-state user-read-playback-state"
+))
+
+def play_track(self, query: str) -> str:
+    results = sp.search(q=query, type="track", limit=1)
+    tracks = results["tracks"]["items"]
+    if not tracks:
+        return f"'{query}' nahi mila Spotify pe."
+    uri = tracks[0]["uri"]
+    name = tracks[0]["name"]
+    artist = tracks[0]["artists"][0]["name"]
+    sp.start_playback(uris=[uri])
+    return f"{artist} ka '{name}' chala raha hoon."
+```
+
+Enables: *"Arijit Singh ka Tum Hi Ho chala do"* → plays the exact track on your active Spotify device.
+
+---
+
+### 12.8 — GUI Rewire
+
+**The problem:** Three UI variants exist but none connect to `JarvisMainEngine`. The visual interface currently does not function as an assistant.
+
+**What needs to happen:**
+1. Wire `JarvisMainEngine(lazy=True)` into `run_gui.py`
+2. Call `engine.process_text(text)` from the chat panel's send button and voice input handler
+3. Pipe `setup_iter()` progress events to the splash screen / loading bar (already supported by the engine)
+4. Stream responses back to the chat panel as assistant messages
+5. Pick `ui/aeris_v4` as the canonical UI (most complete components)
+
+The engine's `lazy=True` + `setup_iter()` API was specifically designed for this GUI wiring — the splash screen painting loop already knows how to receive `(log_type, label, pct)` tuples.
+
+---
+
+### 12.9 — File & Clipboard Operations
+
+| Intent | Example | Implementation |
+|--------|---------|----------------|
+| `open_file` | "resume kholo", "X file kholo" | `glob` search + `os.startfile` |
+| `create_folder` | "projects mein new folder banao" | `os.makedirs` |
+| `move_file` | "X ko downloads mein move karo" | `shutil.move` |
+| `delete_file` | "temp folder clean karo" | `send2trash` (sends to Recycle Bin, recoverable) |
+| `clipboard_copy` | "yeh copy kar lo" | `pyperclip.copy(text)` |
+| `clipboard_paste` | "paste karo" | `pyperclip.paste()` |
+
+---
+
+### 12.10 — Multilingual Sentiment Upgrade
+
+Replace VADER with `cardiffnlp/twitter-xlm-roberta-base-sentiment`. True multilingual sentiment — understands Hindi script and Hinglish without the manual booster lexicon. 3-class output (positive/neutral/negative) with calibrated probabilities.
+
+```python
+from transformers import pipeline
+
+_sentiment_pipe = pipeline(
+    "text-classification",
+    model="cardiffnlp/twitter-xlm-roberta-base-sentiment",
+    return_all_scores=False
+)
+```
+
+Tradeoff: ~500 MB model, ~50 ms inference vs VADER's <1 ms. Worth combining with the transformer brain upgrade in §12.1 since you're loading transformers anyway.
+
+---
+
+## 13. Phase G — Next-Level Upgrades
+
+This phase is what takes AERIS from "well-built personal assistant" to **a genuinely capable AI agent**. Each item below is a 1-to-3 day project that significantly expands what AERIS can do. They are independent — pick any order.
+
+The unifying theme: stop treating AERIS as a command parser and start treating it as a reasoning agent that has tools, vision, and presence.
+
+---
+
+### 13.1 — LLM Function Calling (Tool Use) — The Single Biggest Upgrade
+
+**The vision:** Right now the LLM only does chit-chat fallback. The k-NN brain is the primary router. This means anything outside the trained patterns → fails or hits the LLM as plain conversation.
+
+**Flip the model:** Make the LLM the **primary reasoning layer** that *calls AERIS skills as tools*, with k-NN as the fast-path shortcut for common commands.
+
+**How it works:**
+
+```python
+SYSTEM_PROMPT = """You are AERIS. You can call these tools:
+
+{
+  "open_app":     {"args": ["app_name"]},
+  "close_app":    {"args": ["app_name"]},
+  "get_weather":  {"args": ["city?"]},
+  "set_reminder": {"args": ["message", "fire_at_iso"]},
+  "search_web":   {"args": ["query"]},
+  "play_youtube": {"args": ["query"]},
+  "calculate":    {"args": ["expression"]},
+  "send_whatsapp":{"args": ["recipient", "message"]},
+  ...
+}
+
+For each user input, respond with EXACTLY ONE of:
+  (a) {"tool": "<name>", "args": {...}}      — to call a skill
+  (b) {"tool": "chat", "reply": "..."}       — to just talk
+  (c) {"tool": "plan", "steps": [...]}       — for multi-step tasks
+"""
+```
+
+**Routing logic:**
+
+```
+Utterance
+    │
+    ├─► k-NN predict (fast, ~30ms)
+    │       confidence ≥ 0.85  →  execute directly (skip LLM)
+    │       confidence < 0.85  →  LLM with tool calling
+    │
+    └─► LLM reasoning
+            returns {"tool": "open_app", "args": {"app_name": "chrome"}}
+                → executor.execute("open_app", {"app_name": "chrome"})
+            returns {"tool": "plan", "steps": [...]}
+                → executes each step in sequence
+            returns {"tool": "chat", "reply": "..."}
+                → speak the reply
+```
+
+**Why this is transformational:**
+
+| Before (k-NN only) | After (LLM tool calling) |
+|--------------------|--------------------------|
+| "open chrome" → works | "open chrome" → works (k-NN fast path) |
+| "isko launch maar" → fails (unseen pattern) | "isko launch maar" → LLM understands intent, calls open_app |
+| "remind me about mom's birthday on Friday" → fails to extract date | LLM parses "Friday" into ISO datetime, calls set_reminder correctly |
+| "play that song from Animal" → search_web at best | LLM searches Spotify, calls play_track with proper query |
+| "schedule a 30-min call with Raj tomorrow at 4" | LLM calls schedule_meeting with all slots filled correctly |
+| Multi-step tasks impossible | "weather batao aur agar barish ho toh raincoat reminder lagao" → conditional plan |
+
+**Files to create:**
+- `core/tool_router.py` — JSON parser + executor dispatch from LLM output
+- `core/llm_planner.py` — multi-step plan execution with rollback
+- Update `core/llm_chat.py` — add `reply_with_tools()` method that returns structured JSON
+- Update `core/main_engine.py` — add the routing decision
+
+**Model choice:** `phi3:mini` already supports tool-style JSON output. For better reliability, upgrade to `qwen2.5:3b` or `llama3.1:8b` (both available via Ollama) — these are explicitly trained for function calling.
+
+**Definition of done:**
+- "remind me about mom's birthday next Friday at 6 pm" → LLM extracts message + ISO datetime, calls `set_reminder` correctly
+- "open chrome aur YouTube pe lofi chala do" → LLM emits a 2-step plan, both steps execute
+- Failed tool calls (invalid args) trigger an LLM retry with the error message in context
+
+---
+
+### 13.2 — Skill Plugin System (Drop-in Extensibility)
+
+**The problem:** Adding a new skill currently requires editing `intents.json`, `executor.py`, and `entity_extractor.py` — three different places. This is friction every time you want a new capability.
+
+**The solution:** A `skills/` folder where each `.py` file becomes a self-registering skill. Auto-discovery at boot.
+
+**Each skill file:**
+
+```python
+# skills/whatsapp.py
+from core.skill_registry import skill
+
+@skill(
+    name="send_whatsapp",
+    description="Send a WhatsApp message to a contact by name",
+    patterns=[
+        "X ko whatsapp message bhejo Y",
+        "send X message Y on whatsapp",
+        "whatsapp pe X ko bolo Y",
+    ],
+    required_entities=["recipient", "message"],
+    prompts={
+        "recipient": "Kisko message bhejna hai?",
+        "message":   "Kya likhna hai message mein?",
+    },
+)
+def send_whatsapp(slots: dict) -> str:
+    import pywhatkit
+    pywhatkit.sendwhatmsg_instantly(
+        phone_no=resolve_contact(slots["recipient"]),
+        message=slots["message"],
+    )
+    return f"{slots['recipient']} ko message bhej diya."
+```
+
+**At boot:**
+```python
+# core/skill_registry.py walks skills/ folder, imports each module,
+# registers each @skill decorator into a global REGISTRY.
+# 
+# JarvisBrain merges patterns from REGISTRY into the k-NN index.
+# ActionExecutor's dispatch dict is built from REGISTRY at __init__.
+# EntityExtractor's prompt map is built from REGISTRY.required_entities.
+```
+
+**Files to create:**
+- `core/skill_registry.py` — `@skill` decorator + global registry + auto-discovery
+- `skills/__init__.py`
+- Refactor `core/executor.py` — replace hardcoded dispatch dict with registry lookup
+- Refactor `data/intents.json` — keep as bootstrap; new skills register their own patterns
+
+**Migration:** Convert each existing intent in `executor.py` into a `skills/<name>.py` file. The user only ever has to edit one file per skill from this point on.
+
+**Bonus:** Sharing skills becomes trivial — drop someone else's `whatsapp.py` into your `skills/` folder and it just works.
+
+---
+
+### 13.3 — Vision: Screen OCR + Computer Use
+
+**The vision:** AERIS reads what's on your screen and acts on it.
+
+**Use cases:**
+- *"Yeh article padh do"* — OCR the visible window → TTS reads it aloud
+- *"Yeh error message kya hai?"* — OCR the dialog → LLM explains the error in Hinglish
+- *"Login button pe click karo"* — OCR finds the button → `pyautogui.click()` on its coordinates
+- *"Form fill kar do mere details se"* — OCR identifies form fields → types from `user_memory`
+- *"Screenshot mein kaunsa app khula hai?"* — OCR window title → answer
+
+**Stack:**
+
+```bash
+pip install pytesseract pillow pyautogui mss
+# Plus install Tesseract binary: github.com/UB-Mannheim/tesseract/wiki
+# Add hindi language pack: choose 'hin' during install
+```
+
+**Implementation:**
+
+```python
+# core/vision.py
+import mss
+import pytesseract
+from PIL import Image
+
+class ScreenVision:
+    def __init__(self):
+        self._sct = mss.mss()
+
+    def read_screen(self, region=None) -> str:
+        """OCR the full screen or a region. Returns extracted text."""
+        monitor = region or self._sct.monitors[1]
+        img = Image.frombytes("RGB", (monitor["width"], monitor["height"]),
+                              self._sct.grab(monitor).rgb)
+        # eng+hin handles English+Hindi mixed UI
+        return pytesseract.image_to_string(img, lang="eng+hin")
+
+    def find_text_location(self, target: str) -> tuple[int, int] | None:
+        """Returns (x, y) center of the bounding box for `target` text on screen."""
+        monitor = self._sct.monitors[1]
+        img = Image.frombytes("RGB", (monitor["width"], monitor["height"]),
+                              self._sct.grab(monitor).rgb)
+        data = pytesseract.image_to_data(img, lang="eng+hin",
+                                         output_type=pytesseract.Output.DICT)
+        for i, word in enumerate(data["text"]):
+            if target.lower() in word.lower():
+                x = data["left"][i] + data["width"][i] // 2
+                y = data["top"][i] + data["height"][i] // 2
+                return (x, y)
+        return None
+```
+
+**New skills enabled:**
+- `read_screen`, `read_window`, `find_on_screen`, `click_text`, `describe_screen` (LLM summarizes OCR output)
+
+**Why this is huge:** Combined with §13.1 (tool calling), the LLM can now perceive AND act. *"AERIS, fill the contact form with my email"* → LLM plans: 1) OCR find "email" field, 2) click it, 3) type stored email. This is real computer-use capability.
+
+---
+
+### 13.4 — Streaming STT with Partial Results
+
+**The problem:** Current STT waits for silence, then transcribes the whole utterance. Feels slow and unresponsive.
+
+**The solution:** Vosk supports `PartialResult()` — words become available as the user speaks them. Show partial transcription in the GUI in real time. Send the final transcription to the brain only when silence is detected.
+
+**Why it matters:** Latency perception drops dramatically. *"chrome..."* shows on screen instantly, *"chrome kholo"* completes 100ms later, response starts before user even finishes their sentence in some cases.
+
+**Implementation pattern:**
+
+```python
+def listen_streaming(self, on_partial, on_final):
+    while True:
+        data = stream.read(4000, exception_on_overflow=False)
+        if self.recognizer.AcceptWaveform(data):
+            final = json.loads(self.recognizer.Result())["text"]
+            if final:
+                on_final(final)
+                return
+        else:
+            partial = json.loads(self.recognizer.PartialResult())["partial"]
+            if partial:
+                on_partial(partial)  # GUI updates the chat bubble live
+```
+
+In the GUI, the user's chat bubble updates token-by-token as they speak. Once `on_final` fires, send to `engine.process_text()`.
+
+---
+
+### 13.5 — Google Calendar Integration
+
+**The vision:** `schedule_meeting` actually creates calendar events. *"Aaj meri meetings batao"* lists today's events. *"Kab free hoon kal?"* finds free slots.
+
+**Stack:**
+```bash
+pip install google-auth-oauthlib google-api-python-client
+```
+
+OAuth flow once at setup (browser pops up, user grants access, token cached locally to `data/google_token.json`).
+
+**New skills:**
+- `create_event` — replaces stub `schedule_meeting` with real event creation
+- `list_events` — *"meri meetings batao"* / *"kal kya kya hai"*
+- `find_free_slot` — *"kab free hoon kal afternoon?"*
+- `cancel_event` — *"3 baje wali meeting cancel karo"*
+
+**Bonus:** Combined with §13.1 (LLM tool calling), the LLM can negotiate scheduling autonomously. *"Raj se 30 min ki call lagao kal"* → LLM calls `find_free_slot` for tomorrow → calls `create_event` with the chosen slot → confirms.
+
+---
+
+### 13.6 — WhatsApp Automation
+
+**The vision:** Send WhatsApp messages by voice without touching your phone.
+
+**Stack:**
+```bash
+pip install pywhatkit
+```
+
+`pywhatkit` automates WhatsApp Web — opens the browser, navigates to a contact, types and sends. Free, no API key. Slower than the official Business API but works for personal use.
+
+**New skills:**
+- `send_whatsapp` — *"Raj ko whatsapp pe bolo main 5 baje aaonga"*
+- `read_whatsapp` — read latest unread messages (requires WhatsApp Web Selenium scrape)
+
+**Contact resolution:** Read contacts from `data/contacts.json` (created by user). Map names → phone numbers. Hindi name aliases supported via the same alias system as the memory module.
+
+---
+
+### 13.7 — News Briefing (RSS + LLM Summary)
+
+**The vision:** *"Aaj ki news batao"* → fetches latest headlines from your chosen sources → LLM summarizes the top 5 stories in Hinglish → AERIS reads them aloud.
+
+**Stack:**
+```bash
+pip install feedparser
+```
+
+Feed sources stored in `data/news_sources.json` (user-editable):
+```json
+{
+  "tech":     ["https://hnrss.org/frontpage", "https://techcrunch.com/feed/"],
+  "india":    ["https://www.thehindu.com/news/national/feeder/default.rss"],
+  "business": ["https://www.livemint.com/rss/news"]
+}
+```
+
+**Implementation:**
+
+```python
+def daily_briefing(self, category: str = "all") -> str:
+    sources = self.news_sources.get(category, [])
+    headlines = []
+    for url in sources:
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:3]:
+            headlines.append(f"- {entry.title}: {entry.summary[:200]}")
+
+    prompt = f"Summarize these headlines in 5 short Hinglish bullet points:\n\n" + "\n".join(headlines)
+    return self.llm.reply_raw(prompt)
+```
+
+**Bonus:** Schedule a daily briefing via §12.3 APScheduler — *"har subah 8 baje news batana"* → adds a recurring scheduler job.
+
+---
+
+### 13.8 — Translation Engine (Offline Hindi ↔ English)
+
+**The vision:** Built-in translation that works offline. Useful both for users and as a tool the LLM can call.
+
+**Stack:**
+```bash
+pip install argostranslate
+# Or for higher quality (1.1 GB model):
+# pip install ctranslate2
+# + IndicTrans2 model from ai4bharat
+```
+
+**Argos Translate** — fully offline, free, OpenNMT-based. Hindi↔English package is ~200 MB. Quality is good for casual use.
+
+**IndicTrans2** (ai4bharat) — best-in-class Hindi-English, also covers 22 Indian languages. ~1.1 GB but state-of-the-art.
+
+**New skills:**
+- `translate` — *"yeh sentence hindi mein translate karo: ..."*
+- `live_translate` — translate user's spoken Hindi → English text on screen (great for meetings)
+
+---
+
+### 13.9 — Voice Cloning TTS (Coqui XTTS-v2)
+
+**The vision:** Replace Edge-TTS Neerja with a voice you choose — yours, a celebrity's (with consent), or a custom-tuned warm assistant voice.
+
+**Stack:**
+```bash
+pip install TTS  # Coqui TTS
+```
+
+Coqui XTTS-v2 clones any voice from **6 seconds of reference audio**. Multilingual including Hindi. Runs on CPU at near-real-time, GPU at much faster.
+
+**Setup:**
+1. Record 6 seconds of the target voice → `data/voices/aeris_reference.wav`
+2. Update `core/tts.py` to load XTTS-v2 model
+3. Pass `speaker_wav` parameter on every synthesis call
+
+**Why it matters:** Personality. The current Neerja voice is a generic Indian female TTS. A custom voice — slow, warm, slightly textured — gives AERIS *character*. This is the difference between Siri and Jarvis-from-Iron-Man.
+
+**Tradeoff:** Coqui XTTS is ~2 GB and ~1.5x slower than Edge-TTS on CPU. Worth it for the personality upgrade.
+
+---
+
+### 13.10 — Mobile Companion (LAN Bridge)
+
+**The vision:** Talk to AERIS from your phone. Same brain, different mic.
+
+**Architecture:**
+
+```
+[Phone App]  ──WebSocket──►  [Flask/FastAPI on Desktop]  ──►  JarvisMainEngine
+   ▲                                                              │
+   └──────────────── audio + responses ◄──────────────────────────┘
+```
+
+**Stack:**
+```bash
+pip install fastapi uvicorn websockets
+```
+
+**Implementation:**
+- Add `core/lan_server.py` — FastAPI WebSocket endpoint that accepts audio chunks, runs them through `engine.process_text()`, streams responses back as audio
+- Mobile client: a minimal Flutter or React Native app (or even a PWA) that records mic, sends to desktop, plays response
+
+**Use case:** Your laptop is on but closed in another room. You ask your phone *"AERIS, system info batao"* → phone hits laptop's LAN endpoint → laptop runs the skill → speaks response back through phone speaker. Same memory, same context, same skills.
+
+**Security:** Bind to localhost + LAN only. Token auth in WebSocket handshake. No public internet exposure.
+
+---
+
+### 13.11 — Encrypted Memory Vault (Privacy)
+
+**The problem:** `data/user_memory.json` stores sensitive facts (location, employer, contacts) in plaintext. If the laptop is compromised or shared, anyone can read it.
+
+**The solution:** AES-256 encryption of the memory file with a key derived from a user-supplied passphrase (PBKDF2). Decrypted in-memory only at boot.
+
+**Stack:**
+```bash
+pip install cryptography
+```
+
+**Two-mode operation:**
+- **Open mode** (current behaviour): no encryption, easy debugging
+- **Vault mode**: passphrase prompt at startup, all reads/writes go through `Fernet` encryption
+
+Add a `:vault on` REPL command that converts the existing `user_memory.json` to encrypted form.
+
+---
+
+### 13.12 — Usage Analytics Dashboard
+
+**The vision:** A page in the GUI showing:
+- Total utterances processed
+- Most-used intents (bar chart)
+- Per-intent accuracy (from feedback DB)
+- Threshold drift over time (line chart)
+- Recent corrections (so you can spot a pattern that needs more training)
+- Conversation sentiment trend (are you happier with AERIS over time?)
+
+All data is already in `data/feedback_log.sqlite`. Just need a dashboard tab in `ui/aeris_v4/` that queries it.
+
+**Stack:**
+```bash
+pip install pyqtgraph  # for charts
+```
+
+This is mostly UI work — the data is already being collected. Useful both for the user (see how AERIS is performing) and for development (spot which intents need more pattern coverage).
+
+---
+
+### Phase G — Suggested Implementation Order
+
+| Order | Item | Effort | Why first |
+|-------|------|--------|-----------|
+| 1 | §13.1 LLM Tool Calling | 2 days | Single biggest capability multiplier |
+| 2 | §13.2 Skill Plugin System | 1 day | Foundation for everything else |
+| 3 | §13.4 Streaming STT | 0.5 day | Quick perceived-latency win |
+| 4 | §13.3 Vision (OCR + Click) | 2 days | Unlocks computer use |
+| 5 | §13.5 Google Calendar | 1 day | Highest daily-use value |
+| 6 | §13.7 News Briefing | 0.5 day | Perfect daily-driver feature |
+| 7 | §13.6 WhatsApp | 1 day | High utility for Indian users |
+| 8 | §13.9 Voice Cloning | 1 day | Pure personality upgrade |
+| 9 | §13.10 Mobile Bridge | 2 days | Major reach extension |
+| 10 | §13.8 Translation | 0.5 day | Easy add-on |
+| 11 | §13.12 Analytics Dashboard | 1 day | Polish |
+| 12 | §13.11 Encrypted Vault | 0.5 day | Security hardening |
+
+Total: ~13 days of focused work transforms AERIS from a polished personal assistant into something that genuinely competes with commercial AI agents — while remaining fully local and Hinglish-native.
+
+---
+
+## 14. Dependency Reference
+
+```
+# Audio I/O (current)
+SpeechRecognition      # online STT (Google en-IN)
+vosk                   # offline STT fallback
+pyaudio                # microphone input
+edge-tts               # online TTS (hi-IN-NeerjaNeural)
+pyttsx3                # offline TTS fallback
+pygame                 # audio playback
+
+# NLP / Brain (current)
+sentence-transformers  # multilingual encoder (MiniLM-L12-v2)
+scikit-learn           # k-NN intent index
+spacy                  # NER (optional; python -m spacy download en_core_web_sm)
+vaderSentiment         # sentiment analysis
+rapidfuzz              # fuzzy fallback
+
+# LLM chit-chat
+requests               # Ollama HTTP client
+
+# UI / System
+PyQt5                  # GUI framework
+psutil                 # battery, CPU, RAM metrics
+keyboard               # hotkey listener
+pyautogui              # screenshot capture
+opencv-python          # gesture recognition
+mediapipe              # hand landmark detection
+
+# Misc
+pyyaml
+nltk
+
+# Dev / Test
+pytest
+
+# Phase F — Feature parity (not yet installed)
+# transformers          # fine-tuned intent classifier + multilingual sentiment
+# apscheduler           # real background reminder scheduler
+# faster-whisper        # local offline STT (replaces Google STT)
+# spotipy               # Spotify track-level control
+# pyperclip             # clipboard read/write
+# send2trash            # safe file deletion (to Recycle Bin)
+#                       # Wake word: uses existing Vosk dependency (no new pkg)
+
+# Phase G — Next-level upgrades (not yet installed)
+# pytesseract           # screen OCR (§13.3)        → also requires Tesseract binary + hin lang pack
+# mss                   # fast screen capture (§13.3)
+# google-auth-oauthlib  # Google Calendar OAuth (§13.5)
+# google-api-python-client  # Calendar API client (§13.5)
+# pywhatkit             # WhatsApp Web automation (§13.6)
+# feedparser            # RSS news ingestion (§13.7)
+# argostranslate        # offline Hindi↔English (§13.8)
+# TTS                   # Coqui XTTS-v2 voice cloning (§13.9)
+# fastapi + uvicorn + websockets  # mobile LAN bridge (§13.10)
+# cryptography          # encrypted memory vault (§13.11)
+# pyqtgraph             # analytics dashboard charts (§13.12)
+```
+
+---
+
+## 15. Project Layout
+
+```
+New version- 3.0/
+│
+├── main.py                       # Entry point. --text for REPL, default for voice.
+├── run_gui.py                    # GUI entry point (PyQt5)
+├── requirements.txt
+├── BRAIN_CHECKPOINTS.md          # Build progress tracker (C1–C12 status + validation logs)
+├── BRAIN_BUILD_PLAN.md           # Detailed spec for each checkpoint
+│
+├── core/
+│   ├── brain.py                  # JarvisBrain: encoder lifecycle + index management
+│   ├── intent_classifier.py      # Multilingual k-NN intent classifier
+│   ├── normalizer.py             # Lightweight text normalization
+│   ├── entity_extractor.py       # 4-layer entity extraction (regex/gazetteer/NER/residual)
+│   ├── sentiment.py              # VADER + 30 Hinglish booster terms
+│   ├── memory.py                 # Persistent user facts + auto-detect + recall
+│   ├── conversation.py           # Rolling 8-turn short-term context
+│   ├── llm_chat.py               # Ollama HTTP client + system prompt assembly
+│   ├── feedback.py               # SQLite utterance log + bandit threshold policy
+│   ├── disambiguator.py          # Close-call detection + answer parsing
+│   ├── state_manager.py          # Slot-filling + disambiguation state machine
+│   ├── executor.py               # 21 intent action handlers
+│   ├── main_engine.py            # Top-level pipeline orchestrator (process_text)
+│   ├── utterance_parser.py       # Multi-command splitter + subspan intent scanner
+│   ├── intent_engine.py          # Fuzzy fallback (legacy, rarely hit)
+│   ├── review_cli.py             # Interactive low-confidence pattern review CLI
+│   ├── stt.py                    # Speech-to-text (Google + Vosk fallback)
+│   └── tts.py                    # Text-to-speech (Edge-TTS Neerja + pyttsx3 fallback)
+│
+├── data/
+│   ├── intents.json              # 21 intents × ~14 Hinglish patterns
+│   ├── entities.json             # App name aliases (25 apps)
+│   ├── user_memory.json          # Persistent user facts (auto-created on first use)
+│   ├── feedback_log.sqlite       # Utterance log + bandit thresholds (auto-created)
+│   ├── hinglish_dict.json        # Reference dictionary
+│   ├── notes/                    # Created notes (timestamped .txt files)
+│   ├── audio_cache/              # Cached TTS audio
+│   └── models/
+│       ├── intent_index.pkl      # Cached k-NN index (auto-rebuilt on intents.json change)
+│       ├── intent_metadata.json  # Hash + counts + encoder name + build timestamp
+│       └── hand_landmarker.task  # MediaPipe hand gesture model
+│
+├── ui/
+│   ├── aeris_v4/                 # Dark cyan arc-reactor UI (recommended for rewire)
+│   │   ├── main_window.py
+│   │   ├── arc_reactor.py        # Animated arc reactor widget
+│   │   ├── chat_panel.py
+│   │   ├── sidebar.py
+│   │   ├── logs_panel.py
+│   │   ├── title_bar.py
+│   │   └── theme.py
+│   ├── jarvis_v31/               # Glass morphism floating dock
+│   ├── ui_laptop/                # Full laptop dashboard with splash + sidebar
+│   └── ui_legacy/                # Previous generation UI (reference only, do not edit)
+│
+├── utils/
+│   ├── gesture.py                # MediaPipe hand gesture → command bridge
+│   └── monitor.py                # Background system metrics poller
+│
+└── tests/
+    ├── conftest.py               # Fixtures: isolated tmp paths, session-scoped brain/extractor
+    ├── test_normalizer.py        # 8 tests
+    ├── test_intent_classifier.py # 13 tests
+    ├── test_entity_extractor.py  # 13 tests
+    ├── test_sentiment.py         # 8 tests
+    ├── test_memory.py            # 14 tests
+    ├── test_conversation.py      # 4 tests
+    ├── test_disambiguator.py     # 9 tests
+    ├── test_feedback.py          # 9 tests
+    └── test_pipeline.py          # 11 end-to-end tests
+```
+
+**Folders to be created during Phase G:**
+
+```
+skills/                           # §13.2 — drop-in skill plugins (auto-discovered)
+    whatsapp.py
+    calendar.py
+    news.py
+    translate.py
+    ...
+
+data/voices/                      # §13.9 — voice cloning reference audio
+    aeris_reference.wav
+
+data/contacts.json                # §13.6 — name → phone mapping
+data/news_sources.json            # §13.7 — RSS feed list per category
+data/google_token.json            # §13.5 — cached OAuth token (in .gitignore)
+data/models/vosk-model-small-en-in-0.4/  # §12.5 — wake word model
+```
+
+---
+
+## 16. Build Status
+
+| Checkpoint | What It Added | Status |
+|------------|---------------|--------|
+| C1 | Multilingual k-NN brain, MiniLM encoder, auto-caching index | ✅ Done — 2026-04-25 |
+| C2 | 4-layer entity extractor (regex + gazetteer + spaCy NER + residual span) | ✅ Done — 2026-04-25 |
+| C3 | VADER sentiment + ~30 Hinglish booster terms | ✅ Done — 2026-04-25 |
+| C4 | Persistent user memory, natural-language fact detection + Hindi recall aliases | ✅ Done — 2026-04-25 |
+| C5 | Rolling 8-turn conversation history with OpenAI message export | ✅ Done — 2026-04-25 |
+| C6 | Ollama LLM chit-chat fallback (Phi-3 / Llama 3.2), health-check, graceful degradation | ✅ Done — 2026-04-25 |
+| C7 | SQLite utterance log, contextual bandit threshold learning, review CLI | ✅ Done — 2026-04-25 |
+| C8 | Close-call disambiguation, Hinglish prompt, 5-form answer parser | ✅ Done — 2026-04-25 |
+| C9 | Full pipeline rewire — all 8 modules wired into `process_text()`, audio isolation | ✅ Done — 2026-04-26 |
+| C10 | Memory recall via executor + `detect_and_recall` + Hindi key aliases | ✅ Done — 2026-04-26 |
+| C11 | 89 pytest tests, text-mode REPL with `:facts` / `:stats` / `:help` | ✅ Done — 2026-04-26 |
+| C12 | Local STT (faster-whisper) + local TTS (Piper) | ⏸ Deferred (online STT/TTS stays) |
+
+### Phase F — Feature Parity & Bug Fixes
+
+| Item | Description | Status |
+|------|-------------|--------|
+| F1 | Hybrid transformer classifier (indic-bert fine-tuned on logged utterances) | 📋 Planned — §12.1 |
+| F2 | LaBSE encoder upgrade (drop-in, better Hinglish accuracy) | 📋 Planned — §12.2 |
+| F3 | APScheduler real reminders (reminders that actually fire) | ✅ Shipped — v3.3 |
+| F4 | OpenWeatherMap real weather API | ✅ Shipped — v3.3 (`skills/weather.py`, needs API key) |
+| F5 | Vosk-based wake word detection (reuses existing dependency) | ✅ Shipped — v3.3 (`--wake` mode) |
+| F6 | Local STT via faster-whisper (replaces Google STT primary) | 📋 Planned — §12.6 |
+| F7 | Spotify API track-level control | ✅ Shipped — v3.3 (`skills/spotify_control.py`, needs OAuth) |
+| F8 | GUI rewire to JarvisMainEngine | 📋 Planned — §12.8 |
+| F9 | File + clipboard operations | ✅ Shipped — v3.3 (`skills/clipboard.py`, `skills/file_ops.py`) |
+| F10 | Multilingual sentiment (XLM-RoBERTa) | 📋 Planned — §12.10 |
+
+### Phase G — Next-Level Upgrades
+
+| Item | Description | Status |
+|------|-------------|--------|
+| G1 | LLM function calling (LLM as primary reasoner, k-NN as fast path) | ✅ Shipped — v3.3 (`core/tool_router.py`, `LLMChat.reply_with_tools`) |
+| G2 | Skill plugin system (drop-in `skills/*.py` auto-discovery) | ✅ Shipped — v3.3 (`core/skill_registry.py`) |
+| G3 | Vision: screen OCR + computer use (Tesseract + pyautogui) | ✅ Shipped — v3.3 (`skills/vision.py`, needs Tesseract) |
+| G4 | Streaming STT with partial results (live transcription) | ✅ Shipped — v3.3 (`STT.listen_streaming`) |
+| G5 | Google Calendar integration (real event creation + free-slot finding) | 📋 Planned — §13.5 |
+| G6 | WhatsApp automation (pywhatkit) | ✅ Shipped — v3.3 (`skills/whatsapp.py`, needs pywhatkit) |
+| G7 | News briefing (RSS + LLM Hinglish summary) | ✅ Shipped — v3.3 (`skills/news.py`) |
+| G8 | Translation engine (Argos / IndicTrans2 offline) | ✅ Shipped — v3.3 (`skills/translate.py`, needs argostranslate) |
+| G9 | Voice cloning TTS (Coqui XTTS-v2) | 📋 Planned — §13.9 |
+| G10 | Mobile companion app (LAN WebSocket bridge) | 📋 Planned — §13.10 |
+| G11 | Encrypted memory vault (AES-256 with passphrase) | ✅ Shipped — v3.3 (`core/vault.py`, `--vault` flag) |
+| G12 | Usage analytics dashboard (charts from feedback DB) | 📋 Planned — §13.12 |
+
+---
+
+## End State
+
+When Phase F + G are complete, AERIS will be:
+
+- **Always-on** — wake-word activated, no manual launch
+- **Reasoning-driven** — LLM with tool calling decides what to do, k-NN handles the fast path
+- **Extensible** — drop a Python file into `skills/`, get a new capability
+- **Vision-capable** — reads your screen, clicks buttons, fills forms
+- **Connected** — Calendar, WhatsApp, news, weather, translation
+- **Personal** — custom-cloned voice, encrypted memory vault, your phone as a remote
+- **Self-improving** — every accepted utterance becomes training data for the next classifier checkpoint
+- **Fully Hinglish-native** end to end — STT, brain, sentiment, LLM, TTS all multilingual
+
+All while staying **fully local** for the core pipeline. No cloud dependency for intent routing, memory, or system control. Cloud APIs (Calendar, WhatsApp, OpenWeatherMap) are opt-in per-skill and can be swapped or disabled.

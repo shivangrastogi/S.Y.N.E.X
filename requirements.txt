@@ -1,21 +1,24 @@
 # ── Audio I/O ────────────────────────────────────────────────────────
-SpeechRecognition          # online STT wrapper (kept until C12 swaps in faster-whisper)
-vosk                       # offline STT fallback
+SpeechRecognition          # online STT wrapper (Google en-IN)
+vosk                       # offline STT + wake-word detection
 pyaudio                    # mic input
-edge-tts                   # online TTS (best Hindi quality)
+edge-tts                   # online TTS (Hindi Neerja voice)
 pyttsx3                    # offline TTS final fallback
 pygame                     # audio playback
 
 # ── NLP / Brain ──────────────────────────────────────────────────────
 sentence-transformers      # multilingual encoder           [C1]
 scikit-learn               # k-NN intent index              [C1]
-spacy                      # NER + tokenisation             [C2 — optional, EntityExtractor degrades gracefully without it]
-                           # After install run: python -m spacy download en_core_web_sm
-# vaderSentiment           # sentiment v1                   [C3]
+spacy                      # NER + tokenisation             [C2 — optional, run: python -m spacy download en_core_web_sm]
+vaderSentiment             # sentiment v1                   [C3]
 rapidfuzz                  # fuzzy fallback (intent_engine.py)
 
-# ── LLM (chit-chat) ──────────────────────────────────────────────────
-requests                   # Ollama HTTP client             [C6]
+# ── LLM (chit-chat + tool calling) ───────────────────────────────────
+requests                   # Ollama HTTP client             [C6, G1]
+
+# ── Scheduling + Crypto + Plugin runtime ─────────────────────────────
+apscheduler                # real reminders                 [F3]
+cryptography               # AES-256 memory vault           [G11]
 
 # ── UI / system ──────────────────────────────────────────────────────
 PyQt5
@@ -24,6 +27,18 @@ keyboard
 pyautogui
 opencv-python              # gesture (utils/gesture.py)
 mediapipe                  # gesture (utils/gesture.py)
+
+# ── Plugin skill optional dependencies ───────────────────────────────
+# Each is loaded lazily by its skill module — not installing it just
+# disables that one skill. The rest of AERIS keeps working.
+pyperclip                  # skills/clipboard.py
+feedparser                 # skills/news.py
+# pywhatkit                # skills/whatsapp.py    (uses WhatsApp Web)
+# argostranslate           # skills/translate.py   (offline Hi↔En)
+# pytesseract              # skills/vision.py      (also needs Tesseract binary)
+# mss                      # skills/vision.py
+# Pillow                   # skills/vision.py
+# spotipy                  # skills/spotify_control.py
 
 # ── Misc ─────────────────────────────────────────────────────────────
 pyyaml

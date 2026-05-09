@@ -113,8 +113,14 @@ class IntentClassifier:
     # ------------------------------------------------------------------ #
 
     def _intents_hash(self) -> str:
-        with open(self.intents_path, "rb") as f:
-            return hashlib.md5(f.read()).hexdigest()
+        """Hash of the merged intent set (file + plugin registry).
+
+        Canonical JSON ensures dict ordering doesn't bust the cache; plugin
+        patterns are included so the index rebuilds when a new skill ships.
+        """
+        merged = self._load_intents()
+        canonical = json.dumps(merged, sort_keys=True, ensure_ascii=False)
+        return hashlib.md5(canonical.encode("utf-8")).hexdigest()
 
     def _cached_hash(self) -> Optional[str]:
         if not os.path.exists(self.metadata_path):
@@ -172,7 +178,18 @@ class IntentClassifier:
 
     def _load_intents(self) -> dict:
         with open(self.intents_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            intents = json.load(f)
+        try:
+            from core.skill_registry import patterns_as_intent_dict
+            for name, cfg in patterns_as_intent_dict().items():
+                if name in intents:
+                    existing = intents[name].get("patterns", [])
+                    intents[name]["patterns"] = existing + cfg.get("patterns", [])
+                else:
+                    intents[name] = cfg
+        except ImportError:
+            pass
+        return intents
 
     def _build_index(self) -> None:
         self._ensure_encoder()
