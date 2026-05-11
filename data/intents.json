@@ -279,5 +279,211 @@
         "prompts": {
             "url": "Kaunsi website kholni hai? URL batao."
         }
+    },
+    "web_search": {
+        "patterns": [],
+        "required_entities": ["query"],
+        "prompts": {
+            "query": "Kya search karna hai online?"
+        }
+    },
+    "search_cache_stats": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "clear_search_cache": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "add_expense": {
+        "patterns": [],
+        "required_entities": ["amount", "description"],
+        "prompts": {
+            "amount": "Kitne rupaye ka kharcha tha?",
+            "description": "Kis cheez pe kharcha hua?"
+        }
+    },
+    "month_summary": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "add_task": {
+        "patterns": [],
+        "required_entities": ["task_text"],
+        "prompts": {
+            "task_text": "Kya task add karna hai?"
+        }
+    },
+    "add_meeting": {
+        "patterns": [],
+        "required_entities": ["person", "time"],
+        "prompts": {
+            "person": "Kis ke saath meeting hai?",
+            "time": "Meeting kab hai?"
+        }
+    },
+    "open_workbook": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "sync_to_sheets": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "sheets_status": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "write_code": {
+        "patterns": [],
+        "required_entities": ["spec"],
+        "prompts": {
+            "spec": "Kya code chahiye? Spec batao."
+        }
+    },
+    "list_generated_code": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "news_briefing": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "gesture_mode_on": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "gesture_mode_off": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "gesture_status": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "detect_holding": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "detect_scene": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "snap_and_save": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "set_timer": {
+        "patterns": [],
+        "required_entities": ["spec"],
+        "prompts": {
+            "spec": "Kitne time ka timer chahiye?"
+        }
+    },
+    "list_timers": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "cancel_timer": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "clipboard_history": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "copy_history_item": {
+        "patterns": [],
+        "required_entities": ["spec"],
+        "prompts": {
+            "spec": "Kaunsa item copy karna hai? Number batao."
+        }
+    },
+    "clipboard_clear": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "full_system_health": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "network_check": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "snip_and_ocr": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "full_screen_ocr": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "open_in_browser": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "search_in_browser": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "list_browser_profiles": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "set_default_browser": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "set_default_profile": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "daily_briefing": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "focus_mode_on": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "focus_mode_off": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
+    },
+    "smart_paste": {
+        "patterns": [],
+        "required_entities": [],
+        "prompts": {}
     }
 }

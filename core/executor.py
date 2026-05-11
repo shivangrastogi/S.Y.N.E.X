@@ -199,24 +199,39 @@ class ActionExecutor:
     def search_web(self, query: str) -> str:
         if not query:
             return "Kya search karoon? Batao."
-        url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        webbrowser.open(url)
-        return f"'{query}' search kar raha hoon Google pe."
+        try:
+            from core.browser_launcher import launch
+            res = launch(query, is_search=True)
+            return f"'{query}' search kar raha hoon ({res.used_browser})."
+        except Exception:
+            url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            webbrowser.open(url)
+            return f"'{query}' search kar raha hoon Google pe."
 
     def play_youtube(self, query: str) -> str:
         if not query:
             return "Kya dekhna hai YouTube pe?"
         url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-        webbrowser.open(url)
-        return f"YouTube pe '{query}' search kar raha hoon."
+        try:
+            from core.browser_launcher import launch
+            res = launch(url, is_search=False)
+            return f"YouTube pe '{query}' search kar raha hoon ({res.used_browser})."
+        except Exception:
+            webbrowser.open(url)
+            return f"YouTube pe '{query}' search kar raha hoon."
 
     def open_website(self, url: str) -> str:
         if not url:
             return "URL batao."
-        if not url.startswith(("http://", "https://")):
-            url = "https://" + url
-        webbrowser.open(url)
-        return f"{url} khol raha hoon."
+        try:
+            from core.browser_launcher import launch
+            res = launch(url)
+            return f"{url} khol raha hoon ({res.used_browser})."
+        except Exception:
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            webbrowser.open(url)
+            return f"{url} khol raha hoon."
 
     # ------------------------------------------------------------------ #
     #  Music                                                               #

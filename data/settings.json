@@ -1,0 +1,18 @@
+{
+  "assistant_name": "AERIS",
+  "wake_word": "aeris",
+  "default_browser": "system",
+  "default_browser_profile": {},
+  "speech_rate": 175,
+  "voice_gender": "female",
+  "language": "hinglish",
+  "focus_mode_close": [
+    "discord",
+    "slack",
+    "telegram"
+  ],
+  "focus_mode_open": [
+    "code"
+  ],
+  "focus_mode_pomodoro_min": 25
+}

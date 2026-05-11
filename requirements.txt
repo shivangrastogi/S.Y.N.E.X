@@ -31,8 +31,19 @@ mediapipe                  # gesture (utils/gesture.py)
 # ── Plugin skill optional dependencies ───────────────────────────────
 # Each is loaded lazily by its skill module — not installing it just
 # disables that one skill. The rest of AERIS keeps working.
-pyperclip                  # skills/clipboard.py
+pyperclip                  # skills/clipboard.py + skills/clipboard_history.py
 feedparser                 # skills/news.py
+beautifulsoup4             # skills/web_search.py        (HTML parsing)
+lxml                       # skills/web_search.py        (faster bs4 backend)
+ddgs                       # skills/web_search.py        (no-API search; replaces duckduckgo-search)
+openpyxl                   # skills/expense_tracker.py   (.xlsx + charts)
+gspread                    # skills/sheets_sync.py       (Google Sheets push)
+google-auth                # skills/sheets_sync.py       (service account)
+ultralytics                # core/object_detector.py     (YOLOv8n; falls back to mediapipe)
+win10toast                 # skills/timer_skill.py       (toast notification on fire)
+mss                        # skills/snip_ocr.py + skills/vision.py
+pytesseract                # skills/snip_ocr.py          (also needs Tesseract binary)
+Pillow                     # skills/snip_ocr.py
 # pywhatkit                # skills/whatsapp.py    (uses WhatsApp Web)
 # argostranslate           # skills/translate.py   (offline Hi↔En)
 # pytesseract              # skills/vision.py      (also needs Tesseract binary)

@@ -49,6 +49,15 @@ _URL_RE = re.compile(
 
 _NUMBER_RE = re.compile(r"\b\d+\b")
 
+# INR amount: optional rs/inr/₹ prefix or "rupees/rupaye" suffix; comma-grouped digits OK.
+# Used by add_expense — captured as plain numeric string ("500"), the skill parses to float.
+_AMOUNT_RE = re.compile(
+    r"(?:(?:rs\.?|inr|₹)\s*)?"
+    r"(\d{1,7}(?:,\d{3})*(?:\.\d+)?)"
+    r"(?:\s*(?:rs\.?|inr|₹|rupees?|rupaye|rupay))?",
+    re.IGNORECASE,
+)
+
 # Math expression: at least one operator between numbers
 _EXPRESSION_RE = re.compile(r"([\d.]+(?:\s*[+\-*/x×]\s*[\d.]+)+)")
 
@@ -77,6 +86,14 @@ INTENT_RESIDUAL_SLOT: dict[str, str] = {
     "open_website": "url",
     "set_reminder": "message",
     "schedule_meeting": "person",
+    # New plugin intents — free-form residual after triggers/known slots stripped.
+    "web_search": "query",
+    "add_expense": "description",
+    "add_task": "task_text",
+    "add_meeting": "agenda",
+    "write_code": "spec",
+    "set_timer": "spec",
+    "copy_history_item": "spec",
 }
 
 # Per-intent trigger words to strip when computing the residual.
@@ -115,6 +132,50 @@ INTENT_TRIGGER_WORDS: dict[str, set[str]] = {
         "meeting", "schedule", "karo", "kar", "book", "fix", "appointment",
         "lelo", "lagao", "ek", "organize", "set", "call", "arrange",
         "baithak", "kardo", "do",
+    },
+    # ---- New plugin intents ----
+    "web_search": {
+        "search", "online", "google", "internet", "pe", "par", "dhundo",
+        "dhund", "karo", "kar", "kardo", "look", "up", "find", "web",
+        "browser", "ke", "baare", "mein", "about", "tell", "me", "batao",
+        "bata", "explain", "define", "what", "whats", "is", "are", "kya",
+        "hai", "hota", "vistar", "se", "detail", "deeply", "more",
+        "in", "depth", "thoroughly", "extensively", "ka", "ki", "main",
+    },
+    "add_expense": {
+        "expense", "spent", "spend", "kharcha", "kharch", "kharche",
+        "kiye", "kiya", "rupees", "rupaye", "rupay", "rs", "inr",
+        "log", "add", "track", "note", "karo", "kar", "kardo", "kar",
+        "do", "lo", "pe", "par", "ka", "ki", "ke", "i", "main", "maine",
+        "mai", "rupaiye", "ruppes", "rupayee",
+    },
+    "add_task": {
+        "add", "task", "tasks", "todo", "kaam", "kaam", "list", "mein",
+        "remind", "me", "to", "schedule", "karo", "kar", "kardo", "lo",
+        "do", "ek", "important", "note", "this", "ki", "ke", "ka",
+        "yaad", "rakho", "rakhna",
+    },
+    "add_meeting": {
+        "meeting", "add", "schedule", "log", "calendar", "mein", "ke",
+        "karo", "kar", "kardo", "lo", "fix", "set", "ek", "saath",
+        "with", "at", "pe", "par", "tomorrow", "today", "kal", "aaj",
+    },
+    "write_code": {
+        "write", "me", "a", "an", "the", "code", "script", "function",
+        "ek", "likho", "likhna", "banao", "bana", "generate", "for",
+        "jo", "kare", "karein", "python", "javascript", "js", "py",
+        "html", "css", "sql", "bash", "ke", "ka", "ki", "liye",
+        "jarvis", "do", "karo", "kar",
+    },
+    "set_timer": {
+        "set", "a", "an", "the", "timer", "lagao", "laga", "chalu",
+        "chalao", "do", "ek", "ke", "ka", "ki", "liye", "for", "in",
+        "remind", "me", "yaad", "dilao", "dilana", "mein", "after",
+        "baad", "tak", "please", "sir", "jarvis",
+    },
+    "copy_history_item": {
+        "copy", "item", "history", "se", "wapas", "clipboard",
+        "pe", "paste", "karo", "kar", "do", "ke", "number",
     },
 }
 
@@ -283,6 +344,12 @@ class EntityExtractor:
             r = self._re_match(_NUMBER_RE, text)
             if r:
                 out["number"] = r[0]; used_spans.append(r[1])
+        if "amount" in required:
+            r = self._re_match(_AMOUNT_RE, text)
+            if r:
+                # Strip thousands separators ("1,200" -> "1200") so the skill
+                # parses cleanly.
+                out["amount"] = r[0].replace(",", ""); used_spans.append(r[1])
 
         # Layer 2 — gazetteer
         if "app_name" in required:

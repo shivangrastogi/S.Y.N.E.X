@@ -35,6 +35,7 @@ from typing import Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core import settings as _settings
 from core.brain import JarvisBrain
 from core.conversation import ConversationHistory
 from core.disambiguator import Disambiguator
@@ -87,7 +88,7 @@ class JarvisMainEngine:
                  verbose: bool = True,
                  lazy: bool = False):
         if verbose:
-            print("Initialising A.E.R.I.S v3.3 (brain + plugins + tool calling)...")
+            print(f"Initialising {_settings.assistant_name()} v3.4 (brain + plugins + tool calling)...")
 
         self._stt = stt
         self._tts = tts
@@ -123,7 +124,7 @@ class JarvisMainEngine:
             for _ in self.setup_iter():
                 pass
             if verbose:
-                print("A.E.R.I.S is online.")
+                print(f"{_settings.assistant_name()} is online.")
 
     # ------------------------------------------------------------------ #
     #  Chunked initialization                                              #
@@ -208,7 +209,7 @@ class JarvisMainEngine:
         if not text:
             return
         if self._tts is None:
-            print(f"AERIS: {text}")
+            print(f"{_settings.assistant_name()}: {text}")
         else:
             self._tts.speak(text)
 
@@ -510,7 +511,7 @@ class JarvisMainEngine:
 
     def run(self) -> None:
         self._ensure_io()
-        self._speak("AERIS systems online. Ready to help, sir.")
+        self._speak(f"{_settings.assistant_name()} systems online. Ready to help, sir.")
 
         while self.is_running:
             try:

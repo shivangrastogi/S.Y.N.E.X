@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">A.E.R.I.S.</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_workbook">Workbook</string>
+    <string name="tab_vision">Vision</string>
+    <string name="tab_settings">Settings</string>
+    <string name="mic_prompt">Tap mic and speak — Hindi, English, or both</string>
+    <string name="model_missing_title">Brain model missing</string>
+    <string name="model_missing_body">Download a Gemma 2B / 3 1B .task file and point Settings → Model file at it. The app speaks and runs skills, but free-form chat needs the model.</string>
+    <string name="notif_channel_reminders">Reminders</string>
+    <string name="notif_channel_timers">Timers</string>
+    <string name="notif_channel_voice">Voice service</string>
+</resources>

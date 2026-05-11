@@ -1,7 +1,7 @@
 {
-  "intents_hash": "47037eebd72a16352659c78d92f2a220",
+  "intents_hash": "e10bb21ed36e983b359512e549fc8c27",
   "encoder_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "num_patterns": 370,
-  "num_classes": 36,
-  "built_at": "2026-05-09T23:42:35"
+  "num_patterns": 702,
+  "num_classes": 73,
+  "built_at": "2026-05-11T07:27:15"
 }

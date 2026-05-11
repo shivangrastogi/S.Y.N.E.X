@@ -51,6 +51,8 @@ DOCK_ITEMS: list[Optional[_Item]] = [
     None,                                                       # divider
     _Item("brain",    "Brain",         "brain",    "intel"),
     _Item("memory",   "Memory",        "memory",   "intel"),
+    _Item("vision",   "Vision",        "vision",   "intel"),
+    _Item("workbook", "Workbook",      "workbook", "intel"),
     None,                                                       # divider
     _Item("system",   "System",        "system",   "system"),
     _Item("settings", "Settings",      "settings", "system"),
@@ -125,6 +127,27 @@ def _draw_icon(p: QPainter, name: str, color: QColor) -> None:
             x1 = 8 + math.cos(r) * 5;   y1 = 8 + math.sin(r) * 5
             x2 = 8 + math.cos(r) * 6.5; y2 = 8 + math.sin(r) * 6.5
             p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+    elif name == "vision":
+        # Eye: outer almond + iris + pupil
+        path = QPainterPath()
+        path.moveTo(2, 8)
+        path.cubicTo(5, 3, 11, 3, 14, 8)
+        path.cubicTo(11, 13, 5, 13, 2, 8)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawEllipse(QPointF(8, 8), 2.2, 2.2)
+        p.setBrush(QBrush(color))
+        p.drawEllipse(QPointF(8, 8), 0.9, 0.9)
+        p.setBrush(Qt.NoBrush)
+
+    elif name == "workbook":
+        # Spreadsheet grid: outer rect + 2 horizontal + 2 vertical lines
+        p.drawRoundedRect(2, 3, 12, 10, 1, 1)
+        p.drawLine(QPointF(2, 7),  QPointF(14, 7))
+        p.drawLine(QPointF(2, 10), QPointF(14, 10))
+        p.drawLine(QPointF(6, 3),  QPointF(6, 13))
+        p.drawLine(QPointF(10, 3), QPointF(10, 13))
 
     else:
         p.drawEllipse(QPointF(8, 8), 4, 4)

@@ -23,6 +23,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from core import settings as _settings
 from core.main_engine import JarvisMainEngine
 
 _WAKE_MODEL_PATH = os.path.join("data", "models", "vosk-model-small-en-in-0.4")
@@ -39,7 +40,7 @@ def _maybe_passphrase(prompt: bool) -> str | None:
 
 
 def run_voice(passphrase: str | None) -> None:
-    print("AERIS voice mode. Press Ctrl-C to exit.")
+    print(f"{_settings.assistant_name()} voice mode. Press Ctrl-C to exit.")
     engine = JarvisMainEngine(memory_passphrase=passphrase)
     engine.run()
 
@@ -48,7 +49,7 @@ def run_wake(passphrase: str | None) -> None:
     """Wake-word mode: passively listen via Vosk, dispatch one turn per wake."""
     from core.wake_word import WakeWordDetector
 
-    print("AERIS wake mode. Initialising brain...")
+    print(f"{_settings.assistant_name()} wake mode. Initialising brain...")
     engine = JarvisMainEngine(memory_passphrase=passphrase)
 
     try:
@@ -60,8 +61,9 @@ def run_wake(passphrase: str | None) -> None:
         return
 
     engine._ensure_io()
-    engine._speak("AERIS standing by, sir.")
-    print("\nSay 'Hey Jarvis' or 'AERIS' to activate. Ctrl-C to exit.\n")
+    name = _settings.assistant_name()
+    engine._speak(f"{name} standing by, sir.")
+    print(f"\nSay 'Hey {name}' to activate. Ctrl-C to exit.\n")
 
     def on_wake() -> None:
         engine._speak("Yes sir?")
@@ -88,7 +90,7 @@ def run_wake(passphrase: str | None) -> None:
 
 
 def run_text(passphrase: str | None) -> None:
-    print("AERIS text mode. Type 'quit' / 'exit' / Ctrl-C to leave.")
+    print(f"{_settings.assistant_name()} text mode. Type 'quit' / 'exit' / Ctrl-C to leave.")
     engine = JarvisMainEngine(stt="SKIP", tts="SKIP", memory_passphrase=passphrase)
     print()
 
@@ -148,7 +150,7 @@ def run_text(passphrase: str | None) -> None:
         except Exception as e:
             print(f"  [error] {e}", file=sys.stderr)
             continue
-        print(f"AERIS: {response if response else '(silent)'}")
+        print(f"{_settings.assistant_name()}: {response if response else '(silent)'}")
 
 
 def main() -> int:
