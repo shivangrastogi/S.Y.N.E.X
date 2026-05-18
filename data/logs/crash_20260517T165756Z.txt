@@ -1,0 +1,47 @@
+AERIS crash dump
+  written : 2026-05-17T16:57:56Z
+  pid     : 4876
+  origin  : thread:boom-thread
+  python  : 3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]
+  platform: win32
+
+=== Exception traceback ===
+Traceback (most recent call last):
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 994, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder (2)\1. LATEST 23 April\new version- 3.0\core\crash_dump.py", line 193, in _boom
+    raise RuntimeError("worker thread boom")
+RuntimeError: worker thread boom
+
+=== All-thread stack traces ===
+thread 20784  name='boom-thread'  daemon=False  alive=True
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 1045, in _bootstrap_inner
+    self._invoke_excepthook(self)
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 1292, in invoke_excepthook
+    hook(args)
+  File "D:\New folder (2)\1. LATEST 23 April\new version- 3.0\core\crash_dump.py", line 73, in _thread_hook
+    _write_dump(f"thread:{args.thread.name}",
+  File "D:\New folder (2)\1. LATEST 23 April\new version- 3.0\core\crash_dump.py", line 109, in _write_dump
+    _write_all_threads(f)
+  File "D:\New folder (2)\1. LATEST 23 April\new version- 3.0\core\crash_dump.py", line 160, in _write_all_threads
+    f.write("".join(traceback.format_stack(frame)))
+
+thread 8544  name='MainThread'  daemon=False  alive=True
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\New folder (2)\1. LATEST 23 April\new version- 3.0\core\crash_dump.py", line 196, in <module>
+    t.join()
+  File "C:\Users\Shivang\anaconda3\Lib\threading.py", line 1094, in join
+    self._handle.join(timeout)
+
+=== Tail of aeris.log (last 100 lines) ===
+2026-05-17T22:25:34 INFO  __main__ :: [log_setup] writing to D:\New folder (2)\1. LATEST 23 April\new version- 3.0\data\logs\aeris.log (max 10 MB × 5 backups)
+2026-05-17T22:25:34 WARNING smoke :: a regular warning
+2026-05-17T22:25:34 INFO  smoke :: a regular info — file only
+2026-05-17T22:25:34 INFO  aeris.event :: {"ts": 1779036934.5030184, "event": "smoke_test", "caller": "__main__", "n": 42, "ok": true}

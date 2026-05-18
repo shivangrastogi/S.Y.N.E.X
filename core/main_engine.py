@@ -147,17 +147,33 @@ class JarvisMainEngine:
         yield ("NLU", "Loading sentence encoder", 12)
         self.brain.load_encoder()
 
+        yield ("NLU", "Loading neural intent model", 22)
+        self.brain.load_neural_model()
+
         yield ("NLU", "Loading intent index", 32)
         self.brain.build_or_load_index()
 
-        yield ("NLU", "Loading entity extractor + spaCy NER", 50)
+        # Entity extractor split into 3 sub-phases — the spaCy NER load alone
+        # is the slowest single step in the entire boot (5-15s on cold disk).
+        # Sub-yields keep the progress bar visibly advancing through it.
+        yield ("NLU", "Loading entities gazetteer", 38)
         self.entity_extractor = EntityExtractor(
             entities_path=os.path.join(_ROOT, "data", "entities.json"),
             intents_path=os.path.join(_ROOT, "data", "intents.json"),
+            lazy=True,
         )
+        self.entity_extractor._load_gazetteer()
 
-        yield ("NLU", "Loading sentiment + memory", 65)
+        yield ("NLU", "Loading intents file", 44)
+        self.entity_extractor._load_intents()
+
+        yield ("NLU", "Loading spaCy NER model", 50)
+        self.entity_extractor._init_spacy()
+
+        yield ("NLU", "Loading sentiment analyzer", 58)
         self.sentiment = SentimentAnalyzer()
+
+        yield ("MEM", "Loading user memory", 65)
         self.memory = UserMemory(
             self._memory_path or os.path.join(_ROOT, "data", "user_memory.json"),
             passphrase=self._memory_passphrase,
@@ -165,9 +181,11 @@ class JarvisMainEngine:
         self.history = ConversationHistory(max_turns=8)
         self.disambiguator = Disambiguator()
 
-        yield ("MEM", "Attaching feedback DB + LLM client", 78)
+        yield ("MEM", "Attaching feedback DB", 72)
         self.feedback = FeedbackStore(self._feedback_db_path
                                       or os.path.join(_ROOT, "data", "feedback_log.sqlite"))
+
+        yield ("ACT", "Connecting LLM client", 78)
         self.llm = LLMChat()
 
         yield ("SYS", "Wiring scheduler + state machine + executor", 90)

@@ -43,6 +43,7 @@ _ROOT = os.path.dirname(os.path.dirname(_THIS_DIR))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from ui.jarvis_v31.animation_bus import get_bus
 from ui.jarvis_v31.floating_dock import FloatingDock
 from ui.jarvis_v31.logs_bar import LogsBar
 from ui.jarvis_v31.tab_panels import RightPanelStack
@@ -51,6 +52,8 @@ from ui.jarvis_v31.reactor import (
 )
 from ui.jarvis_v31.title_bar import TitleBar
 from ui.jarvis_v31.tokens import J, JSTATES
+from ui.jarvis_v31.command_palette import CommandPalette
+from ui.jarvis_v31.system_tray import GlobalHotkeyBridge, TrayController
 from ui.jarvis_v31.wiring_system import REACTOR_CX, REACTOR_CY, WiringSystem
 
 
@@ -215,14 +218,32 @@ class JarvisV31Window(QMainWindow):
     request_voice_stop   = pyqtSignal()
     request_speak_init   = pyqtSignal()
     request_speak        = pyqtSignal(str)
+    # Marshals a gesture-engine event from its worker thread to the GUI
+    # thread (Qt's queued connection makes the hop automatic).
+    _gesture_recognized  = pyqtSignal(str)
 
-    def __init__(self):
+    def __init__(self, splash=None):
         super().__init__()
+        # Optional pre-boot splash — if supplied, the constructor pings it
+        # between heavy phases so the user sees the progress bar advance
+        # instead of staring at a frozen "Building main window…" line.
+        self._splash = splash
+        self._splash_phase("Building window shell", 60)
+
         self.setWindowTitle("A.E.R.I.S — JARVIS v3.1")
         self.setWindowFlag(Qt.FramelessWindowHint, True)
         self.resize(1440, 900)
         self.setMinimumSize(1200, 720)
         self.setStyleSheet(f"QMainWindow {{ background: {J.BG.name()}; }}")
+
+        # Receive the focus message posted by a second-launch attempt
+        # (see core/single_instance.py). Stored as an int once for the
+        # nativeEvent hot path so we don't pay an import per WM_USER.
+        try:
+            from core.single_instance import WM_AERIS_FOCUS
+            self._WM_AERIS_FOCUS = WM_AERIS_FOCUS
+        except Exception:
+            self._WM_AERIS_FOCUS = 0
 
         # ── Build layout ─────────────────────────────────────────────
         central = QWidget()
@@ -316,13 +337,108 @@ class JarvisV31Window(QMainWindow):
             tag=("sys_boot · 100ms", J.GREEN),
         )
 
+        self._splash_phase("Spawning brain worker", 70)
+
         # ── Spin up background workers ──────────────────────────────
         self._wire_workers()
+
+        self._splash_phase("Wiring resource monitor", 74)
+
+        # ── Resource monitor ────────────────────────────────────────
+        # Background psutil sampler — feeds the logs panel and broadcasts
+        # memory_pressure events so caches can shrink before the OS pages
+        # us out. Started AFTER worker wiring so the first sample reflects
+        # a representative resident-set size.
+        try:
+            from core.resource_monitor import get_monitor
+            from core.cache_registry import register_pressure_handler
+            from core.shutdown import register as _register_shutdown
+            from core.skill_breaker import shutdown_pool as _shutdown_skill_pool
+            self._resource_monitor = get_monitor()
+            # Wire bounded caches FIRST so the very first pressure event
+            # (if RSS is already high at boot) sees a subscriber.
+            register_pressure_handler(self._resource_monitor)
+            # Then add a higher-impact responder: drop the brain's
+            # encoder/neural weights if it's been idle and we're under
+            # pressure. Subscribed AFTER the caches so the small caches
+            # get a chance to shrink before we evict ~600 MB of weights.
+            self._resource_monitor.subscribe(self._on_pressure_unload_brain)
+            self._resource_monitor.start()
+            _register_shutdown("ResourceMonitor",
+                               lambda: self._resource_monitor.stop(timeout=1.0),
+                               timeout_s=1.5)
+            # Skill breaker thread-pool — cancel any in-flight skill
+            # invocations so process exit doesn't hang on a stuck handler.
+            _register_shutdown("SkillBreakerPool", _shutdown_skill_pool,
+                               timeout_s=1.0)
+        except Exception as _e:
+            self._resource_monitor = None
+
+        self._splash_phase("Installing tray + hotkey", 78)
+        # ── System tray + global hotkey ─────────────────────────────
+        self._install_tray_and_hotkey()
+
+        self._splash_phase("Installing power adapter", 81)
+        # ── Power + idle adaptive behaviour ─────────────────────────
+        self._install_power_adapter()
+
+        self._splash_phase("Starting health server", 84)
+        # ── Local /health + /metrics HTTP server ────────────────────
+        self._install_health_server()
+
+        self._splash_phase("Starting skill watcher", 87)
+        # ── Skill hot-reload watcher ────────────────────────────────
+        self._install_skill_watcher()
+
+        self._splash_phase("Building command palette", 90)
+        # ── Command palette (Ctrl+K) ────────────────────────────────
+        self._install_command_palette()
+
+        self._splash_phase("Starting workspace monitor", 92)
+        # ── Workspace profile detector ──────────────────────────────
+        self._install_workspace_monitor()
+
+        self._splash_phase("Starting automation engine", 95)
+        # ── Automation engine (routines + triggers + actions) ───────
+        self._install_automation_engine()
+
+        self._splash_phase("Starting semantic memory", 98)
+        # ── Semantic memory (background embedding + recall) ─────────
+        try:
+            from core.semantic_memory import get as _get_sm
+            from core.shutdown import register as _register_shutdown
+            _sm = _get_sm()
+            _sm.start()
+            _register_shutdown("SemanticMemory",
+                               lambda: _sm.stop(timeout=1.0),
+                               timeout_s=1.5)
+        except Exception:
+            pass
 
         # Pending-feedback latch (so we can transition from SPEAKING -> IDLE
         # only after TTS finishes AND the streaming bubble cooldown elapsed).
         self._stream_done_at = 0
         self._tts_done = True
+
+    # ── Splash bridge ────────────────────────────────────────────────
+    def _splash_phase(self, label: str, pct: int) -> None:
+        """Push a status update + pump events so the splash keeps animating
+        during the synchronous parts of the constructor.
+
+        No-op when launched without a splash (tests, ``__main__`` path).
+        """
+        sp = getattr(self, "_splash", None)
+        if sp is None:
+            return
+        try:
+            sp.update_status(f"{label} ({pct}%)")
+        except Exception:
+            pass
+        # processEvents lets the splash QTimer fire and repaint mid-constructor.
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
 
     # ── Worker plumbing ──────────────────────────────────────────────
     def _wire_workers(self) -> None:
@@ -341,13 +457,14 @@ class JarvisV31Window(QMainWindow):
         # sentence-transformers / spaCy import burns CPU and holds the GIL
         # for ~50-200 ms windows that would otherwise stutter animations.
         self._brain_thread.start(QThread.LowestPriority)
-        # Pause the heaviest paint timers (particles, reactor, wiring grid)
-        # while the brain is booting. Their 16 ms QTimers each fire ~60
-        # times/sec and trigger expensive paintEvents; suspending them
-        # frees the GUI thread to repaint just the boot bubble + chat.
-        self._heavy_anim_widgets = (self.particles, self.reactor, self.wiring)
-        for w in self._heavy_anim_widgets:
-            self._pause_widget_timers(w)
+        # Pause the SHARED animation bus while the brain is booting.
+        # Every animated widget (reactor, wiring, particles, dots, pills,
+        # brand mark, state pill, etc.) subscribes to this single timer —
+        # so one pause() halts the whole grid until the brain is ready.
+        # That frees the GUI thread to repaint just the boot bubble + chat
+        # without competing with 30 FPS reactor/wire renders.
+        self._anim_bus = get_bus()
+        self._anim_bus.pause()
         QTimer.singleShot(50, self.chat.start_boot)
         QTimer.singleShot(60, self.request_brain_init.emit)
 
@@ -443,6 +560,11 @@ class JarvisV31Window(QMainWindow):
         self.wiring.set_state(display)
         self.chat.set_state(display)
         self.chat.set_voice_state(self._voice_state)
+        # Tray icon mirrors the AI state so the user can see "PROCESSING"
+        # in the taskbar tray even when the window is minimised.
+        tray = getattr(self, "_tray", None)
+        if tray is not None and not getattr(self, "_paused", False):
+            tray.set_state(display)
 
     def _toggle_maximize(self):
         if self.isMaximized():
@@ -482,38 +604,28 @@ class JarvisV31Window(QMainWindow):
         self.logs.add_log(log_type, msg)
         self.chat.add_boot_step(log_type, msg, pct)
 
+    def _on_pressure_unload_brain(self, level: int) -> None:
+        """When pressure rises, ask the brain to drop idle model weights.
+
+        Runs on ResourceMonitor's thread — only touches brain attributes
+        we know are thread-safe (the brain itself locks).
+        """
+        try:
+            from core.resource_monitor import LEVEL_WARNING
+            if level >= LEVEL_WARNING:
+                engine = getattr(self._brain, "_engine", None)
+                if engine is not None and getattr(engine, "brain", None) is not None:
+                    engine.brain.try_unload_idle()
+        except Exception:
+            pass
+
     def _on_brain_ready(self):
         self.logs.add_log("ACT", "Brain ready · accepting commands", highlight=True)
         self.chat.finish_boot()
-        # Heavy animations were paused in _wire_workers to keep the GUI
-        # smooth while the brain hammered the GIL. Now that we're idle,
-        # bring them back to life.
-        for w in getattr(self, "_heavy_anim_widgets", ()):
-            self._resume_widget_timers(w)
+        # Animation bus was paused in _wire_workers to keep the GUI smooth
+        # while the brain hammered the GIL. Now that we're idle, resume it.
+        self._anim_bus.resume()
         self._set_state("IDLE")
-
-    @staticmethod
-    def _pause_widget_timers(widget: QWidget) -> None:
-        """Stop every active QTimer in ``widget`` (and its children).
-
-        Each paused timer remembers its previous interval via a Qt dynamic
-        property, so ``_resume_widget_timers`` can restore it exactly.
-        """
-        for tmr in widget.findChildren(QTimer):
-            if tmr.isActive():
-                tmr.setProperty("_paused_interval", int(tmr.interval()))
-                tmr.stop()
-
-    @staticmethod
-    def _resume_widget_timers(widget: QWidget) -> None:
-        for tmr in widget.findChildren(QTimer):
-            v = tmr.property("_paused_interval")
-            if v is not None:
-                try:
-                    tmr.start(int(v))
-                except (TypeError, ValueError):
-                    pass
-                tmr.setProperty("_paused_interval", None)
 
     def _on_user_send(self, text: str):
         """Common path: chat-typed text OR suggestion-chip OR voice-captured."""
@@ -521,6 +633,12 @@ class JarvisV31Window(QMainWindow):
             return
         # Show user bubble first
         self.chat.add_message("user", text)
+        # Auto-record into semantic memory so 'recall' skill can find it later.
+        try:
+            from core import semantic_memory
+            semantic_memory.get().add("user", text)
+        except Exception:
+            pass
         self.state_text.set_last_input(text)
         self._set_state("PROCESSING")
         self.logs.add_log("NLU", f'Input: "{text[:48]}"', highlight=True)
@@ -537,6 +655,14 @@ class JarvisV31Window(QMainWindow):
         if self._cancelled:
             self._cancelled = False
             return
+        # Record AERIS' side of the exchange so "recall" can surface AI
+        # answers too (not just user prompts).
+        try:
+            from core import semantic_memory
+            if reply:
+                semantic_memory.get().add("ai", reply)
+        except Exception:
+            pass
         intent     = meta.get("intent", "general")
         confidence = meta.get("confidence", 0.0)
         latency    = meta.get("latency_ms", 0)
@@ -574,8 +700,7 @@ class JarvisV31Window(QMainWindow):
         self.chat.finish_boot()
         # Even on init failure, resume animations so the user isn't
         # stuck staring at a half-frozen reactor.
-        for w in getattr(self, "_heavy_anim_widgets", ()):
-            self._resume_widget_timers(w)
+        self._anim_bus.resume()
         self._set_state("IDLE")
 
     # ── Voice wiring ────────────────────────────────────────────────
@@ -648,25 +773,448 @@ class JarvisV31Window(QMainWindow):
             else:
                 self._set_state("IDLE")
 
+    # ── System tray + global hotkey ─────────────────────────────────
+    def _install_tray_and_hotkey(self) -> None:
+        """Build the QSystemTrayIcon, register the global hotkey, wire
+        their signals to the existing window-level actions.
+
+        Both subsystems degrade silently — a system without tray support
+        or without the ``keyboard`` package still gets a working AERIS.
+        """
+        self._tray: Optional[TrayController] = None
+        self._hotkey: Optional[GlobalHotkeyBridge] = None
+        self._paused = False
+
+        try:
+            self._tray = TrayController(parent=self)
+            if self._tray.install():
+                self._tray.show_window.connect(self._raise_and_activate)
+                self._tray.hide_window.connect(self.hide)
+                self._tray.toggle_mic.connect(self._on_mic)
+                self._tray.pause_toggled.connect(self._on_pause_toggled)
+                self._tray.quit_requested.connect(self._on_quit_from_tray)
+            else:
+                self._tray = None
+        except Exception as e:
+            self._tray = None
+
+        try:
+            self._hotkey = GlobalHotkeyBridge(parent=self)
+            if self._hotkey.install():
+                # Hotkey activates the window AND starts listening if mic
+                # is currently off — single-touch "talk to AERIS".
+                self._hotkey.triggered.connect(self._on_global_hotkey)
+            else:
+                self._hotkey = None
+        except Exception:
+            self._hotkey = None
+
+    def _on_global_hotkey(self) -> None:
+        self._raise_and_activate()
+        if self._voice_state == "STOPPED":
+            self._on_mic()
+
+    def _on_pause_toggled(self, paused: bool) -> None:
+        self._paused = paused
+        if paused:
+            # When paused: stop voice + halt the animation bus so we burn
+            # no CPU but the window stays interactive.
+            if self._voice_state != "STOPPED":
+                self.request_voice_stop.emit()
+            self._anim_bus.pause()
+            if self._tray is not None:
+                self._tray.set_state("OFFLINE")
+        else:
+            self._anim_bus.resume()
+            if self._tray is not None:
+                self._tray.set_state(self._current_state)
+
+    def _on_quit_from_tray(self) -> None:
+        # Bypass minimize-to-tray on closeEvent and exit cleanly.
+        self._force_quit = True
+        self.close()
+
+    # ── Skill hot-reload ────────────────────────────────────────────
+    def _install_skill_watcher(self) -> None:
+        """Background poller — when a file under ``skills/`` changes,
+        reload that module so the user can iterate on plugins without
+        restarting AERIS. Surfaces every reload as a logs-bar entry.
+        """
+        try:
+            from core.shutdown import register as _register_shutdown
+            from core.skill_watcher import get_watcher
+            from core.log_setup import event as _log_event
+
+            def _on_reload(mod_name: str, ok: bool, err):
+                if ok:
+                    msg = f"reloaded {mod_name}"
+                    self.logs.add_log("SYS", msg, False)
+                else:
+                    self.logs.add_log("SYS", f"reload failed: {mod_name} — {err}",
+                                      True)
+                _log_event("skill_reload", module=mod_name, ok=ok, error=err)
+
+            self._skill_watcher = get_watcher(on_reload=_on_reload)
+            self._skill_watcher.start()
+            _register_shutdown("SkillWatcher",
+                               lambda: self._skill_watcher.stop(timeout=0.5),
+                               timeout_s=1.0)
+        except Exception:
+            self._skill_watcher = None
+
+    # ── Automation engine ───────────────────────────────────────────
+    def _install_automation_engine(self) -> None:
+        """Start the routine scheduler + wire its action callbacks.
+
+        The engine runs its own daemon thread for time triggers and
+        subscribes to PowerMonitor / WorkspaceMonitor / GestureEngine
+        for event triggers. ``ai_prompt`` actions are routed through
+        the brain worker via the existing ``request_brain_proc`` signal;
+        ``notify`` actions land in the tray toast surface.
+        """
+        try:
+            from core.automation import get_engine as _ge
+            from core.shutdown import register as _register_shutdown
+            from core.log_setup import event as _log_event
+            engine = _ge()
+
+            # ai_prompt → BrainWorker (cross-thread; emit() is thread-safe).
+            engine.register_ai_prompt_handler(
+                lambda text: self.request_brain_proc.emit(text)
+            )
+
+            # notify → tray toast (or logs panel if tray unavailable).
+            def _notify(title: str, body: str) -> None:
+                if getattr(self, "_tray", None) is not None:
+                    self._tray.notify(title, body)
+                try:
+                    self.logs.add_log("ACT", f"{title} · {body}", False)
+                except Exception:
+                    pass
+            engine.register_notify_handler(_notify)
+
+            engine.start()
+            _log_event("automation_started",
+                       routine_count=len(engine.list_routines()))
+            _register_shutdown("AutomationEngine",
+                               lambda: engine.stop(timeout=1.0),
+                               timeout_s=1.5)
+            self._automation = engine
+
+            # If the routines panel exists, force a refresh so cards
+            # reflect the freshly-loaded engine state.
+            try:
+                self._right.routines_panel.refresh()
+            except Exception:
+                pass
+        except Exception:
+            self._automation = None
+
+    # ── Workspace profile detector ──────────────────────────────────
+    def _install_workspace_monitor(self) -> None:
+        """Polls the foreground process every ~5s and classifies the
+        user's current workspace (CODING / MEETING / GAMING / ...).
+        Surfaces in the tray tooltip + the logs panel.
+        """
+        try:
+            from core.shutdown import register as _register_shutdown
+            from core.workspace_profile import get_monitor as _gw
+            from core.log_setup import event as _log_event
+            self._workspace_monitor = _gw()
+            self._current_profile = "IDLE"
+
+            def _on_profile(profile: str, fg: str) -> None:
+                self._current_profile = profile
+                _log_event("workspace_changed", profile=profile, foreground=fg)
+                self.logs.add_log("SYS", f"workspace: {profile} ({fg or '?'})",
+                                  False)
+                tray = getattr(self, "_tray", None)
+                if tray is not None and tray._tray is not None:
+                    tray._tray.setToolTip(
+                        f"AERIS · {self._current_state.lower()} · "
+                        f"workspace={profile.lower()}"
+                    )
+
+            self._workspace_monitor.subscribe(_on_profile)
+            self._workspace_monitor.start()
+            _register_shutdown("WorkspaceMonitor",
+                               lambda: self._workspace_monitor.stop(timeout=0.5),
+                               timeout_s=1.0)
+        except Exception:
+            self._workspace_monitor = None
+            self._current_profile = "IDLE"
+
+    # ── Command palette ─────────────────────────────────────────────
+    def _install_command_palette(self) -> None:
+        """Ctrl+K floats a fuzzy-search overlay over the main window.
+
+        Selecting a skill feeds its primary pattern through the normal
+        brain pipeline; selecting an action calls the built-in handler
+        (pause / hide / reload / quit).
+
+        Also wires the gesture engine's ``ok_sign`` event to toggle the
+        palette so the user can pop it open hands-free.
+        """
+        try:
+            self._palette = CommandPalette(self)
+            self._palette.submit_text.connect(self._on_user_send)
+            self._palette.action.connect(self._on_palette_action)
+        except Exception:
+            self._palette = None
+
+        # Bridge: gesture engine fires listeners on a worker thread; we
+        # need to invoke palette.toggle() on the GUI thread. Use a queued
+        # signal so the cross-thread hop is automatic.
+        self._gesture_recognized.connect(self._on_gesture_for_gui)
+        try:
+            from core.gesture_engine import get_gesture_engine
+            eng = get_gesture_engine()
+            eng.add_listener(self._gesture_recognized.emit)
+        except Exception:
+            pass
+
+    def _on_gesture_for_gui(self, name: str) -> None:
+        """Runs on the GUI thread. Only handles gestures with UI side
+        effects — system actions (lock, mic mute, scroll) are handled
+        inside the gesture engine itself.
+        """
+        if name == "ok_sign" and self._palette is not None:
+            self._palette.toggle()
+        # Surface every gesture in the logs panel so the user gets
+        # immediate feedback that the engine recognised something.
+        try:
+            self.logs.add_log("ACT", f"gesture: {name}", False)
+        except Exception:
+            pass
+        if self._tray is not None:
+            self._tray.notify("Gesture", name.replace("_", " "))
+
+    def _on_palette_action(self, action: str) -> None:
+        if action == "quit":
+            self._on_quit_from_tray()
+        elif action == "hide":
+            self.hide()
+            if self._tray is not None:
+                self._tray.notify("AERIS hidden",
+                                  "Right-click the tray icon or press "
+                                  "Ctrl+Shift+Space to bring it back.")
+        elif action == "pause":
+            pause_action = getattr(self._tray, "_pause_action", None) if self._tray else None
+            if pause_action is not None:
+                pause_action.toggle()
+            else:
+                self._on_pause_toggled(not getattr(self, "_paused", False))
+        elif action == "reload_skills":
+            if getattr(self, "_skill_watcher", None) is not None:
+                # Force an immediate poll cycle by mutating mtime tracker.
+                self._skill_watcher._mtimes = {}
+                self.logs.add_log("SYS", "Skill registry rescan queued", False)
+
+    # ── Health server ───────────────────────────────────────────────
+    def _install_health_server(self) -> None:
+        """Expose /health, /metrics, /skills, /shutdown on
+        ``127.0.0.1:8765`` for ``curl`` / external monitors / the mobile
+        companion. Loopback-only — no authentication needed.
+        """
+        try:
+            from core.health_server import start_server, stop_server
+            from core.shutdown import register as _register_shutdown
+            started = start_server(
+                brain_ready_fn=lambda: getattr(self._brain, "_engine", None) is not None,
+                voice_state_fn=lambda: self._voice_state,
+                shutdown_fn=self._on_quit_from_tray,
+            )
+            if started:
+                _register_shutdown("HealthServer", stop_server, timeout_s=1.0)
+        except Exception:
+            pass
+
+    # ── Power + idle adapter ────────────────────────────────────────
+    def _install_power_adapter(self) -> None:
+        """Drop animation FPS to 15 when on battery or when the user is
+        idle for >5 min; restore 30 FPS when on AC and active. Saves
+        ~30 paint events/sec on battery — measurable in
+        ``ResourceMonitor`` CPU% when nothing else is happening.
+        """
+        try:
+            from core.power_state import get_monitor as _get_power
+            from core.shutdown import register as _register_shutdown
+            self._power_monitor = _get_power()
+            # Subscribe BEFORE start() so we get the first sample's
+            # transition (from unknown → known).
+            self._power_monitor.on_power_change(self._on_power_change)
+            self._power_monitor.on_idle_change(self._on_idle_change)
+            self._power_monitor.start()
+            _register_shutdown("PowerMonitor",
+                               lambda: self._power_monitor.stop(timeout=1.0),
+                               timeout_s=1.5)
+        except Exception:
+            self._power_monitor = None
+
+    def _on_power_change(self, on_battery: bool, percent: int, plugged: bool) -> None:
+        # Called on PowerMonitor's thread — no Qt work here beyond signal
+        # emits (set_interval just calls QTimer.start which is queued by
+        # Qt to the timer's thread, which IS the GUI thread).
+        if on_battery:
+            self._anim_bus.use_battery_profile()
+            if hasattr(self, "_tray") and self._tray is not None:
+                self._tray.notify("On battery",
+                                  f"FPS lowered to 15. Battery: {percent}%")
+        else:
+            # Don't restore FPS if user is currently idle.
+            idle_snap = self._power_monitor.snapshot()
+            if not idle_snap.is_idle:
+                self._anim_bus.use_ac_profile()
+
+    def _on_idle_change(self, idle_s: int, is_idle: bool) -> None:
+        if is_idle:
+            self._anim_bus.use_battery_profile()
+        else:
+            # Returning from idle — only restore 30 FPS if also on AC.
+            snap = self._power_monitor.snapshot()
+            if not snap.on_battery:
+                self._anim_bus.use_ac_profile()
+
+    # ── Single-instance focus channel ───────────────────────────────
+    def nativeEvent(self, event_type, message):
+        """Listen for the WM_AERIS_FOCUS message posted by a second-launch.
+
+        Bring the window to the foreground + activate it. Non-Windows
+        platforms simply forward to the base implementation.
+        """
+        if (self._WM_AERIS_FOCUS
+                and sys.platform == "win32"
+                and event_type in (b"windows_generic_MSG", "windows_generic_MSG")):
+            try:
+                import ctypes
+                MSG = ctypes.c_void_p(int(message))
+                # PyQt5 passes the MSG struct pointer; cast and read message field.
+                # Layout: HWND (8) + UINT (4) + ... — message is at offset 8 on 64-bit.
+                msg_id = ctypes.c_uint.from_address(int(message) + ctypes.sizeof(ctypes.c_void_p)).value
+                if msg_id == self._WM_AERIS_FOCUS:
+                    self._raise_and_activate()
+                    return True, 0
+            except Exception:
+                pass
+        return super().nativeEvent(event_type, message)
+
+    def _raise_and_activate(self) -> None:
+        """Restore from minimised + bring to front + give keyboard focus."""
+        if self.isMinimized():
+            self.showNormal()
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
+
     # ── Cleanup ─────────────────────────────────────────────────────
     def closeEvent(self, e):
-        # Stop voice engine so the daemon capture thread exits cleanly
+        # Minimise-to-tray instead of exit when the tray is available and
+        # the user clicked the X (not "Quit AERIS" from the tray menu).
+        if (getattr(self, "_tray", None) is not None
+                and not getattr(self, "_force_quit", False)):
+            e.ignore()
+            self.hide()
+            self._tray.notify("AERIS is still running",
+                              "Right-click the tray icon to quit.")
+            return
+
+        # Real shutdown path.
         if self._voice_state != "STOPPED":
             self.request_voice_stop.emit()
+        if getattr(self, "_hotkey", None) is not None:
+            self._hotkey.uninstall()
+        if getattr(self, "_tray", None) is not None:
+            self._tray.uninstall()
         for th in (getattr(self, "_brain_thread", None),
                    getattr(self, "_voice_thread", None),
                    getattr(self, "_speak_thread", None)):
             if th is not None:
                 th.quit()
                 th.wait(2000)
+        # Fire the shutdown coordinator AFTER threads are joined so its
+        # hooks (ResourceMonitor, feedback flush, etc.) see a quiesced
+        # process and aren't racing live workers for the GIL.
+        try:
+            from core.shutdown import fire as _shutdown_fire
+            _shutdown_fire(reason="closeEvent")
+        except Exception:
+            pass
         super().closeEvent(e)
 
 
-def launch():
-    """Standalone launcher (also used by run_gui.py)."""
+def launch(splash=None):
+    """Standalone launcher (also used by run_gui.py).
+
+    Splash-first lifecycle
+    ----------------------
+    When a ``splash`` is supplied we keep it visible UNTIL the brain
+    finishes loading, then atomically replace it with the main window.
+    The user never sees a half-loaded GUI:
+
+        splash up
+          → ML imports finish
+          → main window CONSTRUCTED (spawns brain worker) but HIDDEN
+          → brain boot progress mirrored to splash status text
+          → brain emits 'ready'
+          → splash closes, window.show(), animations resume
+
+    Without a splash we keep the original behaviour (show immediately,
+    boot bubble in chat) — used by tests and standalone launches.
+    """
     app = QApplication.instance() or QApplication(sys.argv)
-    win = JarvisV31Window()
-    win.show()
+
+    # Install the shutdown coordinator so SIGINT / Qt quit / atexit all
+    # converge on the same teardown path. Idempotent — safe even if
+    # run_gui.py already called install_handlers().
+    try:
+        from core.shutdown import install_handlers, install_qt_handler
+        install_handlers()
+        install_qt_handler(app)
+    except Exception:
+        pass
+
+    # Pass the splash INTO the window so its constructor can post phase
+    # updates between the synchronous installs — keeps the splash text +
+    # progress moving instead of freezing at "Building main window".
+    win = JarvisV31Window(splash=splash)
+
+    if splash is None:
+        # Legacy path — show immediately, brain loads in background.
+        win.show()
+        return app.exec_()
+
+    # Splash-first path: keep window hidden while brain boots.
+    # Update splash status from the same load_progress signal that
+    # drives the in-chat boot bubble.
+    def _on_progress(_log_type, msg, pct):
+        try:
+            splash.update_status(f"{msg} ({pct}%)")
+        except Exception:
+            pass
+
+    def _on_ready():
+        # Brain is up. Hand off to the real window — show first, then
+        # close splash so there's no visible gap.
+        try:
+            win.show()
+            win.raise_()
+            win.activateWindow()
+        finally:
+            try: splash.finish(win)
+            except Exception: pass
+
+    try:
+        win._brain.load_progress.connect(_on_progress)
+        win._brain.ready.connect(_on_ready)
+        # Safety net: if the brain dies during boot, still show the
+        # window so the user can see the error in the logs panel.
+        win._brain.error.connect(lambda _msg: _on_ready())
+    except Exception:
+        # Couldn't wire — fall back to showing the window right away.
+        win.show()
+        splash.finish(win)
+
     return app.exec_()
 
 

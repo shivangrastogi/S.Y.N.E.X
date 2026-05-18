@@ -197,10 +197,11 @@ class UserMemory:
             from core import vault
             vault.encrypt_to_file(self.path, self._data, self._passphrase)
             return
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self._data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, self.path)
+        # Atomic + durable plain-text path. The encrypted branch handles
+        # its own durability inside vault.encrypt_to_file.
+        from core.atomic_io import write_atomic_json
+        write_atomic_json(self.path, self._data,
+                          indent=2, ensure_ascii=False)
 
     # ------------------------------------------------------------------ #
     #  Vault control                                                      #

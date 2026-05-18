@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget
 )
 
+from .animation_bus import get_bus
 from .tokens import J, JSTATES, inter, mono, rgba
 
 
@@ -247,9 +248,13 @@ class GlassChatPanel(QWidget):
             self._scroll_btn.setVisible(False)
 
     def _stream_tick(self) -> None:
+        # Reveal 3 chars per tick instead of 1. The forced scroll-area
+        # relayout from QLabel.setText() was the largest single source of
+        # GUI-thread jitter during streaming responses. 3 chars / 18 ms
+        # ≈ 167 cps — still slower than natural reading speed.
         if self._stream_bubble is None:
             self._cancel_stream(); return
-        self._stream_idx += 1
+        self._stream_idx = min(self._stream_idx + 3, len(self._stream_full))
         self._stream_bubble.set_text(self._stream_full[: self._stream_idx])
         if self._stream_idx >= len(self._stream_full):
             self._stream_bubble.set_streaming(False)
@@ -338,10 +343,10 @@ class _Pill(QWidget):
         self._text = text
         self._color = color
         self._blink = blink
-        self._start = time.monotonic()
         self.setFixedHeight(20)
+        self._bus = get_bus()
         if blink:
-            t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+            self._bus.tick_slow.connect(self.update)
 
     def set_data(self, text: str, color: QColor) -> None:
         self._text = text
@@ -357,7 +362,7 @@ class _Pill(QWidget):
         p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 6, 6)
         # blink dot
         if self._blink:
-            ph = (time.monotonic() - self._start) * 2 * math.pi / 1.2
+            ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 1.2
             alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
         else:
             alpha = 1.0
@@ -642,28 +647,40 @@ def _asymmetric_round_rect(rect: QRectF, tl, tr, br, bl) -> QPainterPath:
 
 
 class _SmallDot(QWidget):
+    """Per-bubble dot. Subscribes to AnimationBus only while blinking.
+
+    The OLD implementation created a private 60 ms QTimer for EVERY message
+    bubble. After 20 messages there were 20 extra timers firing on the GUI
+    thread. Now we connect/disconnect to the shared bus on demand, so the
+    timer count stays constant regardless of conversation length.
+    """
+
     def __init__(self, color: QColor, blink: bool = False, parent=None):
         super().__init__(parent)
         self._color = color
-        self._blink = blink
-        self._start = time.monotonic()
+        self._blink = False    # set via set_blink below so connection happens
         self.setFixedSize(8, 8)
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self.update)
+        self._bus = get_bus()
         if blink:
-            self._timer.start(60)
+            self.set_blink(True)
 
     def set_blink(self, on: bool) -> None:
+        if on == self._blink:
+            return
         self._blink = on
         if on:
-            if not self._timer.isActive():
-                self._timer.start(60)
+            self._bus.tick_slow.connect(self.update)
         else:
-            self._timer.stop(); self.update()
+            try:
+                self._bus.tick_slow.disconnect(self.update)
+            except TypeError:
+                # Already disconnected — harmless on Qt's idempotent disconnect.
+                pass
+            self.update()
 
     def paintEvent(self, _):
         if self._blink:
-            ph = (time.monotonic() - self._start) * 2 * math.pi / 0.7
+            ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 0.7
             alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
         else:
             alpha = 1.0
@@ -700,8 +717,8 @@ class _DotsBubble(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(74, 38)
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -715,9 +732,10 @@ class _DotsBubble(QWidget):
         p.drawPath(path)
         # 3 dots, staggered
         cy = self.height() / 2
+        t_s = self._bus.now_ms / 1000.0
         for i in range(3):
             cx = 18 + i * 14
-            ph = (time.monotonic() - self._start - i * 0.3) * 2 * math.pi / 0.9
+            ph = (t_s - i * 0.3) * 2 * math.pi / 0.9
             alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
             p.setPen(Qt.NoPen)
             p.setBrush(rgba(J.CYAN, alpha * 0.5))
@@ -732,14 +750,17 @@ class _ListeningWave(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(34)
-        self._start = time.monotonic()
         self._bars = [
             (random.uniform(0.4, 0.9),
              random.uniform(0, 2 * math.pi),
              random.uniform(6, 18))
             for _ in range(20)
         ]
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        # Wave needs smooth motion when visible — tick_fast (30 FPS).
+        # Hidden widgets short-circuit paintEvent in Qt, so subscribing
+        # unconditionally is fine.
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self.update)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -751,7 +772,7 @@ class _ListeningWave(QWidget):
         p.setFont(mono(9, 700))
         p.drawText(QRectF(16, 0, 80, self.height()),
                    Qt.AlignVCenter | Qt.AlignLeft, "LISTENING")
-        t = time.monotonic() - self._start
+        t = self._bus.now_ms / 1000.0
         x0 = 100; bar_w = 3; gap = 5
         cy = self.height() / 2
         p.setPen(Qt.NoPen)
@@ -773,8 +794,8 @@ class _SleepPill(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(26)
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -784,7 +805,7 @@ class _SleepPill(QWidget):
         p.setBrush(rgba(J.PURPLE, 0.10))
         p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 11, 11)
         # Slow-blink dot
-        ph = (time.monotonic() - self._start) * 2 * math.pi / 2.5
+        ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 2.5
         alpha = 0.35 + 0.35 * (0.5 + 0.5 * math.sin(ph))
         p.setPen(Qt.NoPen)
         p.setBrush(rgba(J.PURPLE, alpha * 0.5))
@@ -1038,20 +1059,86 @@ class _RoundIconButton(QPushButton):
 # ─── Boot progress bubble ─────────────────────────────────────── #
 
 class _ProgressBar(QWidget):
+    # Plain-attribute callback (no pyqtSignal) the parent card uses to track
+    # the eased display value so its "N %" label updates in lock-step with
+    # the bar fill instead of jumping to the latest yielded target.
+    progress_changed = None  # type: Optional[callable]
+
+    # Animation: each set_pct() runs an OutCubic curve from current display
+    # to the new target over _ANIM_PER_PCT_S × distance (clamped). Keeps the
+    # bar visibly moving for ~0.6-2s after every yield.
+    _ANIM_MIN_S = 0.6
+    _ANIM_MAX_S = 2.0
+    _ANIM_PER_PCT_S = 0.05
+
+    # Drift: once the bar reaches the last yielded target it gently creeps
+    # toward target + _DRIFT_HEADROOM at _DRIFT_RATE_PCT_PER_S. This is what
+    # makes the bar look "alive" during the ~15s sentence-encoder load that
+    # has no internal yield points — without it the bar would freeze at 12%
+    # for the entire load. Capped so we never overshoot the next expected
+    # yield, and never reach 100% without an actual completion signal.
+    _DRIFT_RATE_PCT_PER_S = 0.6
+    _DRIFT_HEADROOM_PCT = 8.0
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._pct = 0
         self._display = 0.0
+        self._anim_from = 0.0
+        self._anim_to = 0.0
+        self._anim_start = 0.0
+        self._anim_dur = 0.0
+        self._drift_cap = 0.0
+        self._last_tick_t = 0.0
         self.setFixedHeight(6)
-        t = QTimer(self); t.timeout.connect(self._tick); t.start(16)
+        # 30 FPS via shared bus — was 60 FPS via private QTimer.
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self._tick)
 
     def set_pct(self, pct: int) -> None:
-        self._pct = max(0, min(100, pct))
+        target = max(0, min(100, pct))
+        self._pct = target
+        # Cap drift slightly past the new target; the special-case of 100%
+        # leaves no headroom so the bar lands exactly on completion.
+        if target >= 100:
+            self._drift_cap = 100.0
+        else:
+            self._drift_cap = min(99.0, target + self._DRIFT_HEADROOM_PCT)
+        if target <= self._display:
+            return
+        self._anim_from = self._display
+        self._anim_to = float(target)
+        self._anim_start = time.monotonic()
+        diff = self._anim_to - self._anim_from
+        self._anim_dur = max(self._ANIM_MIN_S,
+                             min(self._ANIM_MAX_S, diff * self._ANIM_PER_PCT_S))
 
     def _tick(self):
-        if self._display < self._pct:
-            self._display = min(self._display + 1.2, self._pct)
+        now = time.monotonic()
+        dt = max(0.0, min(0.5, now - self._last_tick_t)) if self._last_tick_t else 0.0
+        self._last_tick_t = now
+
+        moved = False
+        # Phase A — easing toward last yielded target.
+        if self._anim_dur > 0 and self._display < self._anim_to:
+            elapsed = now - self._anim_start
+            t = min(1.0, elapsed / self._anim_dur)
+            eased = 1.0 - (1.0 - t) ** 3
+            self._display = self._anim_from + (self._anim_to - self._anim_from) * eased
+            if t >= 1.0:
+                self._display = self._anim_to
+                self._anim_dur = 0.0
+            moved = True
+        # Phase B — gentle drift while the worker is mid-phase with no new yield.
+        elif self._display < self._drift_cap and dt > 0:
+            self._display = min(self._display + self._DRIFT_RATE_PCT_PER_S * dt,
+                                self._drift_cap)
+            moved = True
+
+        if moved:
             self.update()
+            if callable(self.progress_changed):
+                self.progress_changed(self._display)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -1118,6 +1205,9 @@ class _BootCard(QWidget):
         lay.addLayout(title_row)
 
         self._pb = _ProgressBar()
+        # Track the eased display value so the "N %" label updates in lock-step
+        # with the bar fill instead of jumping to the latest yielded target.
+        self._pb.progress_changed = self._on_progress_changed
         lay.addWidget(self._pb)
 
         sep = QWidget(); sep.setFixedHeight(1)
@@ -1135,8 +1225,13 @@ class _BootCard(QWidget):
                 w.set_done(True)
         self._steps_lay.addWidget(_BootStepRow(log_type, msg, done=False))
         self._pb.set_pct(pct)
-        col = J.GREEN if pct >= 100 else J.CYAN
-        self._pct_lbl.setText(f"{pct} %")
+        # Label color anchors on the target (target=100 → green), but the
+        # number itself rides _on_progress_changed so it climbs with the bar.
+
+    def _on_progress_changed(self, display_pct: float) -> None:
+        shown = int(round(display_pct))
+        col = J.GREEN if shown >= 100 else J.CYAN
+        self._pct_lbl.setText(f"{shown} %")
         self._pct_lbl.setStyleSheet(f"color:{col.name()};")
 
     def set_done(self) -> None:
@@ -1201,8 +1296,8 @@ class _ScrollToBottomBtn(QWidget):
         self.setCursor(Qt.PointingHandCursor)
         self.setVisible(False)
         self._hover = False
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def enterEvent(self, _): self._hover = True; self.update()
     def leaveEvent(self, _): self._hover = False; self.update()
@@ -1216,7 +1311,7 @@ class _ScrollToBottomBtn(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
         rect = QRectF(1, 1, self.width() - 2, self.height() - 2)
 
-        ph = (time.monotonic() - self._start) * 2 * math.pi / 2.2
+        ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 2.2
         pulse = 0.28 + 0.12 * (0.5 + 0.5 * math.sin(ph))
 
         p.setPen(QPen(rgba(J.CYAN, 0.65 if self._hover else 0.40), 1))

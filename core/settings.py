@@ -75,11 +75,13 @@ class _SettingsStore:
 
     def _save(self) -> None:
         with self._lock:
-            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-            tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, self.path)
+            # Route through atomic_io so a power loss mid-write can never
+            # leave a half-written settings file (which would crash the next
+            # boot when the JSON parse fails). atomic_io also fsync's the
+            # file + directory so the rename is durable, not just atomic.
+            from core.atomic_io import write_atomic_json
+            write_atomic_json(self.path, self._data,
+                              indent=2, ensure_ascii=False)
 
     # ----------------------------------------------------------------- #
     #  Public API                                                        #

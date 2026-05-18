@@ -47,6 +47,7 @@ class VisionEngine:
         self._latest_frame = None
         self._latest_ts: float = 0.0
         self._auto_stop = True
+        self._last_error: Optional[str] = None
 
     # ------------------------------------------------------------------ #
     #  Lifecycle                                                          #
@@ -67,22 +68,68 @@ class VisionEngine:
                 import cv2
             except ImportError:
                 log.warning("[vision] opencv-python not installed.")
+                self._last_error = "opencv-python not installed"
                 return False
-            cap = cv2.VideoCapture(self._camera_index, cv2.CAP_DSHOW)
-            if not cap.isOpened():
-                # CAP_DSHOW can fail on some webcams; fall through to default.
-                cap.release()
-                cap = cv2.VideoCapture(self._camera_index)
-            if not cap.isOpened():
-                log.warning("[vision] camera %s could not be opened.", self._camera_index)
+
+            # Probe the requested index first, then fall back through 0-3 with
+            # DSHOW → MSMF → ANY. Some Windows builds expose the webcam only
+            # via MSMF; some external webcams sit at index 1/2.
+            tried: list[str] = []
+            indices = [self._camera_index] + [i for i in (0, 1, 2, 3)
+                                              if i != self._camera_index]
+            backends = [
+                (cv2.CAP_DSHOW, "DSHOW"),
+                (cv2.CAP_MSMF,  "MSMF"),
+                (cv2.CAP_ANY,   "ANY"),
+            ]
+            cap = None
+            opened_idx = None
+            for idx in indices:
+                for backend, backend_name in backends:
+                    c = cv2.VideoCapture(idx, backend)
+                    if c.isOpened():
+                        # Sanity: a "successfully opened" cap that can't read
+                        # a frame is a phantom device — skip it.
+                        ok, _frame = c.read()
+                        if ok:
+                            cap = c
+                            opened_idx = idx
+                            self._camera_index = idx
+                            log.info("[vision] camera opened at index %d via %s",
+                                     idx, backend_name)
+                            break
+                        c.release()
+                        tried.append(f"{idx}/{backend_name}(no frame)")
+                    else:
+                        c.release()
+                        tried.append(f"{idx}/{backend_name}")
+                if cap is not None:
+                    break
+
+            if cap is None:
+                self._last_error = (
+                    "No camera found. Tried: " + ", ".join(tried[:6]) + "... "
+                    "Common Windows causes: (1) Windows Settings -> Privacy "
+                    "-> Camera -> 'Let desktop apps access your camera' is "
+                    "OFF, (2) another app (Zoom/Teams/browser) is holding "
+                    "the webcam, (3) webcam driver disabled in Device Manager."
+                )
+                log.warning("[vision] %s", self._last_error)
                 return False
             self._cap = cap
             self._stop_evt.clear()
             self._thread = threading.Thread(target=self._run, name="VisionEngine",
                                             daemon=True)
             self._thread.start()
-            log.info("[vision] camera started.")
+            self._last_error = None
+            log.info("[vision] camera started at index %d.", opened_idx)
             return True
+
+    def last_error(self) -> Optional[str]:
+        """Human-readable reason the most recent ``start()`` failed.
+        ``None`` when the engine is running or has never been started.
+        """
+        return getattr(self, "_last_error", None)
 
     def stop(self) -> None:
         with self._lock:

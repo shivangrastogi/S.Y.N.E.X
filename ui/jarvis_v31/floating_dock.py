@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from PyQt5.QtCore import (
-    QEasingCurve, QPoint, QPointF, QRectF, QTimer, QVariantAnimation, Qt,
+    QEasingCurve, QPoint, QPointF, QRectF, QVariantAnimation, Qt,
     pyqtSignal
 )
 from PyQt5.QtGui import (
@@ -31,6 +31,7 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from .animation_bus import get_bus
 from .tokens import J, inter, mono, rgba
 
 
@@ -245,18 +246,21 @@ class _DockItem(QPushButton):
 # ─── Brand mark + avatar (painted children) ──────────────────────────── #
 
 class _BrandMark(QWidget):
-    """30x30 reactor — outer ring spins clockwise, inner ring counter."""
+    """30x30 reactor — outer ring spins clockwise, inner ring counter.
+
+    Driven by the shared AnimationBus (tick_fast = 30 FPS).
+    """
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(30, 30)
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(33)
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self.update)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         center = QPointF(self.width() / 2, self.height() / 2)
-        t_ms = (time.monotonic() - self._start) * 1000
+        t_ms = self._bus.now_ms
 
         a1 = (t_ms / 6000) * 360 % 360
         p.save(); p.translate(center); p.rotate(a1)

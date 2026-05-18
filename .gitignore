@@ -12,3 +12,9 @@ ENV/
 .claude/
 
 .pytest_cache/
+
+# Large neural-model weights — uploaded as GitHub release assets, not tracked
+data/models/intent_neural/model/model.safetensors
+core/model.tensor
+core/*.tensor
+core/*.safetensors

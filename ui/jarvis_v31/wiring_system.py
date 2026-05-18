@@ -13,6 +13,17 @@ flow at a state-driven speed (faster when PROCESSING / LISTENING).
 
 Each NodeBox4: icon + label + live value + sub + 8-bar sparkline. On hover
 it scales up 6% and slides out a detail card with NOMINAL badge.
+
+Perf notes (Nov 2026 refactor):
+  - _WireLayer drops from 60 FPS to 30 FPS via the shared AnimationBus.
+    Slow wire-packet motion is visually identical at 30 FPS.
+  - Wire polyline QPainterPath objects pre-built once in __init__; no
+    longer reconstructed inside drawPolyline / drawPacket every frame.
+  - _NodeBox blink dot uses AnimationBus.tick_slow (~15 FPS), removing
+    4 private 60 ms QTimers from the GUI thread.
+  - psutil polling moved to a background SystemMonitor QThread so the
+    GUI thread no longer blocks on cpu_percent / net_io_counters every
+    2.8 s.
 """
 from __future__ import annotations
 
@@ -22,13 +33,15 @@ import time
 from dataclasses import dataclass
 
 from PyQt5.QtCore import (
-    QEasingCurve, QPointF, QRectF, QTimer, QVariantAnimation, Qt, pyqtSignal
+    QEasingCurve, QObject, QPointF, QRectF, QThread, QTimer,
+    QVariantAnimation, Qt, pyqtSignal, pyqtSlot
 )
 from PyQt5.QtGui import (
     QColor, QLinearGradient, QPainter, QPainterPath, QPen
 )
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from .animation_bus import get_bus
 from .tokens import J, JSTATES, inter, mono, rgba
 
 
@@ -156,7 +169,6 @@ class _NodeBox(QWidget):
         self._hov = False
         self._value_text = node.value
         self._bars = [0.45, 0.62, 0.38, 0.75, 0.58, 0.82, 0.49, 0.70]
-        self._blink_start = time.monotonic()
 
         # Card width 168 (was 144) so '13.4 GB' / '0.0 MB/s' fit cleanly
         # without elide at 18pt value font. The wires terminate at the OLD
@@ -176,8 +188,14 @@ class _NodeBox(QWidget):
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
         self._anim.valueChanged.connect(self._on_anim)
 
-        # 60ms repaint for the blink dot
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        # Pre-bake the card background QColor (was rebuilt every paint).
+        self._bg_idle = QColor(13, 21, 37); self._bg_idle.setAlphaF(0.88)
+        self._bg_hov  = QColor(13, 21, 37); self._bg_hov.setAlphaF(0.98)
+        self._bg_detail = QColor(10, 15, 28); self._bg_detail.setAlphaF(0.95)
+
+        # AnimationBus drives the blink dot — no private QTimer.
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     # ── API ─────────────────────────────────────────────────────
     def set_value(self, v: str) -> None:
@@ -223,13 +241,13 @@ class _NodeBox(QWidget):
         p.scale(scale, scale)
         p.translate(-cx, -cy)
 
-        # Background
-        bg = QColor(13, 21, 37); bg.setAlphaF(0.98 if self._hov else 0.88)
+        # Background — pre-baked QColor (was rebuilt per frame).
         if self._hov:
             p.setPen(QPen(rgba(col, 0.65), 1))
+            p.setBrush(self._bg_hov)
         else:
             p.setPen(QPen(rgba(col, 0.30), 1))
-        p.setBrush(bg)
+            p.setBrush(self._bg_idle)
         body = QRectF(0, 0, self.width() - 1, 100 - 1)
         p.drawRoundedRect(body, 12, 12)
 
@@ -252,8 +270,8 @@ class _NodeBox(QWidget):
         p.setPen(col); p.setFont(mono(8, 700))
         p.drawText(QRectF(36, 8, self.width() - 60, 14),
                    Qt.AlignVCenter | Qt.AlignLeft, self.node.label)
-        # blink dot
-        ph = (time.monotonic() - self._blink_start) * 2 * math.pi / 2.0
+        # blink dot — phase derived from the shared bus time
+        ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 2.0
         alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
         p.setPen(Qt.NoPen)
         p.setBrush(rgba(col, alpha * 0.5))
@@ -311,8 +329,7 @@ class _NodeBox(QWidget):
             p.setOpacity(opacity)
             detail_rect = QRectF(0, dy, self.width() - 1, dh)
             p.setPen(QPen(rgba(col, 0.30), 1))
-            bg2 = QColor(10, 15, 28); bg2.setAlphaF(0.95)
-            p.setBrush(bg2)
+            p.setBrush(self._bg_detail)
             p.drawRoundedRect(detail_rect, 10, 10)
 
             # Detail text — height is dh-38 so the NOMINAL badge at the
@@ -357,26 +374,43 @@ class _WireLayer(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self._state = "IDLE"
-        self._start = time.monotonic()
-        self._state_start_ms = 0.0   # ms since _start when current state began
+        self._state_start_ms = 0.0   # ms since bus init when current state began
         # Pre-build wires + junctions
         self._wires = _wires()
         self._junctions = _junctions()
         # Pre-compute each wire's total length so we can place packets along it.
         self._wire_lengths = {wid: _polyline_length(pts)
                               for wid, pts, _ in self._wires}
-        t = QTimer(self); t.timeout.connect(self.update); t.start(16)
+        # Pre-build a QPainterPath for the FULL polyline of every wire.
+        # The old code rebuilt this path on every base-glow + mid-stroke
+        # draw (2 × per wire × 30+ FPS = ~240 path builds/sec). Now built
+        # exactly once.
+        self._wire_paths = {wid: self._build_polyline(pts)
+                            for wid, pts, _ in self._wires}
+        # Pre-bake per-wire pens for the base + mid strokes.
+        self._wire_pens = {}
+        for wid, _pts, col in self._wires:
+            self._wire_pens[wid] = (
+                QPen(rgba(col, 0.12), 1.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
+                QPen(rgba(col, 0.32), 1.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
+            )
+        # AnimationBus tick_fast = 30 FPS. Was 16ms (60 FPS) — visually
+        # identical for the slow wire flow, half the paint cost.
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self.update)
 
     def set_state(self, key: str) -> None:
         if key in JSTATES and key != self._state:
             self._state = key
-            # Reset start so ripples always begin at center on state change
-            self._state_start_ms = (time.monotonic() - self._start) * 1000.0
+            # Reset start so ripples always begin at center on state change.
+            # Time origin is the shared AnimationBus, so ripple birth times
+            # remain comparable to bus.now_ms in paintEvent.
+            self._state_start_ms = self._bus.now_ms
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
-        t = time.monotonic() - self._start
+        t = self._bus.now_ms / 1000.0   # seconds since bus init
 
         # Wire packet period — faster during PROCESSING / LISTENING.
         period = {"PROCESSING": 0.9, "LISTENING": 1.4,
@@ -385,14 +419,16 @@ class _WireLayer(QWidget):
         # Each wire — base glow + brighter mid + 2 traveling packets.
         for wid, pts, col in self._wires:
             length = self._wire_lengths[wid]
+            base_pen, mid_pen = self._wire_pens[wid]
+            wire_path = self._wire_paths[wid]
 
-            # Base glow layer
-            p.setPen(QPen(rgba(col, 0.12), 1.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            self._draw_polyline(p, pts)
+            # Base glow layer (pre-built path + pre-built pen)
+            p.setPen(base_pen)
+            p.drawPath(wire_path)
 
             # Brighter mid layer
-            p.setPen(QPen(rgba(col, 0.32), 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            self._draw_polyline(p, pts)
+            p.setPen(mid_pen)
+            p.drawPath(wire_path)
 
             # Packet 1
             phase = (t / period) % 1.0
@@ -425,15 +461,16 @@ class _WireLayer(QWidget):
         # Heartbeat ripples — drawn here so they can reach 600px radius
         self._draw_ripples(p, QPointF(REACTOR_CX, REACTOR_CY), t)
 
-    def _draw_polyline(self, p: QPainter, pts: list) -> None:
-        """Stroke a polyline through the given (x,y) waypoints."""
-        if len(pts) < 2:
-            return
+    @staticmethod
+    def _build_polyline(pts: list) -> QPainterPath:
+        """Build a QPainterPath from (x,y) waypoints (called once at init)."""
         path = QPainterPath()
+        if len(pts) < 2:
+            return path
         path.moveTo(*pts[0])
         for x, y in pts[1:]:
             path.lineTo(x, y)
-        p.drawPath(path)
+        return path
 
     def _draw_packet(self, p, pts, total_length, phase, col,
                      packet_len, alpha, width):
@@ -513,7 +550,8 @@ class _WireLayer(QWidget):
         else:
             return
 
-        t_ms = t * 1000.0
+        # _state_start_ms is captured in bus.now_ms units (set in set_state)
+        t_ms = self._bus.now_ms
         elapsed_ms = t_ms - self._state_start_ms   # time in this state
 
         # Birth times: ring i is born at i * (period / rings) after state start.
@@ -546,6 +584,71 @@ def _polyline_length(pts: list) -> float:
 
 # ─── Wiring system root ─────────────────────────────────────────────── #
 
+class _SystemMonitorWorker(QObject):
+    """Polls psutil on a background QThread and emits the result.
+
+    psutil's cpu_percent / virtual_memory / net_io_counters / sensors_battery
+    are all blocking syscalls. Previously WiringSystem ran them on a 2.8 s
+    QTimer that lived on the GUI thread, so every poll spiked GUI latency.
+    Now they run here on a dedicated thread; only the resulting dict is
+    queued back to the GUI thread via the `stats` signal.
+    """
+
+    stats = pyqtSignal(dict)
+
+    def __init__(self):
+        super().__init__()
+        self._timer: QTimer | None = None
+        self._prev_net_b: int | None = None
+
+    @pyqtSlot()
+    def start(self) -> None:
+        # Timer must be created on the worker thread (not in __init__ on
+        # the GUI thread), so build it lazily inside this slot.
+        if self._timer is not None:
+            return
+        self._timer = QTimer()
+        self._timer.timeout.connect(self._poll)
+        self._timer.start(2800)
+        # Prime cpu_percent so the first reading is meaningful (cpu_percent
+        # with interval=None compares against the LAST call).
+        try:
+            import psutil
+            psutil.cpu_percent(interval=None)
+        except Exception:
+            pass
+
+    @pyqtSlot()
+    def _poll(self) -> None:
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=None)
+            ram_gb = psutil.virtual_memory().used / (1024 ** 3)
+            net = psutil.net_io_counters()
+            now_b = (net.bytes_sent + net.bytes_recv)
+            if self._prev_net_b is None:
+                rate_mbps = 0.0
+            else:
+                rate_mbps = max(0.0, (now_b - self._prev_net_b) / 2.8 / (1024 * 1024))
+            self._prev_net_b = now_b
+            bat_obj = psutil.sensors_battery()
+            bat_pct = int(bat_obj.percent) if bat_obj else 87
+            self.stats.emit({
+                "cpu": f"{int(cpu)}%",
+                "ram": f"{ram_gb:.1f} GB",
+                "bat": f"{bat_pct}%",
+                "net": f"{rate_mbps:.1f} MB/s",
+            })
+        except Exception:
+            # psutil failure or unsupported platform — fall back to a
+            # gentle random walk so the cards still feel alive.
+            self.stats.emit({
+                "cpu": f"{random.randint(8, 28)}%",
+                "ram": f"{4.0 + random.random() * 0.4:.1f} GB",
+                "net": f"{random.random() * 3:.1f} MB/s",
+            })
+
+
 class WiringSystem(QWidget):
     """Composite: wire layer underneath + 4 absolutely-positioned NodeBoxes.
 
@@ -555,6 +658,8 @@ class WiringSystem(QWidget):
 
     GRID_W = 1080
     GRID_H = 820
+
+    _start_monitor = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -573,10 +678,15 @@ class WiringSystem(QWidget):
             box.move(nd.left, nd.top)
             self._nodes[nd.id] = box
 
-        # Live-value timer (every 2.8s mirrors the jsx)
-        self._live_timer = QTimer(self)
-        self._live_timer.timeout.connect(self._tick_live_values)
-        self._live_timer.start(2800)
+        # ── System stats on a background thread ─────────────────────
+        # psutil calls are blocking — keep them off the GUI thread.
+        self._mon_thread = QThread(self)
+        self._mon_worker = _SystemMonitorWorker()
+        self._mon_worker.moveToThread(self._mon_thread)
+        self._start_monitor.connect(self._mon_worker.start)
+        self._mon_worker.stats.connect(self._apply_stats)
+        self._mon_thread.start()
+        self._start_monitor.emit()
 
     # ── API ─────────────────────────────────────────────────────────
     def set_state(self, key: str) -> None:
@@ -586,29 +696,15 @@ class WiringSystem(QWidget):
         if node_id in self._nodes:
             self._nodes[node_id].set_value(value)
 
-    # ── Live values: try psutil; fall back to small random walk ─────
-    def _tick_live_values(self) -> None:
-        try:
-            import psutil
-            cpu = psutil.cpu_percent(interval=None)
-            ram_gb = psutil.virtual_memory().used / (1024 ** 3)
-            net = psutil.net_io_counters()
-            # Crude rate calc: store last bytes and divide by 2.8s
-            now_b = (net.bytes_sent + net.bytes_recv)
-            prev = getattr(self, "_prev_net_b", None)
-            if prev is None:
-                rate_mbps = 0.0
-            else:
-                rate_mbps = max(0.0, (now_b - prev) / 2.8 / (1024 * 1024))
-            self._prev_net_b = now_b
-            bat_obj = psutil.sensors_battery()
-            bat_pct = int(bat_obj.percent) if bat_obj else 87
-            self.set_value("cpu", f"{int(cpu)}%")
-            self.set_value("ram", f"{ram_gb:.1f} GB")
-            self.set_value("bat", f"{bat_pct}%")
-            self.set_value("net", f"{rate_mbps:.1f} MB/s")
-        except Exception:
-            # Random walk fallback
-            self.set_value("cpu", f"{random.randint(8, 28)}%")
-            self.set_value("ram", f"{4.0 + random.random() * 0.4:.1f} GB")
-            self.set_value("net", f"{random.random() * 3:.1f} MB/s")
+    @pyqtSlot(dict)
+    def _apply_stats(self, data: dict) -> None:
+        """Called on GUI thread when SystemMonitor pushes new psutil values."""
+        for key, value in data.items():
+            self.set_value(key, value)
+
+    def closeEvent(self, e):
+        # Shut the monitor thread down cleanly so it doesn't outlive the widget.
+        if self._mon_thread is not None:
+            self._mon_thread.quit()
+            self._mon_thread.wait(1000)
+        super().closeEvent(e)

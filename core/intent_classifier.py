@@ -11,7 +11,6 @@ patterns).
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
@@ -24,6 +23,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.neighbors import NearestNeighbors
 
+from core.intent_loader import load_all_intents, intents_hash
 from core.normalizer import HinglishNormalizer
 
 log = logging.getLogger(__name__)
@@ -115,12 +115,10 @@ class IntentClassifier:
     def _intents_hash(self) -> str:
         """Hash of the merged intent set (file + plugin registry).
 
-        Canonical JSON ensures dict ordering doesn't bust the cache; plugin
-        patterns are included so the index rebuilds when a new skill ships.
+        Delegates to ``core.intent_loader`` so train_intent and runtime agree
+        byte-for-byte; otherwise the neural model's saved hash never matches.
         """
-        merged = self._load_intents()
-        canonical = json.dumps(merged, sort_keys=True, ensure_ascii=False)
-        return hashlib.md5(canonical.encode("utf-8")).hexdigest()
+        return intents_hash(self._load_intents())
 
     def _cached_hash(self) -> Optional[str]:
         if not os.path.exists(self.metadata_path):
@@ -177,19 +175,7 @@ class IntentClassifier:
             self.encoder = SentenceTransformer(ENCODER_NAME)
 
     def _load_intents(self) -> dict:
-        with open(self.intents_path, "r", encoding="utf-8") as f:
-            intents = json.load(f)
-        try:
-            from core.skill_registry import patterns_as_intent_dict
-            for name, cfg in patterns_as_intent_dict().items():
-                if name in intents:
-                    existing = intents[name].get("patterns", [])
-                    intents[name]["patterns"] = existing + cfg.get("patterns", [])
-                else:
-                    intents[name] = cfg
-        except ImportError:
-            pass
-        return intents
+        return load_all_intents(self.intents_path)
 
     def _build_index(self) -> None:
         self._ensure_encoder()

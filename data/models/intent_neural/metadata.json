@@ -1,0 +1,16 @@
+{
+  "model": "distilbert-base-multilingual-cased",
+  "epochs": 15,
+  "best_epoch": 4,
+  "best_val_acc": 0.7194,
+  "num_intents": 140,
+  "num_train_samples": 5308,
+  "num_val_samples": 196,
+  "augmented": true,
+  "max_len": 48,
+  "lr": 5e-05,
+  "batch": 16,
+  "seed": 42,
+  "trained_at": "2026-05-18T17:42:13",
+  "device": "cpu"
+}

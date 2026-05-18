@@ -14,6 +14,7 @@ from PyQt5.QtCore import QPointF, QRectF, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPen
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
+from .animation_bus import get_bus
 from .tokens import J, JSTATES, inter, mono, rgba
 
 
@@ -209,8 +210,8 @@ class _StatePill(QWidget):
         self._state = "IDLE"
         self.setFixedHeight(22)
         self.setMinimumWidth(140)
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def set_state(self, key: str) -> None:
         if key in JSTATES and key != self._state:
@@ -233,7 +234,7 @@ class _StatePill(QWidget):
         p.drawRoundedRect(rect, 11, 11)
 
         # Blinking dot (period ~1.5s)
-        phase = (time.monotonic() - self._start) * 2 * math.pi / 1.5
+        phase = self._bus.now_ms / 1000.0 * 2 * math.pi / 1.5
         alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
         p.setPen(Qt.NoPen)
         glow = QColor(col); glow.setAlphaF(alpha * 0.5)

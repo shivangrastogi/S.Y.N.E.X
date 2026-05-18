@@ -9,6 +9,7 @@ pygame                     # audio playback
 # ── NLP / Brain ──────────────────────────────────────────────────────
 sentence-transformers      # multilingual encoder           [C1]
 scikit-learn               # k-NN intent index              [C1]
+transformers               # fine-tuned XLM-R intent head   [C13 — run: python -m core.train_intent]
 spacy                      # NER + tokenisation             [C2 — optional, run: python -m spacy download en_core_web_sm]
 vaderSentiment             # sentiment v1                   [C3]
 rapidfuzz                  # fuzzy fallback (intent_engine.py)

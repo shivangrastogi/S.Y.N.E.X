@@ -1,5 +1,6 @@
 import ctypes
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ import psutil
 
 from core.skill_registry import get_skill
 from core.time_parser import parse_time_string
+
+log = logging.getLogger(__name__)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -89,10 +92,24 @@ class ActionExecutor:
 
         plugin = get_skill(intent)
         if plugin:
-            try:
-                return plugin.run(slots)
-            except Exception as e:
-                return f"Error executing {intent}: {str(e)}"
+            # Route plugin skills through the breaker so a stuck handler
+            # can't wedge the brain thread, and 3 consecutive failures
+            # auto-disable the skill for 60s instead of nagging the user.
+            from core.skill_breaker import call as _breaker_call
+            result = _breaker_call(intent, plugin.run, slots)
+            if result.ok:
+                return result.value
+            # Surface a clean, user-readable message; the structured
+            # error is in result.error and gets logged below.
+            log.warning("[executor] skill %s failed: %s (elapsed=%dms, "
+                        "timeout=%s, shorted=%s)",
+                        intent, result.error, result.elapsed_ms,
+                        result.timed_out, result.short_circuited)
+            if result.short_circuited:
+                return result.error
+            if result.timed_out:
+                return f"'{intent}' is taking too long — try again in a moment."
+            return f"Error executing {intent}: {result.error}"
 
         return f"Ye kaam karna seekh raha hoon: {intent}."
 

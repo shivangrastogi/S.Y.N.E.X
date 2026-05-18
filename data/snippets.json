@@ -1,0 +1,13 @@
+{
+  "snippets": {
+    "email": "Shivang Rastogi <bossshivang@gmail.com>",
+    "date": "{{date}}",
+    "time": "{{time}}",
+    "datetime": "{{date}} {{time}}",
+    "sig": "—\nShivang Rastogi\nbossshivang@gmail.com",
+    "sep": "────────────────────────────────────",
+    "lorem": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "shrug": "¯\\_(ツ)_/¯",
+    "todo": "- [ ] "
+  }
+}

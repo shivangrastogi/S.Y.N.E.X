@@ -183,12 +183,20 @@ INTENT_TRIGGER_WORDS: dict[str, set[str]] = {
 class EntityExtractor:
     """Public surface: ``extract(text, intent) -> {slot_name: value}``."""
 
-    def __init__(self, entities_path: str, intents_path: str):
+    def __init__(self, entities_path: str, intents_path: str,
+                 *, lazy: bool = False):
         self.entities_path = entities_path
         self.intents_path = intents_path
-        self._load_gazetteer()
-        self._load_intents()
-        self._init_spacy()
+        self.nlp = None
+        self.app_aliases: dict[str, list[str]] = {}
+        self.intents: dict = {}
+        # ``lazy=True`` lets the GUI boot pipeline drive the three sub-phases
+        # individually so progress can advance between gazetteer / intents /
+        # spaCy load (the spaCy step alone can take 5-15s on cold disk).
+        if not lazy:
+            self._load_gazetteer()
+            self._load_intents()
+            self._init_spacy()
 
     def _load_gazetteer(self) -> None:
         with open(self.entities_path, "r", encoding="utf-8") as f:

@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 )
 
+from .animation_bus import get_bus
 from .tokens import J, mono, rgba
 
 
@@ -123,8 +124,8 @@ class _Header(QWidget):
         self._count = 0
         self._preview = ""
         self._status = "All modules nominal · JARVIS v3.1 ready"
-        self._dot_start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def set_expanded(self, v): self._expanded = v; self.update()
     def set_count(self, n):    self._count = n;    self.update()
@@ -140,7 +141,7 @@ class _Header(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
 
         # Blinking green dot
-        phase = (time.monotonic() - self._dot_start) * 2 * math.pi / 1.5
+        phase = self._bus.now_ms / 1000.0 * 2 * math.pi / 1.5
         alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(phase))
         p.setPen(Qt.NoPen)
         p.setBrush(rgba(J.GREEN, alpha * 0.5))

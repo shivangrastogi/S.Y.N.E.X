@@ -12,6 +12,14 @@ Public exports:
   ReactorStateText    — main label + sub + JTag
   ParticleField       — drifting colored dots in the background
   StateSwitcher       — row of 4 buttons for manual state override
+
+Perf notes (Nov 2026 refactor):
+  - All animation timers consolidated into the shared AnimationBus.
+  - ReactorRings runs at 30 FPS (was 60). Visually identical for slow
+    rotations; halves paint cost.
+  - Tick marks pre-baked into a QPixmap and blitted; no longer redrawn
+    every frame.
+  - Wireframe sphere lat/lon ring radii pre-computed in __init__.
 """
 from __future__ import annotations
 
@@ -20,39 +28,50 @@ import random
 import time
 
 from PyQt5.QtCore import (
-    QPointF, QRectF, QTimer, QVariantAnimation, Qt, pyqtSignal
+    QPointF, QRectF, QVariantAnimation, Qt, pyqtSignal
 )
-from PyQt5.QtGui import QColor, QPainter, QPen, QRadialGradient, QTransform
+from PyQt5.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient, QTransform
 from PyQt5.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 )
 
+from .animation_bus import get_bus
 from .tokens import J, JSTATES, inter, mono, rgba
 
 
 # ─── Particle field background ──────────────────────────────────────── #
 
 class ParticleField(QWidget):
-    """Drifting colored dots — provides depth behind the reactor."""
+    """Drifting colored dots — provides depth behind the reactor.
+
+    Subscribes to the shared AnimationBus (tick_fast, 30 FPS) instead of
+    owning a private QTimer. Pre-bakes per-particle QColor objects for
+    glow + core so paintEvent stops allocating ~44 QColors per frame.
+    """
 
     _COLORS = [J.CYAN, J.MAGENTA, J.PURPLE, J.GREEN]
 
     def __init__(self, count: int = 24, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._start = time.monotonic()
-        # Each particle: (color, base_x_pct, base_y_pct, size, dur, phase)
+        # Pre-build particle records WITH pre-mixed QColor objects so the
+        # paint loop never allocates new colors per frame.
         self._particles = []
         for i in range(count):
+            color = self._COLORS[i % 4]
+            glow_col = QColor(color); glow_col.setAlphaF(0.55 * 0.45)
+            core_col = QColor(color); core_col.setAlphaF(0.55)
             self._particles.append((
-                self._COLORS[i % 4],
+                glow_col, core_col,
                 10 + (i * 37) % 80,         # x percent
                 10 + (i * 53) % 80,         # y percent
                 2 + (i % 3),                # size px
                 4 + (i % 6),                # animation period seconds
                 -(i * 0.7),                 # phase offset
             ))
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        # One shared timer for every animated widget — see animation_bus.py
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self.update)
 
     def paintEvent(self, _):
         if self.width() < 4 or self.height() < 4:
@@ -60,27 +79,35 @@ class ParticleField(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setPen(Qt.NoPen)
-        t = time.monotonic() - self._start
+        t = self._bus.now_ms / 1000.0
+        w = self.width()
+        h = self.height()
+        two_pi = 2 * math.pi
 
-        for color, bx, by, size, dur, phase in self._particles:
+        for glow_col, core_col, bx, by, size, dur, phase in self._particles:
             # Float drift: small lissajous around base position
             tt = (t + phase) / dur
-            ox = math.sin(tt * 2 * math.pi) * 12
-            oy = math.cos(tt * 2 * math.pi * 0.7) * 12
-            x = self.width()  * bx / 100 + ox
-            y = self.height() * by / 100 + oy
-            glow = QColor(color); glow.setAlphaF(0.55 * 0.45)
-            p.setBrush(glow)
-            p.drawEllipse(QPointF(x, y), size * 1.8, size * 1.8)
-            core = QColor(color); core.setAlphaF(0.55)
-            p.setBrush(core)
-            p.drawEllipse(QPointF(x, y), size, size)
+            ox = math.sin(tt * two_pi) * 12
+            oy = math.cos(tt * two_pi * 0.7) * 12
+            x = w * bx / 100 + ox
+            y = h * by / 100 + oy
+            pt = QPointF(x, y)
+            p.setBrush(glow_col)
+            p.drawEllipse(pt, size * 1.8, size * 1.8)
+            p.setBrush(core_col)
+            p.drawEllipse(pt, size, size)
 
 
 # ─── Reactor (rings + wireframe sphere + state-specific bottom content) ── #
 
 class ReactorRings(QWidget):
-    """460x460 painted reactor. Single 60-FPS QTimer drives everything."""
+    """460x460 painted reactor.
+
+    Driven by the shared AnimationBus at 30 FPS (was 60 with a private
+    QTimer). Tick marks are pre-baked per-state into QPixmap caches so
+    the 12 line-draws and per-tick QPen allocations no longer happen
+    every frame. Sphere latitude/longitude offsets are pre-computed.
+    """
 
     SIZE = 460
     state_changed = pyqtSignal(str)
@@ -89,14 +116,33 @@ class ReactorRings(QWidget):
         super().__init__(parent)
         self.setFixedSize(self.SIZE, self.SIZE)
         self._state = "IDLE"
-        self._start = _now_ms()
         # Pre-bake some sphere geometry so we don't recompute per frame.
         self._sphere_lat_count = 6   # 6 latitude rings
         self._sphere_lon_count = 6   # 6 longitude great-circle arcs
         # Pre-pick blink seeds for sphere nodes (so they don't all blink in sync)
         self._sphere_node_seeds = [(i * 51.4, i * 31.7, 1.5 + i * 0.3, i * 0.2)
                                    for i in range(7)]
-        t = QTimer(self); t.timeout.connect(self.update); t.start(16)
+        # Pre-compute sphere latitude geometry (scale, offset_y, ring_w, ring_h)
+        # so paintEvent stops recomputing 6 cos/sin pairs per frame.
+        self._sphere_latitudes = []
+        for i, deg in enumerate((-48, -28, -8, 12, 32, 50)):
+            scale = math.cos(math.radians(deg))
+            offset_y = math.sin(math.radians(deg)) * 65.0   # size/2
+            ring_w = scale * 130.0
+            ring_h = ring_w * 0.32
+            alpha = 0.12 + i * 0.025
+            self._sphere_latitudes.append((offset_y, ring_w / 2, ring_h / 2, alpha))
+        self._sphere_longitudes = (0, 30, 60, 90, 120, 150)
+
+        # Pre-baked tick mark pixmap per state (4 states × 1 transparent bitmap
+        # with all 12 ticks drawn at the correct alpha for the state's color).
+        # Drawing 12 lines every frame is ~12 setPen + 12 save/restore + 12
+        # drawLine calls — eliminating them measurably reduces paint time.
+        self._tick_cache: dict[str, QPixmap] = {}
+
+        # One shared timer for every animated widget — see animation_bus.py
+        self._bus = get_bus()
+        self._bus.tick_fast.connect(self.update)
 
     # ── Public API ───────────────────────────────────────────────
     def set_state(self, key: str) -> None:
@@ -111,7 +157,7 @@ class ReactorRings(QWidget):
     def paintEvent(self, _):
         spec = JSTATES[self._state]
         col = spec.color
-        t   = _now_ms() - self._start
+        t   = self._bus.now_ms
 
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -155,8 +201,12 @@ class ReactorRings(QWidget):
                               dots=[(0, 13, col, True),
                                     (200, 8, rgba(col, 0.7), False)])
 
-        # ── Tick marks ───────────────────────────────────────
-        self._draw_ticks(p, center, col)
+        # ── Tick marks (cached) ─────────────────────────────
+        # The 12 ticks never change per state — pre-baked into a QPixmap
+        # the first time we paint this state, then blitted every frame.
+        if self._state not in self._tick_cache:
+            self._tick_cache[self._state] = self._build_tick_pixmap(col)
+        p.drawPixmap(0, 0, self._tick_cache[self._state])
 
         # ── Core glow + center disk + wireframe sphere ───────
         pulse = 0.5 + 0.5 * math.sin((t / spec.pulse_ms) * 2 * math.pi)
@@ -201,9 +251,19 @@ class ReactorRings(QWidget):
                 p.restore()
         p.restore()
 
-    def _draw_ticks(self, p, center, col):
-        p.save(); p.translate(center)
+    def _build_tick_pixmap(self, col: QColor) -> QPixmap:
+        """Build a SIZE × SIZE transparent pixmap with all 12 tick marks.
+
+        Called once per state (on first paint). The result is cached and
+        blitted in `paintEvent` instead of redrawing 12 lines per frame.
+        """
+        pm = QPixmap(self.SIZE, self.SIZE)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        center = QPointF(self.SIZE / 2, self.SIZE / 2)
         outer = self.SIZE / 2 - 4
+        p.translate(center)
         for ang in range(0, 360, 30):
             length = 14 if ang % 90 == 0 else 9 if ang % 30 == 0 else 5
             alpha = 0.55 if ang % 90 == 0 else 0.20
@@ -211,7 +271,8 @@ class ReactorRings(QWidget):
             p.save(); p.rotate(ang)
             p.drawLine(QPointF(0, -outer), QPointF(0, -outer + length))
             p.restore()
-        p.restore()
+        p.end()
+        return pm
 
     def _draw_core(self, p, center, col, spec, pulse, t):
         # Outer halo
@@ -244,31 +305,28 @@ class ReactorRings(QWidget):
                                 J.PURPLE, n=6, max_h=24, t=t)
 
     def _draw_sphere(self, p, center, col, t_ms):
-        """Wireframe sphere ≈ 130px. Counter-rotates slowly (22s)."""
+        """Wireframe sphere ≈ 130px. Counter-rotates slowly (22s).
+
+        Latitude/longitude geometry was pre-computed in __init__ — this
+        method only does the rotation math and the QPainter calls.
+        """
         size = 130
         # Slow counter-rotation around vertical axis (just pretend with line skew).
-        # We approximate the 3D look with concentric ellipses (latitude bands)
-        # plus rotated thin ellipses (longitude arcs).
         ang_deg = -(t_ms / 22000) * 360 % 360
 
         p.save(); p.translate(center); p.rotate(ang_deg)
 
-        # Latitude rings — flatten by cos(deg) to fake spherical depth.
-        latitudes = [-48, -28, -8, 12, 32, 50]
-        for i, deg in enumerate(latitudes):
-            scale = math.cos(math.radians(deg))
-            offset_y = math.sin(math.radians(deg)) * (size / 2)
-            ring_w = scale * size
-            ring_h = ring_w * 0.32   # flatten
-            p.setPen(QPen(rgba(col, 0.12 + i * 0.025), 1))
-            p.setBrush(Qt.NoBrush)
-            p.drawEllipse(QPointF(0, offset_y), ring_w / 2, ring_h / 2)
+        # Latitude rings — geometry pre-computed in __init__.
+        p.setBrush(Qt.NoBrush)
+        for offset_y, rw, rh, alpha in self._sphere_latitudes:
+            p.setPen(QPen(rgba(col, alpha), 1))
+            p.drawEllipse(QPointF(0.0, offset_y), rw, rh)
 
-        # Longitude arcs — rotated thin ellipses.
-        longitudes = [0, 30, 60, 90, 120, 150]
-        for deg in longitudes:
+        # Longitude arcs — rotated thin ellipses. Same pen for all.
+        lon_pen = QPen(rgba(col, 0.10), 1)
+        p.setPen(lon_pen)
+        for deg in self._sphere_longitudes:
             p.save(); p.rotate(deg)
-            p.setPen(QPen(rgba(col, 0.10), 1))
             # Thin ellipse standing vertical: width tapered by sin(deg) effect.
             p.drawEllipse(QPointF(0, 0), 6, size / 2)
             p.restore()
@@ -377,14 +435,16 @@ class _JTag(QWidget):
     """Small pill: blinking dot + 'STATE — DESCRIPTOR' label.
 
     Mirrors window.JTag from jv3-tokens.jsx with `pulse=True`.
+    Uses AnimationBus.tick_slow (~15 FPS) — perceptually identical to
+    the old 60 ms private timer.
     """
     def __init__(self, text: str, color: QColor, parent=None):
         super().__init__(parent)
         self._text = text
         self._color = color
-        self._start = time.monotonic()
         self.setFixedHeight(18)
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def set_data(self, text: str, color: QColor) -> None:
         self._text = text
@@ -401,7 +461,7 @@ class _JTag(QWidget):
         p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 6, 6)
 
         # blinking dot
-        ph = (time.monotonic() - self._start) * 2 * math.pi / 1.2
+        ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 1.2
         alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
         p.setPen(Qt.NoPen)
         p.setBrush(rgba(self._color, alpha * 0.5))
@@ -495,20 +555,23 @@ class ReactorStateText(QWidget):
 
 
 class _BlinkDot(QWidget):
-    """8x8 dot that pulses in opacity (used inline next to the state label)."""
+    """8x8 dot that pulses in opacity (used inline next to the state label).
+
+    Uses AnimationBus.tick_slow — no private QTimer.
+    """
     def __init__(self, color: QColor, parent=None):
         super().__init__(parent)
         self._color = color
         self.setFixedSize(10, 10)
-        self._start = time.monotonic()
-        t = QTimer(self); t.timeout.connect(self.update); t.start(60)
+        self._bus = get_bus()
+        self._bus.tick_slow.connect(self.update)
 
     def set_color(self, color: QColor) -> None:
         self._color = color
         self.update()
 
     def paintEvent(self, _):
-        ph = (time.monotonic() - self._start) * 2 * math.pi / 1.2
+        ph = self._bus.now_ms / 1000.0 * 2 * math.pi / 1.2
         alpha = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(ph))
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -592,5 +655,3 @@ class _PickButton(QPushButton):
         p.drawText(rect, Qt.AlignCenter, self.text())
 
 
-def _now_ms() -> int:
-    return int(time.monotonic() * 1000)
