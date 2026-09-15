@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>A.E.R.I.S — AI Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
+  #root { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+  @keyframes spin-slow   { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes spin-medium { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+  @keyframes spin-fast   { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes pulse-core  { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.94); } }
+  @keyframes ripple      { 0% { transform: scale(0.8); opacity: 0.8; } 100% { transform: scale(2.2); opacity: 0; } }
+  @keyframes blink-dot   { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+  @keyframes scan-line   { 0% { transform: translateY(-100%); } 100% { transform: translateY(800px); } }
+  @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes cursor-blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes wave-bar    { 0%,100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+  @keyframes glow-pulse  { 0%,100% { box-shadow: 0 0 8px rgba(0,212,255,0.25); } 50% { box-shadow: 0 0 20px rgba(0,212,255,0.55), 0 0 40px rgba(0,212,255,0.2); } }
+  @keyframes sidebar-item-glow { 0%,100% { box-shadow: none; } 100% { box-shadow: 0 0 14px rgba(0,212,255,0.25); } }
+  @keyframes noise-flicker { 0%,100% { opacity: 0.025; } 50% { opacity: 0.04; } }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.2); border-radius: 2px; }
+
+  .spin-ring-1 { animation: spin-slow   var(--dur, 12s) linear infinite; }
+  .spin-ring-2 { animation: spin-medium var(--dur, 8s)  linear infinite; }
+  .spin-ring-3 { animation: spin-fast   var(--dur, 5s)  linear infinite; }
+  .pulse-core  { animation: pulse-core  var(--dur, 3s)  ease-in-out infinite; }
+  .wave-bar    { animation: wave-bar    var(--dur, 0.8s) ease-in-out infinite; }
+
+  .nav-item {
+    position: relative;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav-item:hover { background: rgba(0,212,255,0.06); border-color: rgba(0,212,255,0.15); box-shadow: 0 0 18px rgba(0,212,255,0.12); }
+  .nav-item.active { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.35); box-shadow: 0 0 14px rgba(0,212,255,0.25); }
+  .nav-item .nav-icon { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid rgba(148,163,184,0.75); transition: border-color 0.2s, box-shadow 0.2s; flex-shrink: 0; }
+  .nav-item:hover .nav-icon { border-color: rgba(0,212,255,0.7); box-shadow: 0 0 6px rgba(0,212,255,0.4); }
+  .nav-item.active .nav-icon { border-color: rgba(0,212,255,0.95); box-shadow: 0 0 8px rgba(0,212,255,0.6); }
+  .nav-item .nav-label { font-size: 13px; font-weight: 500; color: rgb(148,163,184); transition: color 0.2s; }
+  .nav-item:hover .nav-label { color: rgb(220,230,240); }
+  .nav-item.active .nav-label { font-weight: 700; color: rgb(234,234,234); }
+
+  .msg-bubble { animation: fadeSlideUp 0.3s ease; }
+
+  .stat-card { transition: border-color 0.2s, box-shadow 0.2s; }
+  .stat-card:hover { border-color: rgba(0,212,255,0.3) !important; box-shadow: 0 0 20px rgba(0,212,255,0.15) !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+const C = {
+  bg:      'rgb(10,15,28)',
+  panel:   'rgb(15,23,42)',
+  card:    'rgb(13,21,37)',
+  border:  'rgb(30,41,59)',
+  cyan:    'rgb(0,212,255)',
+  green:   'rgb(16,185,129)',
+  red:     'rgb(248,113,113)',
+  purple:  'rgb(168,85,247)',
+  textPri: 'rgb(234,234,234)',
+  textSec: 'rgb(148,163,184)',
+  textMut: 'rgb(100,116,139)',
+};
+
+const AI_STATES = {
+  IDLE:       { label: 'IDLE',       color: C.cyan,   speed: { r1: '14s', r2: '10s', r3: '7s' }, pulseSpeed: '4s', glowOpacity: 0.35 },
+  LISTENING:  { label: 'LISTENING',  color: C.green,  speed: { r1: '9s',  r2: '6s',  r3: '4s' }, pulseSpeed: '1.5s', glowOpacity: 0.7 },
+  PROCESSING: { label: 'PROCESSING', color: C.cyan,   speed: { r1: '3s',  r2: '2s',  r3: '1.2s' }, pulseSpeed: '0.8s', glowOpacity: 0.55 },
+  SPEAKING:   { label: 'SPEAKING',   color: C.purple, speed: { r1: '6s',  r2: '4s',  r3: '2.5s' }, pulseSpeed: '2s', glowOpacity: 0.5 },
+};
+
+const INITIAL_MESSAGES = [
+  { id: 1, role: 'aeris', text: 'AERIS systems online. Kya seva kar sakta hoon, sir?', time: '14:30', tag: null },
+  { id: 2, role: 'user',  text: 'Mausam kaisa hai aaj?', time: '14:30', tag: null },
+  { id: 3, role: 'aeris', text: 'Mausam filhaal suhana hai, around 25°C. Humidity 58%.', time: '14:30', tag: { text: 'executed • 240ms', color: C.green } },
+  { id: 4, role: 'user',  text: 'chrome kholo bhai', time: '14:32', tag: null },
+  { id: 5, role: 'aeris', text: 'Chrome khol raha hoon, sir.', time: '14:32', tag: { text: 'open_app • 99.2%', color: C.green } },
+  { id: 6, role: 'user',  text: 'meeting schedule karo', time: '14:33', tag: null },
+  { id: 7, role: 'aeris', text: 'Kiske saath meeting karni hai?', time: '14:33', tag: { text: 'slot-filling', color: C.green } },
+];
+
+const AI_RESPONSES = [
+  { text: 'Understood. Processing your request now...', tag: { text: 'processing • intent_detected', color: C.cyan } },
+  { text: 'Task completed successfully. Kuch aur karna hai?', tag: { text: 'executed • 180ms', color: C.green } },
+  { text: 'Calendar access granted. Slot available at 3 PM tomorrow.', tag: { text: 'schedule_meeting • 97.4%', color: C.green } },
+  { text: 'Searching knowledge base... found 3 relevant results.', tag: { text: 'knowledge_query • 99.1%', color: C.cyan } },
+  { text: 'System diagnostics running. All modules nominal.', tag: { text: 'sys_check • 100ms', color: C.green } },
+];
+
+// ─── CLOCK ──────────────────────────────────────────────────────────────────
+function useClock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return time.toTimeString().slice(0, 8);
+}
+
+// ─── TYPING ANIMATION ────────────────────────────────────────────────────────
+function useTypingText(text, speed = 28, active = true) {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!active) { setDisplayed(text); setDone(true); return; }
+    setDisplayed(''); setDone(false);
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) { clearInterval(interval); setDone(true); }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, active]);
+  return { displayed, done };
+}
+
+// ─── REACTOR ─────────────────────────────────────────────────────────────────
+function ArcReactor({ state }) {
+  const s = AI_STATES[state];
+  const isListening = state === 'LISTENING';
+  const isSpeaking  = state === 'SPEAKING';
+  const isProcessing = state === 'PROCESSING';
+  const size = 440;
+  const cx = size / 2;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size }}>
+
+      {/* Outer ambient glow */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: `radial-gradient(circle at 50% 50%, ${s.color.replace('rgb', 'rgba').replace(')', `,${s.glowOpacity * 0.15})`)} 0%, transparent 70%)`,
+        transition: 'background 0.8s ease',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Ripple rings for LISTENING */}
+      {isListening && [0, 1, 2].map(i => (
+        <div key={i} style={{
+          position: 'absolute',
+          inset: `${60 + i * 18}px`,
+          borderRadius: '50%',
+          border: `1px solid rgba(16,185,129,0.4)`,
+          animation: `ripple 2.4s ease-out ${i * 0.8}s infinite`,
+          pointerEvents: 'none',
+        }} />
+      ))}
+
+      {/* Speaking wave ripples */}
+      {isSpeaking && [0, 1, 2].map(i => (
+        <div key={i} style={{
+          position: 'absolute',
+          inset: `${50 + i * 15}px`,
+          borderRadius: '50%',
+          border: `1px solid rgba(168,85,247,0.5)`,
+          animation: `ripple 1.8s ease-out ${i * 0.6}s infinite`,
+          pointerEvents: 'none',
+        }} />
+      ))}
+
+      {/* RING 1 — outermost dashed */}
+      <div className="spin-ring-1" style={{
+        '--dur': s.speed.r1,
+        position: 'absolute', inset: 20, borderRadius: '50%',
+        border: `1.5px dashed ${s.color.replace('rgb', 'rgba').replace(')', ', 0.25)')}`,
+        transition: 'border-color 0.6s ease',
+      }} />
+
+      {/* RING 1 — solid outer */}
+      <div className="spin-ring-1" style={{
+        '--dur': s.speed.r1,
+        position: 'absolute', inset: 30, borderRadius: '50%',
+        border: `1px solid ${s.color.replace('rgb', 'rgba').replace(')', ', 0.18)')}`,
+        boxShadow: `0 0 12px ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity * 0.3})`)}`,
+        transition: 'border-color 0.6s ease, box-shadow 0.6s ease',
+      }}>
+        {/* orbital dot */}
+        <div style={{
+          position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)',
+          width: 8, height: 8, borderRadius: '50%',
+          background: s.color,
+          boxShadow: `0 0 10px ${s.color}`,
+          transition: 'background 0.6s ease',
+        }} />
+      </div>
+
+      {/* RING 2 — middle */}
+      <div className="spin-ring-2" style={{
+        '--dur': s.speed.r2,
+        position: 'absolute', inset: 80, borderRadius: '50%',
+        border: `1.5px solid ${s.color.replace('rgb', 'rgba').replace(')', ', 0.35)')}`,
+        boxShadow: `0 0 18px ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity * 0.4})`)}`,
+        transition: 'border-color 0.6s ease, box-shadow 0.6s ease',
+      }}>
+        <div style={{
+          position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)',
+          width: 10, height: 10, borderRadius: '50%',
+          background: s.color,
+          boxShadow: `0 0 14px ${s.color}, 0 0 6px ${s.color}`,
+          transition: 'background 0.6s ease',
+        }} />
+        <div style={{
+          position: 'absolute', top: -5, right: '25%',
+          width: 6, height: 6, borderRadius: '50%',
+          background: s.color.replace('rgb', 'rgba').replace(')', ', 0.6)'),
+          transition: 'background 0.6s ease',
+        }} />
+      </div>
+
+      {/* RING 3 — inner fast */}
+      <div className="spin-ring-3" style={{
+        '--dur': s.speed.r3,
+        position: 'absolute', inset: 140, borderRadius: '50%',
+        border: `2px solid ${s.color.replace('rgb', 'rgba').replace(')', ', 0.55)')}`,
+        boxShadow: `0 0 24px ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity * 0.5})`)}`,
+        transition: 'border-color 0.6s ease, box-shadow 0.6s ease',
+      }}>
+        <div style={{
+          position: 'absolute', top: -6, left: '50%', transform: 'translateX(-50%)',
+          width: 12, height: 12, borderRadius: '50%',
+          background: s.color,
+          boxShadow: `0 0 18px ${s.color}, 0 0 8px white`,
+          transition: 'background 0.6s ease',
+        }} />
+      </div>
+
+      {/* Core glow layers */}
+      <div className="pulse-core" style={{
+        '--dur': s.pulseSpeed,
+        position: 'absolute', inset: 170, borderRadius: '50%',
+        background: `radial-gradient(circle, ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity * 0.5})`)} 0%, ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity * 0.15})`)} 50%, transparent 70%)`,
+        transition: 'background 0.6s ease',
+      }} />
+
+      {/* Core center */}
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div className="pulse-core" style={{
+          '--dur': s.pulseSpeed,
+          width: 100, height: 100, borderRadius: '50%',
+          background: `radial-gradient(circle, ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity})`)} 0%, ${s.color.replace('rgb', 'rgba').replace(')', ', 0.12)')} 60%, transparent 100%)`,
+          border: `2px solid ${s.color.replace('rgb', 'rgba').replace(')', ', 0.8)')}`,
+          boxShadow: `0 0 30px ${s.color.replace('rgb', 'rgba').replace(')', `, ${s.glowOpacity}`)}, 0 0 60px ${s.color.replace('rgb', 'rgba').replace(')', ', 0.3)')}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.6s, border-color 0.6s, box-shadow 0.6s',
+          flexDirection: 'column', gap: 4,
+        }}>
+          {/* Speaking waveform bars */}
+          {isSpeaking ? (
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center', height: 32 }}>
+              {[0,1,2,3,4,5].map(i => (
+                <div key={i} className="wave-bar" style={{
+                  '--dur': `${0.5 + i * 0.12}s`,
+                  width: 4, height: 28, borderRadius: 2,
+                  background: C.purple,
+                  boxShadow: `0 0 6px ${C.purple}`,
+                  animationDelay: `${i * 0.1}s`,
+                  transformOrigin: 'center',
+                }} />
+              ))}
+            </div>
+          ) : isProcessing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: '50%',
+                border: `2px solid ${C.cyan}`,
+                borderTopColor: 'transparent',
+                animation: 'spin-fast 0.6s linear infinite',
+              }} />
+            </div>
+          ) : (
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%',
+              background: s.color,
+              boxShadow: `0 0 12px ${s.color}`,
+              transition: 'background 0.6s, box-shadow 0.6s',
+            }} />
+          )}
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 9, fontWeight: 700, letterSpacing: '1px',
+            color: s.color,
+            transition: 'color 0.6s',
+            marginTop: isSpeaking ? 2 : 0,
+          }}>{state}</span>
+        </div>
+      </div>
+
+      {/* Decorative tick marks */}
+      {[0,45,90,135,180,225,270,315].map(angle => (
+        <div key={angle} style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          transform: `rotate(${angle}deg)`,
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            width: 1, height: angle % 90 === 0 ? 12 : 7, marginTop: 6,
+            background: s.color.replace('rgb', 'rgba').replace(')', ', 0.3)'),
+            transition: 'background 0.6s',
+          }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── STATE TEXT ───────────────────────────────────────────────────────────────
+function StateText({ state, lastInput }) {
+  const s = AI_STATES[state];
+  const statusMap = {
+    IDLE:       { main: 'IDLE — AWAITING INPUT', sub: 'Say something or type below to activate AERIS', tag: null },
+    LISTENING:  { main: 'LISTENING', sub: lastInput ? `"${lastInput}"` : '"Awaiting voice input..."', tag: 'Voice stream active' },
+    PROCESSING: { main: 'PROCESSING', sub: lastInput ? `Intent → analyzing • "${lastInput}"` : 'Running inference engine...', tag: 'Semantic parsing active' },
+    SPEAKING:   { main: 'SPEAKING', sub: 'Generating response...', tag: 'TTS stream active' },
+  };
+  const info = statusMap[state];
+  return (
+    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 18, fontWeight: 700, letterSpacing: '4px',
+        color: s.color, transition: 'color 0.6s',
+        animation: state !== 'IDLE' ? 'blink-dot 1.5s ease-in-out infinite' : 'none',
+      }}>{info.main}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.textMut, letterSpacing: '0.5px' }}>{info.sub}</span>
+      {info.tag && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '3px 12px', borderRadius: 8,
+          background: s.color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
+          border: `1px solid ${s.color.replace('rgb', 'rgba').replace(')', ', 0.35)')}`,
+        }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, boxShadow: `0 0 4px ${s.color}` }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: '1px', color: s.color }}>{info.tag}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, color = C.cyan }) {
+  return (
+    <div className="stat-card" style={{
+      flex: 1, borderRadius: 14,
+      background: 'rgba(13,21,37,0.7)',
+      border: `1px solid ${C.border}`,
+      backdropFilter: 'blur(4px)',
+      padding: '16px 20px',
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: '1.8px', color: C.textMut }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 700, color, letterSpacing: '1px' }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── CHAT MESSAGE ─────────────────────────────────────────────────────────────
+function ChatMessage({ msg, isLatest, aiState }) {
+  const isAeris = msg.role === 'aeris';
+  const isTyping = isLatest && isAeris && (aiState === 'PROCESSING' || aiState === 'SPEAKING');
+  const { displayed, done } = useTypingText(msg.text, 22, isLatest && isAeris);
+
+  return (
+    <div className="msg-bubble" style={{
+      display: 'flex', flexDirection: 'column', gap: 4,
+      alignItems: isAeris ? 'flex-start' : 'flex-end',
+    }}>
+      {/* Sender row */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {isAeris && <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 4px ${C.cyan}`, animation: 'blink-dot 2s infinite' }} />}
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: '1px', color: isAeris ? C.cyan : C.textSec }}>
+          {isAeris ? 'A.E.R.I.S' : 'YOU'}
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.textMut }}>{msg.time}</span>
+      </div>
+
+      {/* Bubble */}
+      <div style={{
+        maxWidth: '85%', padding: '10px 14px', borderRadius: 14,
+        background: isAeris ? 'rgba(13,21,37,0.85)' : 'rgba(0,212,255,0.1)',
+        border: `1px solid ${isAeris ? C.border : 'rgba(0,212,255,0.3)'}`,
+        backdropFilter: 'blur(4px)',
+        boxShadow: isAeris ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,212,255,0.08)',
+      }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.textPri, lineHeight: '1.6' }}>
+          {isLatest && isAeris ? displayed : msg.text}
+          {isLatest && isAeris && !done && <span style={{ animation: 'cursor-blink 0.6s infinite', color: C.cyan }}>▌</span>}
+        </span>
+      </div>
+
+      {/* Execution tag */}
+      {msg.tag && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '3px 10px', borderRadius: 8,
+          background: msg.tag.color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
+          border: `1px solid ${msg.tag.color.replace('rgb', 'rgba').replace(')', ', 0.35)')}`,
+          opacity: done ? 1 : 0, transition: 'opacity 0.4s ease',
+        }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: msg.tag.color }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: '0.8px', color: msg.tag.color }}>
+            {msg.tag.text}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── LOG LINE ─────────────────────────────────────────────────────────────────
+function SysLog({ logs }) {
+  return (
+    <div style={{ padding: '8px 16px', borderTop: `1px solid ${C.border}` }}>
+      {logs.slice(-2).map((log, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.textMut }}>{log.time}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: log.color || C.textMut, letterSpacing: '0.3px' }}>{log.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+function Sidebar({ activeTab, setActiveTab, collapsed }) {
+  const navSections = [
+    {
+      title: 'NAVIGATION',
+      items: [
+        { key: 'Chat',       badge: '3', badgeColor: C.cyan },
+        { key: 'History',    badge: null },
+        { key: 'Routines',   badge: null },
+        { key: 'Automations', badge: null },
+      ],
+    },
+    {
+      title: 'INTELLIGENCE',
+      items: [
+        { key: 'Brain',    badge: 'LIVE', badgeColor: C.green },
+        { key: 'Memory',   badge: null },
+        { key: 'Training', badge: null },
+      ],
+    },
+    {
+      title: 'SYSTEM',
+      items: [
+        { key: 'Settings', badge: null },
+      ],
+    },
+  ];
+
+  return (
+    <div style={{
+      width: collapsed ? 60 : 240, height: '100%',
+      background: C.panel, borderRight: `1px solid ${C.border}`,
+      display: 'flex', flexDirection: 'column', padding: collapsed ? '20px 12px' : '20px 16px',
+      transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+      overflow: 'hidden', flexShrink: 0, position: 'relative',
+    }}>
+      {/* Scan line */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, top: 0, height: 1,
+        background: `linear-gradient(90deg, transparent, ${C.cyan}, transparent)`,
+        opacity: 0.15, animation: 'scan-line 8s linear infinite',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Brand */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, overflow: 'hidden' }}>
+        {/* Logo rings */}
+        <div style={{ position: 'relative', width: 32, height: 32, flexShrink: 0 }}>
+          <div className="spin-ring-1" style={{ '--dur': '6s', position: 'absolute', inset: 0, borderRadius: '50%', border: `1.5px solid ${C.cyan.replace('rgb','rgba').replace(')',',0.6)')}`, boxShadow: `0 0 8px ${C.cyan}40` }} />
+          <div className="spin-ring-2" style={{ '--dur': '4s', position: 'absolute', inset: 5, borderRadius: '50%', border: `1px solid ${C.cyan.replace('rgb','rgba').replace(')',',0.4)')}` }} />
+          <div style={{ position: 'absolute', inset: 11, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}` }} />
+        </div>
+        {!collapsed && (
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '1.8px', color: C.textPri }}>A.E.R.I.S</div>
+            <div style={{ fontSize: 10, color: C.textMut, letterSpacing: '0.4px', marginTop: 2 }}>Assistant Core</div>
+          </div>
+        )}
+      </div>
+
+      {/* Nav sections */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
+        {navSections.map(section => (
+          <div key={section.title} style={{ marginBottom: 8 }}>
+            {!collapsed && (
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.8px', color: C.textMut, padding: '10px 12px 4px 12px' }}>{section.title}</div>
+            )}
+            {section.items.map(item => (
+              <div key={item.key} className={`nav-item ${activeTab === item.key ? 'active' : ''}`}
+                onClick={() => setActiveTab(item.key)}>
+                <div className="nav-icon" />
+                {!collapsed && (
+                  <>
+                    <span className="nav-label" style={{ flex: 1 }}>{item.key}</span>
+                    {item.badge && (
+                      <div style={{
+                        padding: '2px 7px', borderRadius: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.4px',
+                        background: item.badgeColor ? item.badgeColor.replace('rgb','rgba').replace(')',',0.2)') : 'rgba(100,116,139,0.2)',
+                        border: `1px solid ${item.badgeColor ? item.badgeColor.replace('rgb','rgba').replace(')',',0.4)') : 'rgba(100,116,139,0.4)'}`,
+                        color: item.badgeColor || C.textSec,
+                      }}>{item.badge}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Brain card */}
+      {!collapsed && (
+        <div style={{
+          borderRadius: 12, background: C.card, border: `1px solid ${C.border}`,
+          padding: '12px 14px', marginBottom: 8,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: C.textSec }}>BRAIN</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 4px ${C.green}` }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: C.green }}>ACTIVE</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: C.textPri, marginBottom: 2 }}>21 intents • 301 patterns</div>
+          <div style={{ fontSize: 10, color: C.cyan }}>99.8% accuracy</div>
+        </div>
+      )}
+
+      {/* User card */}
+      {!collapsed && (
+        <div style={{
+          borderRadius: 12, background: C.card, border: `1px solid ${C.border}`,
+          padding: '10px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: C.purple, boxShadow: `0 0 8px ${C.purple}80`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: 'white', flexShrink: 0,
+          }}>S</div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.textPri }}>Shivang</div>
+            <div style={{ fontSize: 10, color: C.textMut }}>Pro • Admin</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CHAT PANEL ───────────────────────────────────────────────────────────────
+function ChatPanel({ messages, aiState, logs, inputValue, setInputValue, onSend }) {
+  const bottomRef = useRef(null);
+  const latestAerisId = [...messages].reverse().find(m => m.role === 'aeris')?.id;
+
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.parentElement.scrollTop = bottomRef.current.parentElement.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && inputValue.trim()) onSend();
+  };
+
+  return (
+    <div style={{
+      width: 380, height: '100%', display: 'flex', flexDirection: 'column',
+      background: C.panel, borderLeft: `1px solid ${C.border}`, flexShrink: 0,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+      }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: C.textPri }}>CONVERSATION</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textMut, marginTop: 2 }}>
+            Session • {messages.length} messages
+          </div>
+        </div>
+        <div style={{
+          padding: '3px 10px 3px 8px', borderRadius: 10,
+          background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.45)',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, boxShadow: `0 0 4px ${C.red}`, animation: 'blink-dot 1s infinite' }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: '1px', color: C.red }}>LIVE</span>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {messages.map(msg => (
+          <ChatMessage key={msg.id} msg={msg} isLatest={msg.id === latestAerisId} aiState={aiState} />
+        ))}
+        {aiState === 'PROCESSING' && (
+          <div className="msg-bubble" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.cyan, animation: 'blink-dot 0.8s infinite' }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: C.cyan }}>A.E.R.I.S</span>
+            </div>
+            <div style={{
+              padding: '10px 14px', borderRadius: 14,
+              background: 'rgba(13,21,37,0.85)', border: `1px solid ${C.border}`,
+              display: 'flex', gap: 4, alignItems: 'center',
+            }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{
+                  width: 5, height: 5, borderRadius: '50%', background: C.cyan,
+                  animation: `blink-dot 1s ${i * 0.3}s infinite`,
+                }} />
+              ))}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* System logs */}
+      <SysLog logs={logs} />
+
+      {/* Input bar */}
+      <div style={{ padding: '14px 16px 16px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <div style={{
+          borderRadius: 14, background: C.bg,
+          border: '1px solid rgba(0,212,255,0.35)',
+          boxShadow: '0 0 12px rgba(0,212,255,0.15)',
+          padding: '6px 6px 6px 14px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          animation: 'glow-pulse 3s ease-in-out infinite',
+        }}>
+          <input
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Message A.E.R.I.S…"
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.textPri,
+              '::placeholder': { color: C.textMut },
+            }}
+          />
+          {/* Mic */}
+          <div
+            onClick={() => { setInputValue(''); onSend('LISTEN'); }}
+            style={{
+              width: 36, height: 36, borderRadius: 18, cursor: 'pointer',
+              background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.5)',
+              boxShadow: '0 0 12px rgba(0,212,255,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, transition: 'box-shadow 0.2s',
+            }}>
+            <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+              <rect x="4" y="0" width="6" height="12" rx="3" fill={C.cyan} />
+              <path d="M1 9c0 3.3 2.7 6 6 6s6-2.7 6-6" stroke={C.cyan} strokeWidth="1.5" fill="none" />
+              <line x1="7" y1="15" x2="7" y2="18" stroke={C.cyan} strokeWidth="1.5" />
+            </svg>
+          </div>
+          {/* Send */}
+          <div
+            onClick={() => inputValue.trim() && onSend()}
+            style={{
+              width: 36, height: 36, borderRadius: 18, cursor: 'pointer',
+              background: inputValue.trim() ? C.cyan : 'rgba(0,212,255,0.4)',
+              boxShadow: inputValue.trim() ? '0 0 18px rgba(0,212,255,0.8)' : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, transition: 'background 0.2s, box-shadow 0.2s',
+            }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 7h12M7 1l6 6-6 6" stroke={C.bg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+        {/* Hints */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+          {['↵ send', '⌥ mic', 'Hinglish supported'].map(h => (
+            <span key={h} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.textMut, letterSpacing: '0.3px' }}>{h}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TITLE BAR ────────────────────────────────────────────────────────────────
+function TitleBar({ time, aiState, sidebarCollapsed, setSidebarCollapsed }) {
+  const s = AI_STATES[aiState];
+  const isOnline = aiState !== 'IDLE';
+  return (
+    <div style={{
+      height: 40, background: C.panel, borderBottom: `1px solid ${C.border}`,
+      display: 'flex', alignItems: 'center', padding: '0 20px 0 14px',
+      justifyContent: 'space-between', flexShrink: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Collapse toggle */}
+        <div onClick={() => setSidebarCollapsed(v => !v)} style={{
+          width: 28, height: 28, borderRadius: 6, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.2s',
+        }}>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+            {[0,5,10].map(y => <line key={y} x1="0" y1={y+1} x2="16" y2={y+1} stroke={C.textMut} strokeWidth="1.5" strokeLinecap="round" />)}
+          </svg>
+        </div>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.cyan, boxShadow: `0 0 8px ${C.cyan}` }} />
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '2px', color: C.textPri }}>A.E.R.I.S</span>
+        <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.5px', color: C.textMut }}>v3.1 • Semantic Core</span>
+      </div>
+
+      {/* Status pill */}
+      <div style={{
+        padding: '5px 14px 5px 12px', borderRadius: 12,
+        background: s.color.replace('rgb','rgba').replace(')',',0.12)'),
+        border: `1px solid ${s.color.replace('rgb','rgba').replace(')',',0.45)')}`,
+        display: 'flex', alignItems: 'center', gap: 8,
+        transition: 'background 0.6s, border-color 0.6s',
+      }}>
+        <div style={{
+          width: 6, height: 6, borderRadius: '50%', background: s.color,
+          boxShadow: `0 0 4px ${s.color}`, animation: 'blink-dot 1.5s infinite',
+          transition: 'background 0.6s',
+        }} />
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: s.color, transition: 'color 0.6s' }}>
+          {isOnline ? `ONLINE • ${s.label}` : 'STANDBY • IDLE'}
+        </span>
+      </div>
+
+      {/* Right info */}
+      <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700, letterSpacing: '1px', color: C.textSec }}>{time}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textMut }}>CPU 12%   RAM 4.2G   BAT 87%</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['#F87171','#FBBF24','#34D399'].map(c => (
+            <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [aiState, setAiState]       = useState('IDLE');
+  const [messages, setMessages]     = useState(INITIAL_MESSAGES);
+  const [inputValue, setInputValue] = useState('');
+  const [activeTab, setActiveTab]   = useState('Chat');
+  const [collapsed, setCollapsed]   = useState(false);
+  const [lastInput, setLastInput]   = useState('');
+  const [logs, setLogs]             = useState([
+    { time: '14:30:02', text: '[SYS] AERIS core initialized. Semantic engine v3.1 online.', color: C.green },
+    { time: '14:30:11', text: '[NLU] Intent classifier loaded. 301 patterns active.', color: C.cyan },
+    { time: '14:32:08', text: '[ACT] open_app executed → chrome.exe | latency 98ms', color: C.green },
+  ]);
+  const time = useClock();
+  const stateTimerRef = useRef(null);
+  const msgIdRef = useRef(100);
+
+  const addLog = useCallback((text, color) => {
+    const now = new Date().toTimeString().slice(0, 8);
+    setLogs(prev => [...prev.slice(-10), { time: now, text, color }]);
+  }, []);
+
+  const onSend = useCallback((mode) => {
+    if (mode === 'LISTEN') {
+      setAiState('LISTENING');
+      addLog('[MIC] Voice input stream activated.', C.green);
+      const sample = ['Chrome kholo bhai', 'Weather batao', 'Meeting schedule karo', 'Volume badhao'][Math.floor(Math.random()*4)];
+      setTimeout(() => {
+        setLastInput(sample);
+        setAiState('PROCESSING');
+        addLog(`[NLU] Processing: "${sample}"`, C.cyan);
+        msgIdRef.current++;
+        setMessages(prev => [...prev, { id: msgIdRef.current, role: 'user', text: sample, time: new Date().toTimeString().slice(0,5), tag: null }]);
+        setTimeout(() => {
+          setAiState('SPEAKING');
+          const res = AI_RESPONSES[Math.floor(Math.random() * AI_RESPONSES.length)];
+          msgIdRef.current++;
+          setMessages(prev => [...prev, { id: msgIdRef.current, role: 'aeris', text: res.text, time: new Date().toTimeString().slice(0,5), tag: res.tag }]);
+          addLog(`[TTS] Response generated. Intent detected.`, C.green);
+          setTimeout(() => setAiState('IDLE'), 3500);
+        }, 1800);
+      }, 2000);
+      return;
+    }
+
+    const text = inputValue.trim();
+    if (!text) return;
+    setInputValue('');
+    setLastInput(text);
+
+    msgIdRef.current++;
+    setMessages(prev => [...prev, { id: msgIdRef.current, role: 'user', text, time: new Date().toTimeString().slice(0,5), tag: null }]);
+    setAiState('PROCESSING');
+    addLog(`[NLU] Input received: "${text.slice(0, 40)}${text.length > 40 ? '...' : ''}"`, C.cyan);
+
+    setTimeout(() => {
+      setAiState('SPEAKING');
+      const res = AI_RESPONSES[Math.floor(Math.random() * AI_RESPONSES.length)];
+      msgIdRef.current++;
+      setMessages(prev => [...prev, { id: msgIdRef.current, role: 'aeris', text: res.text, time: new Date().toTimeString().slice(0,5), tag: res.tag }]);
+      addLog(`[ACT] Response dispatched. State: SPEAKING`, C.green);
+      setTimeout(() => setAiState('IDLE'), 4000);
+    }, 1800);
+  }, [inputValue, addLog]);
+
+  // State cycle demo button
+  const cycleState = useCallback(() => {
+    const states = ['IDLE', 'LISTENING', 'PROCESSING', 'SPEAKING'];
+    setAiState(s => {
+      const i = states.indexOf(s);
+      return states[(i + 1) % states.length];
+    });
+  }, []);
+
+  return (
+    <div style={{ width: 1440, height: 900, background: C.bg, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+
+      {/* Noise overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 100,
+        backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.4\'/%3E%3C/svg%3E")',
+        opacity: 0.03, animation: 'noise-flicker 4s ease-in-out infinite',
+      }} />
+
+      {/* Title bar */}
+      <TitleBar time={time} aiState={aiState} sidebarCollapsed={collapsed} setSidebarCollapsed={setCollapsed} />
+
+      {/* Body */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} collapsed={collapsed} />
+
+        {/* Center */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', position: 'relative', overflow: 'hidden' }}>
+          {/* Ambient grid */}
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage: `linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }} />
+
+          {/* Reactor */}
+          <ArcReactor state={aiState} />
+
+          {/* State text */}
+          <div style={{ marginTop: 32 }}>
+            <StateText state={aiState} lastInput={lastInput} />
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 32, width: '80%', maxWidth: 720 }}>
+            <StatCard label="INTENTS" value="21" color={C.cyan} />
+            <StatCard label="PATTERNS" value="301" color={C.cyan} />
+            <StatCard label="ACCURACY" value="99.8%" color={C.green} />
+            <StatCard label="UPTIME" value="2h 14m" color={C.textSec} />
+          </div>
+
+          {/* State cycle button */}
+          <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+            {['IDLE','LISTENING','PROCESSING','SPEAKING'].map(s => (
+              <button key={s} onClick={() => setAiState(s)} style={{
+                padding: '5px 12px', borderRadius: 8, cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: '1px',
+                background: aiState === s ? AI_STATES[s].color.replace('rgb','rgba').replace(')',',0.15)') : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${aiState === s ? AI_STATES[s].color.replace('rgb','rgba').replace(')',',0.5)') : 'rgba(255,255,255,0.1)'}`,
+                color: aiState === s ? AI_STATES[s].color : C.textMut,
+                transition: 'all 0.2s',
+              }}>{s}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat panel */}
+        <ChatPanel
+          messages={messages}
+          aiState={aiState}
+          logs={logs}
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          onSend={onSend}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── SCALING WRAPPER ─────────────────────────────────────────────────────────
+function ScaledApp() {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const calc = () => {
+      const sx = window.innerWidth / 1440;
+      const sy = window.innerHeight / 900;
+      setScale(Math.min(sx, sy));
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+  return (
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', overflow: 'hidden' }}>
+      <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}>
+        <App />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ScaledApp />);
+</script>
+</body>
+</html>

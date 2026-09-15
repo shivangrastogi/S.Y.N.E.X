@@ -90,7 +90,7 @@ def _safe_eval(node: ast.AST) -> Any:
     patterns=[
         "math", "calculate", "compute", "evaluate",
         "math karo", "calculate karo", "compute karo",
-        "what is", "kitna hai", "what's",
+        "kitna hai",
     ],
     required_entities=["content"],
     prompts={"content": "Kya calculate karna hai?"},
@@ -104,8 +104,11 @@ def quick_math(slots: dict) -> str:
     try:
         tree = ast.parse(expr, mode="eval")
         val = _safe_eval(tree)
-    except Exception as e:
-        return f"Could not evaluate '{expr}': {e}"
+    except Exception:
+        # Don't leak a raw Python SyntaxError to the user (fires when a
+        # non-math phrase like "disk space kitna bacha hai" mis-routes here).
+        return (f"'{expr}' ko calculate nahi kar paya — ek saaf math expression "
+                "do, jaise '12 + 37', '15% of 200' ya 'sqrt(144)'.")
     if isinstance(val, float):
         # Trim trailing zeros for cleaner display.
         rendered = f"{val:.10g}"
@@ -154,6 +157,26 @@ def password_generate(slots: dict) -> str:
 
 # ── QR code ────────────────────────────────────────────────────────── #
 
+# Trigger words peeled off the FRONT of the raw phrase to recover the payload
+# ("qr code banao hello world" → "hello world"). Leading-only + verbatim tail so
+# a URL's case/path is preserved (unlike a token filter that would lowercase it).
+_QR_STOP = {"qr", "code", "qrcode", "banao", "bana", "make", "generate",
+            "create", "karo", "kar", "do", "for", "ka", "ke", "ki", "ek",
+            "please", "zara", "abhi", "the", "a", "of"}
+
+
+def _qr_payload(slots: dict) -> str:
+    c = (slots.get("content") or "").strip()
+    if c:
+        return c
+    raw = (slots.get("raw_text") or slots.get("text") or "").strip()
+    toks = raw.split()
+    i = 0
+    while i < len(toks) and re.sub(r"[^a-z0-9]", "", toks[i].lower()) in _QR_STOP:
+        i += 1
+    return " ".join(toks[i:]).strip()
+
+
 @skill(
     name="qr_code",
     description="Generate a QR code for a URL or text (saves PNG + opens it)",
@@ -161,11 +184,14 @@ def password_generate(slots: dict) -> str:
         "qr code", "qr", "qr code banao", "make qr",
         "qr for", "generate qr", "qr code generate karo",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kya text/URL chahiye QR me?"},
+    # No hard gate: the payload lives after the trigger word in the raw phrase,
+    # not in a `content` slot the extractor fills — gating on it would ask "kya
+    # text?" even when the user already gave it. _qr_payload recovers it.
+    required_entities=[],
+    prompts={},
 )
 def qr_code(slots: dict) -> str:
-    text = (slots.get("content") or "").strip()
+    text = _qr_payload(slots)
     if not text:
         return "QR me kya encode karna hai?"
     out_path = os.path.join(_ROOT, "data", f"qr_{int(time.time())}.png")

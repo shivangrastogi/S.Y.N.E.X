@@ -14,5 +14,18 @@
   "focus_mode_open": [
     "code"
   ],
-  "focus_mode_pomodoro_min": 25
+  "focus_mode_pomodoro_min": 25,
+  "llm_enabled": true,
+  "llm_backend": "embedded",
+  "voice_volume": 1.0,
+  "master_users": [],
+  "gesture_binding.peace": "",
+  "gesture_binding.double_pinch": "",
+  "presence": {
+    "enabled": true,
+    "heartbeat_s": 8,
+    "quiet_start_h": 23,
+    "quiet_end_h": 7,
+    "speak_moments": true
+  }
 }

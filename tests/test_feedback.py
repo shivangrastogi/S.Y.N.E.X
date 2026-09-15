@@ -87,19 +87,23 @@ def test_pending_pattern_queue(tmp_feedback_db):
 def test_approve_pattern_appends_to_intents_json(tmp_feedback_db, tmp_intents_copy):
     fb = FeedbackStore(tmp_feedback_db)
     try:
-        uid = fb.log_utterance("camera kholo", "camera kholo", None,
+        # Use a phrase that is NOT already in the open_app pattern list —
+        # otherwise dedup makes the +1 assertion brittle.
+        novel_phrase = "open the foobar widget xyz"
+        uid = fb.log_utterance(novel_phrase, novel_phrase, None,
                                0.3, [], "neutral", 0.0, "rejected")
-        pid = fb.queue_low_confidence(uid, "camera kholo", [])
+        pid = fb.queue_low_confidence(uid, novel_phrase, [])
 
         before = json.load(open(tmp_intents_copy, encoding="utf-8"))
         n_before = len(before["open_app"]["patterns"])
+        assert novel_phrase not in before["open_app"]["patterns"]
 
         ok = fb.approve_pattern(pid, "open_app", tmp_intents_copy)
         assert ok is True
 
         after = json.load(open(tmp_intents_copy, encoding="utf-8"))
         assert len(after["open_app"]["patterns"]) == n_before + 1
-        assert "camera kholo" in after["open_app"]["patterns"]
+        assert novel_phrase in after["open_app"]["patterns"]
         assert fb.pending_patterns() == []
     finally:
         fb.close()

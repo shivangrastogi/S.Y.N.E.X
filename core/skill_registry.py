@@ -28,6 +28,9 @@ class Skill:
     required_entities: list[str]
     prompts: dict[str, str]
     handler: Callable[[dict], str]
+    # Per-skill breaker timeout override (seconds). LLM-backed skills need
+    # far more than the 5s default (Qwen on CPU). None → default.
+    timeout_s: Optional[float] = None
 
     def run(self, slots: dict) -> str:
         return self.handler(slots)
@@ -42,6 +45,7 @@ def skill(
     patterns: Optional[list[str]] = None,
     required_entities: Optional[list[str]] = None,
     prompts: Optional[dict[str, str]] = None,
+    timeout_s: Optional[float] = None,
 ):
     """Decorator that registers a skill with the global REGISTRY."""
     def decorator(func: Callable[[dict], str]) -> Callable[[dict], str]:
@@ -54,9 +58,41 @@ def skill(
             required_entities=list(required_entities or []),
             prompts=dict(prompts or {}),
             handler=func,
+            timeout_s=timeout_s,
         )
         return func
     return decorator
+
+
+# Skills whose handler calls the embedded local LLM (Qwen on CPU) — they need
+# a far larger breaker budget than the 5s default or they always time out.
+_LLM_SKILLS = {
+    "fix_grammar", "brainstorm_ideas", "explain_simply", "make_title",
+    "shorten_text", "define_word", "pros_cons", "how_to_steps", "write_poem",
+    "motivate_me", "tell_joke", "tell_story", "tell_riddle",
+    "synonyms_antonyms", "rephrase_text", "fun_fact", "give_compliment",
+    "rhyming_words", "recipe_suggest",
+}
+_LLM_TIMEOUT_S = 30.0
+
+
+def apply_declared_timeouts() -> int:
+    """Push each skill's timeout (declared via @skill(timeout_s=…) or the
+    known LLM set) into the circuit breaker. Call after discover_skills().
+    Returns how many timeouts were configured."""
+    try:
+        from core.skill_breaker import configure
+    except Exception:
+        return 0
+    n = 0
+    for name, sk in REGISTRY.items():
+        t = sk.timeout_s
+        if t is None and name in _LLM_SKILLS:
+            t = _LLM_TIMEOUT_S
+        if t is not None:
+            configure(name, timeout_s=t)
+            n += 1
+    return n
 
 
 def discover_skills(skills_pkg: str = "skills") -> int:

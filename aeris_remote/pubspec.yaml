@@ -1,0 +1,73 @@
+name: aeris_remote
+description: AERIS Remote — control your laptop assistant from anywhere.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Firebase — the encrypted relay (no server of our own).
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.4
+  firebase_auth: ^5.3.1
+  # Phase 2: push (ring/alerts when the app is closed) + phone status.
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^18.0.1
+  battery_plus: ^6.0.3
+  audioplayers: ^6.1.0
+  vibration: ^2.0.0
+
+  # Pairing: scan the laptop's QR to receive the shared key.
+  mobile_scanner: ^5.2.3
+
+  # Crypto: AES-256-GCM, same scheme as core/cloud_bridge.py.
+  cryptography: ^2.7.0
+
+  # Persist the pairing (pid + key) securely on the phone.
+  flutter_secure_storage: ^9.2.2
+
+  # Phone-side Hinglish voice — the user's preferred stack, native STT.
+  speech_to_text: ^7.0.0
+  # Phase A1 (mobile assistant): always-on "Aeris" hotword via sherpa-onnx
+  # keyword spotting — fully free/open-source (Picovoice free tier died
+  # 2026-06-30). Wake-detection ONLY — STT/TTS stay the user's stack.
+  sherpa_onnx: ^1.10.30
+  # Mic PCM stream feeding the keyword spotter.
+  record: ^6.0.0
+  # Keeps the wake-word engine alive when the app is closed (FG service).
+  flutter_foreground_task: ^8.17.0
+  # Speak the laptop's reply back when the command came in by voice.
+  flutter_tts: ^4.2.0
+  # Phase 5: WebRTC — remote-desktop-grade screen mirroring (UDP, adaptive).
+  flutter_webrtc: ^0.12.5
+  # Phase 6: file transfer (pick + save).
+  file_picker: ^8.1.4
+  path_provider: ^2.1.5
+  permission_handler: ^11.3.1
+  # Phase A2 (on-device skills / Tier-1): run phone tasks with NO laptop.
+  url_launcher: ^6.3.1          # tel: / sms: / wa.me / https / app schemes
+  android_intent_plus: ^5.2.0   # alarms, timers, settings panels, app launch
+  flutter_contacts: ^1.1.9      # "Mummy ko call karo" → resolve name→number
+  torch_light: ^1.1.0           # flashlight
+  volume_controller: ^3.3.3     # media volume up/down/mute
+  # Phase A3 (Tier-3 cloud brain): Gemini REST for web answers when the
+  # laptop is off. Free tier answers text; grounding (live web) is paid —
+  # CloudBrain falls back to no-grounding automatically.
+  http: ^1.2.2
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    # sherpa-onnx keyword-spotting model (zipformer 3.3M, gigaspeech) +
+    # keywords.txt with the "Aeris" / "Hey Aeris" / "Jarvis" BPE tokens.
+    - assets/kws/

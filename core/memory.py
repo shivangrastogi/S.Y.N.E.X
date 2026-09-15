@@ -129,6 +129,9 @@ _DETECTORS: list[tuple[str, re.Pattern[str], str, str]] = [
         re.compile(
             r"mera (?:favou?rite|fav)\s+"
             r"(\w+)\s+"
+            # NOT an interrogative — "mera favourite colour kya hai" is a RECALL
+            # question, not a store; without this it saved value="kya".
+            r"(?!kya\b|kaun|kaunsa\b|konsa\b|what\b|which\b)"
             r"([a-zA-Z][\w\s.&'-]{1,40}?)"
             r"\s+hai\b",
             re.IGNORECASE,
@@ -240,6 +243,21 @@ class UserMemory:
         }
         self._save()
 
+    def forget(self, key: str) -> Optional[dict]:
+        """Remove a fact, returning the removed entry (so it can be restored).
+
+        Returns None if there was nothing stored under ``key``.
+        """
+        entry = self._data["facts"].pop(key, None)
+        if entry is not None:
+            self._save()
+        return entry
+
+    def restore_fact(self, key: str, entry: dict) -> None:
+        """Put a previously-removed fact back (the undo for ``forget``)."""
+        self._data["facts"][key] = entry
+        self._save()
+
     def add_note(self, text: str) -> None:
         self._data["notes"].append({
             "text": text,
@@ -324,6 +342,51 @@ class UserMemory:
         if v:
             return f"Aapka {key} {v} hai."
         return f"Mujhe aapka {key} pata nahi hai abhi."
+
+    def detect_and_forget(self, text: str) -> Optional[str]:
+        """Scan for "forget my X" commands. On match, remove the fact and
+        register an undo so a mistaken "forget" is one "undo" away.
+
+        Examples handled:
+            "forget my name"            → removes ``name``
+            "bhool jao mera naam"       → removes ``name`` (alias → name)
+            "delete what you know about my location"
+        """
+        if not text or not text.strip():
+            return None
+
+        m = re.search(
+            r"\b(?:forget|delete|remove)\s+(?:what\s+you\s+know\s+about\s+)?"
+            r"my\s+(\w+)\b",
+            text, re.IGNORECASE,
+        )
+        if not m:
+            # Hinglish: "mera/meri X bhool jao" / "X bhula do"
+            m = re.search(r"\bmer[ai]\s+(\w+)\s+(?:bhool|bhula)\b", text, re.IGNORECASE)
+        if not m:
+            return None
+
+        spoken = m.group(1).lower()
+        canonical = self._KEY_ALIASES.get(spoken, spoken)
+
+        # Try the canonical key, then a favorite_ variant.
+        for key in (canonical, f"favorite_{canonical}"):
+            removed = self.forget(key)
+            if removed is not None:
+                # Make it reversible via the undo stack (I4 seam).
+                try:
+                    from core.action_history import record
+
+                    def _undo(key=key, entry=removed):
+                        self.restore_fact(key, entry)
+                        return f"Aapka {spoken} wapas yaad kar liya: {entry.get('value')}"
+
+                    record(f"forgot {spoken}", _undo, skill="memory_forget")
+                except Exception:
+                    pass
+                return f"Theek hai, aapka {spoken} bhool gaya. ('undo' bolo agar galti se hua)"
+
+        return f"Aapka {spoken} to mujhe yaad hi nahi tha, sir."
 
     # ------------------------------------------------------------------ #
     #  Natural-language detection                                         #

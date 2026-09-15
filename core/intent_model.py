@@ -28,9 +28,12 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 
+# NOTE — torch is imported LAZILY (inside `load()` / `predict()` / the
+# `_device` property). It used to be a module-level import, which meant
+# merely CONSTRUCTING a JarvisBrain (even `lazy=True`) pulled in the whole
+# torch runtime: ~15 s and several hundred MB before a single word was
+# routed. Keep torch out of this module's import time.
 from core.intent_classifier import Prediction
 from core.normalizer import HinglishNormalizer
 
@@ -67,7 +70,9 @@ class NeuralIntentClassifier:
         self.model = None
         self.tokenizer = None
         self.id2label: dict[int, str] = {}
-        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Resolved on first real use — see the `_device` property. Touching
+        # torch here would defeat the lazy-import note at the top.
+        self._device_cached = None
         self._max_len = 48
 
         # Read just metadata up front so is_trained() works pre-load.
@@ -87,6 +92,15 @@ class NeuralIntentClassifier:
                     self._max_len = int(json.load(f).get("max_len", self._max_len))
             except Exception:
                 pass
+
+    @property
+    def _device(self):
+        """torch device, resolved (and torch imported) on first use only."""
+        if self._device_cached is None:
+            import torch
+            self._device_cached = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu")
+        return self._device_cached
 
     # ------------------------------------------------------------------ #
     #  Availability checks                                                #
@@ -132,6 +146,10 @@ class NeuralIntentClassifier:
                 AutoModelForSequenceClassification,
                 AutoTokenizer,
             )
+            # Same reason as the encoder: torch may be loading for the first
+            # time right here, so pin it before any tensor work.
+            from core.torch_setup import pin_torch_threads
+            pin_torch_threads()
             log.info("[NeuralIntent] loading model from %s", self._model_subdir)
             self.tokenizer = AutoTokenizer.from_pretrained(self._tok_subdir)
             self.model = AutoModelForSequenceClassification.from_pretrained(
@@ -173,6 +191,8 @@ class NeuralIntentClassifier:
             max_length=self._max_len,
             return_tensors="pt",
         )
+        import torch
+        import torch.nn.functional as F
         ids = enc["input_ids"].to(self._device)
         mask = enc["attention_mask"].to(self._device)
         with torch.no_grad():

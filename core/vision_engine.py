@@ -116,6 +116,17 @@ class VisionEngine:
                 )
                 log.warning("[vision] %s", self._last_error)
                 return False
+            # Low-latency webcam defaults. A tiny capture buffer prevents
+            # OpenCV from serving old frames when gesture processing briefly
+            # stalls, which is what users perceive as a jittery/laggy feed.
+            try:
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                cap.set(cv2.CAP_PROP_FPS, self._fps_cap)
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            except Exception:
+                pass
             self._cap = cap
             self._stop_evt.clear()
             self._thread = threading.Thread(target=self._run, name="VisionEngine",

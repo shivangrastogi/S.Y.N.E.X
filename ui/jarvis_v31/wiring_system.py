@@ -649,11 +649,20 @@ class _SystemMonitorWorker(QObject):
             })
 
 
+# Simplified GUI: the 4 corner stat cards (CPU/RAM/BATTERY/NETWORK), their
+# PCB wire traces, and the background psutil sampler are OFF by default —
+# cleaner look + no live system polling / extra background thread. Flip to
+# True (or set AERIS_SHOW_NODES=1) to bring the telemetry HUD back.
+import os as _os
+SHOW_NODES = _os.environ.get("AERIS_SHOW_NODES", "").strip() in ("1", "true", "yes")
+
+
 class WiringSystem(QWidget):
-    """Composite: wire layer underneath + 4 absolutely-positioned NodeBoxes.
+    """Composite: (optional) wire layer + 4 NodeBoxes + psutil sampler.
 
     Lays out at fixed 1080x820 (the design grid). Caller positions this
     widget so REACTOR_CX/REACTOR_CY align with the reactor's painted center.
+    With SHOW_NODES off it's an empty, sized spacer — the reactor still shows.
     """
 
     GRID_W = 1080
@@ -666,13 +675,20 @@ class WiringSystem(QWidget):
         self.setFixedSize(self.GRID_W, self.GRID_H)
         self.setAttribute(Qt.WA_StyledBackground, False)
 
+        self._wire_layer = None
+        self._nodes: dict[str, _NodeBox] = {}
+        self._mon_thread = None
+        self._mon_worker = None
+
+        if not SHOW_NODES:
+            return   # simplified: no cards, no wires, no live psutil polling
+
         # Wire layer fills the whole grid
         self._wire_layer = _WireLayer(self)
         self._wire_layer.setGeometry(0, 0, self.GRID_W, self.GRID_H)
         self._wire_layer.lower()
 
         # Place 4 node cards at exact design coordinates
-        self._nodes: dict[str, _NodeBox] = {}
         for nd in _NODES:
             box = _NodeBox(nd, self)
             box.move(nd.left, nd.top)
@@ -690,7 +706,8 @@ class WiringSystem(QWidget):
 
     # ── API ─────────────────────────────────────────────────────────
     def set_state(self, key: str) -> None:
-        self._wire_layer.set_state(key)
+        if self._wire_layer is not None:
+            self._wire_layer.set_state(key)
 
     def set_value(self, node_id: str, value: str) -> None:
         if node_id in self._nodes:

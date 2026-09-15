@@ -82,6 +82,26 @@ def routine_run(slots: dict) -> str:
     return f"Routine '{r.id}' run nahi ho saki."
 
 
+# Command words peeled from the raw phrase to recover the routine NAME when the
+# extractor didn't fill `content` ("enable morning routine" → "morning"). A wrong
+# guess is safe — the handler's _find() returns "nahi mili" and mutates nothing.
+_ROUTINE_STOP = {
+    "enable", "disable", "routine", "routines", "automation", "on", "off",
+    "karo", "kar", "do", "kardo", "start", "stop", "mode", "the", "a",
+    "please", "zara", "abhi",
+}
+
+
+def _routine_name(slots: dict) -> str:
+    q = (slots.get("content") or "").strip()
+    if q:
+        return q
+    raw = (slots.get("raw_text") or slots.get("text") or "").strip()
+    kept = [w for w in raw.split()
+            if w.lower().strip(":,-") not in _ROUTINE_STOP]
+    return " ".join(kept).strip()
+
+
 @skill(
     name="routine_enable",
     description="Enable a routine so its trigger fires it",
@@ -89,11 +109,11 @@ def routine_run(slots: dict) -> str:
         "enable morning routine", "enable coding mode", "enable battery saver",
         "routine on karo", "enable automation",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsi routine enable karni hai?"},
+    required_entities=[],
+    prompts={},
 )
 def routine_enable(slots: dict) -> str:
-    q = (slots.get("content") or "").strip()
+    q = _routine_name(slots)
     if not q:
         return "Routine ka naam batao."
     r = _find(q)
@@ -111,11 +131,11 @@ def routine_enable(slots: dict) -> str:
         "disable morning routine", "disable coding mode", "disable battery saver",
         "routine off karo", "disable automation", "stop routine",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsi routine disable karni hai?"},
+    required_entities=[],
+    prompts={},
 )
 def routine_disable(slots: dict) -> str:
-    q = (slots.get("content") or "").strip()
+    q = _routine_name(slots)
     if not q:
         return "Routine ka naam batao."
     r = _find(q)

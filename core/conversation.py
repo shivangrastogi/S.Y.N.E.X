@@ -18,6 +18,21 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+# Process-wide handle on whatever ConversationHistory is currently in use.
+# The main engine sets it during boot; skills like ``repeat_last`` consult it
+# at handler time. Optional — skills should degrade gracefully if it's None
+# (e.g. when running under pytest with no engine attached).
+_ACTIVE: Optional["ConversationHistory"] = None
+
+
+def set_active(history: "ConversationHistory") -> None:
+    global _ACTIVE
+    _ACTIVE = history
+
+
+def get_active() -> Optional["ConversationHistory"]:
+    return _ACTIVE
+
 
 @dataclass
 class Turn:
@@ -56,6 +71,22 @@ class ConversationHistory:
         for t in reversed(self._buf):
             if t.role == "user":
                 return t.sentiment
+        return None
+
+    def last_user_text(self, *, skip: int = 0) -> Optional[str]:
+        """Return the most recent user utterance text. ``skip=N`` returns
+        the N-th most recent (skip=1 → second-most-recent, etc.) — used by
+        the ``repeat_last`` skill so saying 'repeat' doesn't re-fire
+        'repeat' on itself.
+        """
+        seen = 0
+        for t in reversed(self._buf):
+            if t.role != "user":
+                continue
+            if seen < skip:
+                seen += 1
+                continue
+            return t.content
         return None
 
     def __len__(self) -> int:

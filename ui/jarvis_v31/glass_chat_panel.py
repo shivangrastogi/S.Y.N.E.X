@@ -172,6 +172,41 @@ class GlassChatPanel(QWidget):
         self._cancel_stream()
         self._typing_dots.setVisible(False)
 
+    def clear_history(self) -> None:
+        """Wipe every message bubble from the panel. Used by the
+        ``clear_chat`` skill — drops both the rendered widgets and the
+        in-memory transcript so the header counter resets to 0.
+        """
+        self.cancel_stream()
+        # The layout is: [bubble, bubble, ..., typing-dots, stretch]
+        # Walk from the front, removing everything UNTIL we hit the
+        # typing-dots placeholder (it must survive).
+        while self._msg_lay.count() > 2:
+            item = self._msg_lay.takeAt(0)
+            w = item.widget() if item is not None else None
+            if w is None:
+                continue
+            if w is self._typing_dots:
+                # Should not happen because of the count() > 2 guard,
+                # but defensively re-insert if it does.
+                self._msg_lay.insertWidget(0, w)
+                break
+            w.setParent(None)
+            w.deleteLater()
+        self._messages.clear()
+        self._header.set_count(0)
+
+    def prefill(self, text: str) -> None:
+        """Put a phrase in the input WITHOUT sending (Abilities panel uses
+        this — the user always fires the command themselves)."""
+        try:
+            f = self._input_bar._field
+            f.setText(text)
+            f.setFocus()
+            f.setCursorPosition(len(text))
+        except Exception:
+            pass
+
     def set_state(self, key: str) -> None:
         if key not in JSTATES:
             return
@@ -298,7 +333,7 @@ class _Header(QFrame):
         left = QVBoxLayout(); left.setSpacing(2)
         self._title = QLabel("CONVERSATION")
         self._title.setFont(inter(11, 700))
-        self._title.setStyleSheet(f"color: {J.TEXT_PRI.name()}; letter-spacing: 2px;")
+        self._title.setStyleSheet(f"color: {J.TEXT_PRI.name()}; ")
         self._sub = QLabel("Session · 0 messages")
         self._sub.setFont(mono(10, 400))
         self._sub.setStyleSheet(f"color: {J.TEXT_MUT.name()};")
@@ -405,7 +440,7 @@ class _AutomationPanel(QWidget):
         # Section heading
         title = QLabel("AUTOMATION · QUICK COMMANDS")
         title.setFont(mono(9, 700))
-        title.setStyleSheet(f"color: {J.TEXT_MUT.name()}; letter-spacing: 1.5px;")
+        title.setStyleSheet(f"color: {J.TEXT_MUT.name()}; ")
         root.addWidget(title)
 
         # Chip grid (2 columns, wraps automatically)
@@ -509,7 +544,7 @@ class _MessageBubble(QWidget):
         name.setFont(mono(9, 700))
         name.setStyleSheet(
             f"color: {J.CYAN.name() if is_ai else J.TEXT_SEC.name()};"
-            f"letter-spacing: 1px;"
+            f""
         )
         s_lay.addWidget(name)
         t_lbl = QLabel(time_label); t_lbl.setFont(mono(8, 400))
@@ -704,7 +739,7 @@ class _TypingDots(QWidget):
         row.addWidget(_SmallDot(J.CYAN, blink=True))
         name = QLabel("A.E.R.I.S")
         name.setFont(mono(9, 700))
-        name.setStyleSheet(f"color: {J.CYAN.name()}; letter-spacing: 1px;")
+        name.setStyleSheet(f"color: {J.CYAN.name()}; ")
         row.addWidget(name); row.addStretch(1)
         v.addLayout(row)
         # bubble
@@ -1197,7 +1232,7 @@ class _BootCard(QWidget):
 
         title_row = QHBoxLayout(); title_row.setSpacing(8)
         title = QLabel("SYSTEM BOOT"); title.setFont(mono(10, 700))
-        title.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:2px;")
+        title.setStyleSheet(f"color:{J.CYAN.name()};")
         title_row.addWidget(title); title_row.addStretch(1)
         self._pct_lbl = QLabel("0 %"); self._pct_lbl.setFont(mono(10, 700))
         self._pct_lbl.setStyleSheet(f"color:{J.CYAN.name()};")
@@ -1265,7 +1300,7 @@ class _BootBubble(QWidget):
         self._dot = _SmallDot(J.CYAN, blink=True)
         row.addWidget(self._dot)
         name = QLabel("A.E.R.I.S"); name.setFont(mono(9, 700))
-        name.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:1px;")
+        name.setStyleSheet(f"color:{J.CYAN.name()};")
         row.addWidget(name)
         t_lbl = QLabel(time.strftime("%H:%M")); t_lbl.setFont(mono(8, 400))
         t_lbl.setStyleSheet(f"color:{J.TEXT_MUT.name()};")

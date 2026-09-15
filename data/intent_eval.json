@@ -1,0 +1,1310 @@
+{
+  "version": 1,
+  "description": "Held-out golden set for core/intent_eval.py. These phrasings must NEVER be added to intents.json / learned_patterns.json — they exist to measure generalisation. Legacy twin intents are handled via also_ok.",
+  "items": [
+    {
+      "text": "yaar chrome on kar de",
+      "intent": "open_app"
+    },
+    {
+      "text": "notepad start kar do jaldi",
+      "intent": "open_app"
+    },
+    {
+      "text": "spotify launch karde bhai",
+      "intent": "open_app"
+    },
+    {
+      "text": "vs code chalu kar de",
+      "intent": "open_app"
+    },
+    {
+      "text": "fire up the calculator",
+      "intent": "open_app"
+    },
+    {
+      "text": "edge browser shuru karo",
+      "intent": "open_app"
+    },
+    {
+      "text": "chrome ko band kar de yaar",
+      "intent": "close_app"
+    },
+    {
+      "text": "notepad ko quit kar do",
+      "intent": "close_app"
+    },
+    {
+      "text": "shut chrome down",
+      "intent": "close_app"
+    },
+    {
+      "text": "spotify hata do screen se",
+      "intent": "close_app"
+    },
+    {
+      "text": "vs code close kar de",
+      "intent": "close_app"
+    },
+    {
+      "text": "awaaz thodi tez kar do",
+      "intent": "volume_up"
+    },
+    {
+      "text": "sound thoda badha de",
+      "intent": "volume_up"
+    },
+    {
+      "text": "make it a bit louder",
+      "intent": "volume_up",
+      "also_ok": [
+        "voice_louder"
+      ]
+    },
+    {
+      "text": "awaaz halki kar do",
+      "intent": "volume_down"
+    },
+    {
+      "text": "sound thoda kam kar de",
+      "intent": "volume_down"
+    },
+    {
+      "text": "turn the volume down a little",
+      "intent": "volume_down"
+    },
+    {
+      "text": "awaaz puri band kar de",
+      "intent": "volume_mute"
+    },
+    {
+      "text": "sound bilkul silent kar do",
+      "intent": "volume_mute"
+    },
+    {
+      "text": "kuch gaane sunao na",
+      "intent": "play_music"
+    },
+    {
+      "text": "koi acha sa song laga do",
+      "intent": "play_music"
+    },
+    {
+      "text": "music baja de yaar",
+      "intent": "play_music"
+    },
+    {
+      "text": "gaana band kar de ab",
+      "intent": "stop_music"
+    },
+    {
+      "text": "music ko roko",
+      "intent": "stop_music"
+    },
+    {
+      "text": "band karo ye song",
+      "intent": "stop_music"
+    },
+    {
+      "text": "hello ji aeris",
+      "intent": "greeting",
+      "also_ok": [
+        "greet"
+      ]
+    },
+    {
+      "text": "good morning jarvis",
+      "intent": "greeting",
+      "also_ok": [
+        "greet"
+      ]
+    },
+    {
+      "text": "kya scene hai bhai",
+      "intent": "greeting",
+      "also_ok": [
+        "greet"
+      ]
+    },
+    {
+      "text": "bahar mausam kaisa chal raha hai",
+      "intent": "get_weather",
+      "also_ok": [
+        "weather_for_city"
+      ]
+    },
+    {
+      "text": "aaj barish hone wali hai kya",
+      "intent": "get_weather"
+    },
+    {
+      "text": "kaisa rahega aaj ka weather",
+      "intent": "get_weather",
+      "also_ok": [
+        "weather_for_city"
+      ]
+    },
+    {
+      "text": "pune ka mausam kaisa hai",
+      "intent": "weather_for_city",
+      "also_ok": [
+        "get_weather"
+      ]
+    },
+    {
+      "text": "what's the weather like in jaipur",
+      "intent": "weather_for_city",
+      "also_ok": [
+        "get_weather"
+      ]
+    },
+    {
+      "text": "mujhe kal subah yaad dila dena",
+      "intent": "set_reminder"
+    },
+    {
+      "text": "ek reminder laga do please",
+      "intent": "set_reminder"
+    },
+    {
+      "text": "shaam ko yaad dilana meeting ka",
+      "intent": "set_reminder",
+      "also_ok": [
+        "schedule_meeting",
+        "add_meeting"
+      ]
+    },
+    {
+      "text": "20 minute ka countdown lagao",
+      "intent": "set_timer"
+    },
+    {
+      "text": "timer chala do 2 minute ke liye",
+      "intent": "set_timer"
+    },
+    {
+      "text": "ye baat likh ke rakh lo",
+      "intent": "create_note",
+      "also_ok": [
+        "note_append"
+      ]
+    },
+    {
+      "text": "ek note add kar do",
+      "intent": "create_note",
+      "also_ok": [
+        "note_append"
+      ]
+    },
+    {
+      "text": "isko note me daal do",
+      "intent": "create_note",
+      "also_ok": [
+        "note_append"
+      ]
+    },
+    {
+      "text": "kitna time ho gaya hai",
+      "intent": "current_time",
+      "also_ok": [
+        "get_time"
+      ]
+    },
+    {
+      "text": "ghadi me kya baja hai",
+      "intent": "current_time",
+      "also_ok": [
+        "get_time"
+      ]
+    },
+    {
+      "text": "abhi ka samay kya hai",
+      "intent": "current_time",
+      "also_ok": [
+        "get_time"
+      ]
+    },
+    {
+      "text": "aaj kaunsi tareekh hai",
+      "intent": "current_date",
+      "also_ok": [
+        "get_time"
+      ]
+    },
+    {
+      "text": "aaj konsa din aur date hai",
+      "intent": "current_date",
+      "also_ok": [
+        "get_time"
+      ]
+    },
+    {
+      "text": "charge kitna bacha hai",
+      "intent": "battery_status",
+      "also_ok": [
+        "system_info"
+      ]
+    },
+    {
+      "text": "laptop ki battery kitni rah gayi",
+      "intent": "battery_status",
+      "also_ok": [
+        "system_info"
+      ]
+    },
+    {
+      "text": "power kitne percent hai",
+      "intent": "battery_status",
+      "also_ok": [
+        "system_info"
+      ]
+    },
+    {
+      "text": "screen ki ek tasveer utaar lo",
+      "intent": "screenshot_full",
+      "also_ok": [
+        "take_screenshot"
+      ]
+    },
+    {
+      "text": "ek screenshot khinch lo",
+      "intent": "screenshot_full",
+      "also_ok": [
+        "take_screenshot"
+      ]
+    },
+    {
+      "text": "is screen ko capture kar ke rakh lo",
+      "intent": "screenshot_full",
+      "also_ok": [
+        "take_screenshot"
+      ]
+    },
+    {
+      "text": "cpu kitna use ho raha hai",
+      "intent": "system_info",
+      "also_ok": [
+        "system_stats",
+        "full_system_health",
+        "cpu_info"
+      ]
+    },
+    {
+      "text": "memory ka status kya hai",
+      "intent": "system_info",
+      "also_ok": [
+        "system_stats",
+        "full_system_health",
+        "memory_stats"
+      ]
+    },
+    {
+      "text": "laptop kaisa perform kar raha hai",
+      "intent": "system_info",
+      "also_ok": [
+        "system_stats",
+        "full_system_health",
+        "diagnostics"
+      ]
+    },
+    {
+      "text": "25 guna 4 kitna hota hai",
+      "intent": "calculate",
+      "also_ok": [
+        "quick_calc"
+      ]
+    },
+    {
+      "text": "iska hisaab laga do",
+      "intent": "calculate",
+      "also_ok": [
+        "quick_calc"
+      ]
+    },
+    {
+      "text": "youtube pe lofi laga do",
+      "intent": "play_youtube"
+    },
+    {
+      "text": "youtube pe koi acchi video chala",
+      "intent": "play_youtube"
+    },
+    {
+      "text": "arijit ke gaane youtube pe bajao",
+      "intent": "play_youtube",
+      "also_ok": [
+        "play_music"
+      ]
+    },
+    {
+      "text": "github ki site khol do",
+      "intent": "open_website",
+      "also_ok": [
+        "open_in_browser"
+      ]
+    },
+    {
+      "text": "ye wala link khol ke dikhao",
+      "intent": "open_website"
+    },
+    {
+      "text": "pc ko band kar do ab",
+      "intent": "shutdown_system",
+      "also_ok": [
+        "shutdown_pc"
+      ]
+    },
+    {
+      "text": "system shutdown kar de bhai",
+      "intent": "shutdown_system",
+      "also_ok": [
+        "shutdown_pc"
+      ]
+    },
+    {
+      "text": "computer ko off kar do",
+      "intent": "shutdown_system",
+      "also_ok": [
+        "shutdown_pc"
+      ]
+    },
+    {
+      "text": "pc lock kar do main ja raha hoon",
+      "intent": "lock_screen",
+      "also_ok": [
+        "lock_after"
+      ]
+    },
+    {
+      "text": "screen ko lock karo abhi",
+      "intent": "lock_screen"
+    },
+    {
+      "text": "meri report wali file kahan hai",
+      "intent": "find_file",
+      "also_ok": [
+        "file_search"
+      ]
+    },
+    {
+      "text": "resume dhund ke do mujhe",
+      "intent": "find_file",
+      "also_ok": [
+        "file_search"
+      ]
+    },
+    {
+      "text": "abhi haal me kaunsi files change hui",
+      "intent": "recent_files"
+    },
+    {
+      "text": "pichli files dikhana zara",
+      "intent": "recent_files"
+    },
+    {
+      "text": "google pe dhundo best laptops",
+      "intent": "web_search",
+      "also_ok": [
+        "search_web",
+        "search_in_browser"
+      ]
+    },
+    {
+      "text": "net pe search maro iske baare mein",
+      "intent": "web_search",
+      "also_ok": [
+        "search_web",
+        "search_in_browser"
+      ]
+    },
+    {
+      "text": "internet se pata karo ye cheez",
+      "intent": "web_search",
+      "also_ok": [
+        "search_web",
+        "search_in_browser"
+      ]
+    },
+    {
+      "text": "aaj 300 ka petrol bharwaya",
+      "intent": "add_expense"
+    },
+    {
+      "text": "150 rupaye chai pe ud gaye",
+      "intent": "add_expense"
+    },
+    {
+      "text": "add karo 2000 ka shopping kharcha",
+      "intent": "add_expense"
+    },
+    {
+      "text": "doosre tab pe jao",
+      "intent": "tab_switch",
+      "also_ok": [
+        "tab_next"
+      ]
+    },
+    {
+      "text": "agla tab khol do",
+      "intent": "tab_switch",
+      "also_ok": [
+        "tab_next"
+      ]
+    },
+    {
+      "text": "brave me instagram khol do",
+      "intent": "open_in_browser",
+      "also_ok": [
+        "open_website"
+      ]
+    },
+    {
+      "text": "chrome me stackoverflow kholo",
+      "intent": "open_in_browser",
+      "also_ok": [
+        "open_website"
+      ]
+    },
+    {
+      "text": "arre nahi wapas le lo",
+      "intent": "undo_last"
+    },
+    {
+      "text": "last wala action cancel karo",
+      "intent": "undo_last"
+    },
+    {
+      "text": "phir se wahi karo",
+      "intent": "repeat_last"
+    },
+    {
+      "text": "ek baar aur chalao wahi command",
+      "intent": "repeat_last"
+    },
+    {
+      "text": "python me ek calculator bana do",
+      "intent": "write_code"
+    },
+    {
+      "text": "ek code likho jo csv file padhe",
+      "intent": "write_code"
+    },
+    {
+      "text": "rahul ko ek mail draft karo",
+      "intent": "compose_email"
+    },
+    {
+      "text": "ek email likhna hai boss ko",
+      "intent": "compose_email"
+    },
+    {
+      "text": "focus session shuru karo pomodoro wala",
+      "intent": "pomodoro_start"
+    },
+    {
+      "text": "ek pomodoro laga do 25 minute ka",
+      "intent": "pomodoro_start"
+    },
+    {
+      "text": "aaj din bhar kya kya hua batao",
+      "intent": "day_summary",
+      "also_ok": [
+        "activity_digest",
+        "conversation_recap"
+      ]
+    },
+    {
+      "text": "mera din ka summary de do",
+      "intent": "day_summary",
+      "also_ok": [
+        "activity_digest"
+      ]
+    },
+    {
+      "text": "jarvis se poochna hai kuch",
+      "intent": "ask_jarvis"
+    },
+    {
+      "text": "ek sawal hai aeris tumse",
+      "intent": "ask_jarvis"
+    },
+    {
+      "text": "mere notes se dhund ke batao deadline kya hai",
+      "intent": "doc_answer",
+      "also_ok": [
+        "doc_query"
+      ]
+    },
+    {
+      "text": "is pdf ka nichod bata do",
+      "intent": "file_summary",
+      "also_ok": [
+        "doc_answer",
+        "screen_assist"
+      ]
+    },
+    {
+      "text": "jo copy kiya hai uska chhota summary bol do",
+      "intent": "clipboard_summarize"
+    },
+    {
+      "text": "copy kiye text se saare email nikal do",
+      "intent": "clipboard_extract"
+    },
+    {
+      "text": "apne folder se koi gana chala do",
+      "intent": "local_music_play",
+      "also_ok": [
+        "play_music"
+      ]
+    },
+    {
+      "text": "is recording ko likhit text me badal do",
+      "intent": "transcribe_file",
+      "also_ok": [
+        "whisper_transcribe_once"
+      ]
+    },
+    {
+      "text": "c drive me kitni jagah bachi hai",
+      "intent": "disk_space"
+    },
+    {
+      "text": "sabse zyada memory kaunsa app le raha hai",
+      "intent": "top_process"
+    },
+    {
+      "text": "laptop kitne ghante se chalu hai",
+      "intent": "system_uptime"
+    },
+    {
+      "text": "abhi sone mat dena computer ko",
+      "intent": "keep_awake_on"
+    },
+    {
+      "text": "wapas normal so jane do",
+      "intent": "keep_awake_off",
+      "also_ok": [
+        "sleep_pc"
+      ]
+    },
+    {
+      "text": "recycle bin ko poora khali kar do",
+      "intent": "empty_recycle_bin"
+    },
+    {
+      "text": "abhi amreeka me kitna baj raha hai",
+      "intent": "world_time"
+    },
+    {
+      "text": "aaj se pachas din baad ki tareekh batao",
+      "intent": "date_math"
+    },
+    {
+      "text": "mere birthday tak kitne din reh gaye",
+      "intent": "days_until",
+      "also_ok": [
+        "date_diff"
+      ]
+    },
+    {
+      "text": "ek sikka to uchaal do",
+      "intent": "coin_toss"
+    },
+    {
+      "text": "chalo pasa phenk do",
+      "intent": "dice_roll"
+    },
+    {
+      "text": "koi bhi ek number bata do bech me",
+      "intent": "random_number"
+    },
+    {
+      "text": "meri jagah tum decide kar do inme se",
+      "intent": "random_pick"
+    },
+    {
+      "text": "downloads folder me kul kitni files padi hain",
+      "intent": "folder_stats"
+    },
+    {
+      "text": "sabse zyada jagah kaunse files le rahe hain",
+      "intent": "find_large_files"
+    },
+    {
+      "text": "is text file ko bol kar suna do",
+      "intent": "read_file_aloud",
+      "also_ok": [
+        "clipboard_say"
+      ]
+    },
+    {
+      "text": "pachas mile me kitne kilometer honge",
+      "intent": "unit_convert"
+    },
+    {
+      "text": "aadha kilo kitne gram hota hai",
+      "intent": "unit_convert",
+      "also_ok": [
+        "calculate"
+      ]
+    },
+    {
+      "text": "hazaar rupaye pe pachees percent chhoot kitni",
+      "intent": "discount_calc"
+    },
+    {
+      "text": "do hazaar pe aathara percent gst laga do",
+      "intent": "gst_calc"
+    },
+    {
+      "text": "paanch lakh ka loan solah percent pe teen saal ki kisht",
+      "intent": "emi_calc"
+    },
+    {
+      "text": "ye password kitna majboot hai",
+      "intent": "password_strength"
+    },
+    {
+      "text": "time ginna shuru kar do abhi se",
+      "intent": "stopwatch_start"
+    },
+    {
+      "text": "ab tak kitna time beeta stopwatch me",
+      "intent": "stopwatch_check"
+    },
+    {
+      "text": "time count band kar do",
+      "intent": "stopwatch_stop"
+    },
+    {
+      "text": "main 2001 me janma tha meri umar batao",
+      "intent": "age_calc"
+    },
+    {
+      "text": "pandrah lakh ko angrezi shabdon me likho",
+      "intent": "number_to_words"
+    },
+    {
+      "text": "do sau pachpan ko sola wale system me likho",
+      "intent": "base_convert"
+    },
+    {
+      "text": "mere naam ko army wali spelling me batao",
+      "intent": "phonetic_spell"
+    },
+    {
+      "text": "is hex code ka rgb value nikaal do",
+      "intent": "color_convert"
+    },
+    {
+      "text": "do hazaar chaubees ko roman ginti me likho",
+      "intent": "roman_convert"
+    },
+    {
+      "text": "sau se ek sau pachas tak kitne percent ki badhotri hui",
+      "intent": "percent_change",
+      "also_ok": [
+        "calculate"
+      ]
+    },
+    {
+      "text": "mera vajan 72 aur lambai 175 hai bmi bata do",
+      "intent": "bmi_calc"
+    },
+    {
+      "text": "aath sau ka bill teen dost me baant do",
+      "intent": "bill_split"
+    },
+    {
+      "text": "pandrah august do hazaar sattaais ko konsa vaar hai",
+      "intent": "day_of_week"
+    },
+    {
+      "text": "shaam paanch baje tak kitni der baaki hai",
+      "intent": "time_until"
+    },
+    {
+      "text": "shaam chaar baje india ka london me kya time hoga",
+      "intent": "timezone_convert"
+    },
+    {
+      "text": "is paragraph me kitne shabd aur padhne ka time",
+      "intent": "text_stats"
+    },
+    {
+      "text": "sos ko morse code me badal do",
+      "intent": "morse_code"
+    },
+    {
+      "text": "kya nitin ulta padhne pe bhi wahi rehta hai",
+      "intent": "palindrome_check"
+    },
+    {
+      "text": "listen aur silent ke akshar same hain kya",
+      "intent": "anagram_check"
+    },
+    {
+      "text": "is line ko ulta karke likho",
+      "intent": "text_transform"
+    },
+    {
+      "text": "mississippi me kitne s aate hain",
+      "intent": "count_chars"
+    },
+    {
+      "text": "national aeronautics space administration ka short form banao",
+      "intent": "acronym_maker"
+    },
+    {
+      "text": "kya 91 ek akela number hai ya nahi",
+      "intent": "number_properties",
+      "also_ok": [
+        "calculate"
+      ]
+    },
+    {
+      "text": "is message ko rot13 se chhupa do",
+      "intent": "caesar_cipher"
+    },
+    {
+      "text": "solah aur chaubees ka sabse bada saajha bhaajak",
+      "intent": "gcd_lcm"
+    },
+    {
+      "text": "chhabbis bataa chalees ko sabse chhote roop me karo",
+      "intent": "simplify_ratio"
+    },
+    {
+      "text": "in sabhi ankon ka ausat nikaal do bees tees chalees",
+      "intent": "number_stats"
+    },
+    {
+      "text": "saat ka gunanphal kya hoga",
+      "intent": "factorial_power"
+    },
+    {
+      "text": "is line ki galtiyan sudhaar do",
+      "intent": "fix_grammar"
+    },
+    {
+      "text": "mujhe kuch naye ideas soch ke do is topic pe",
+      "intent": "brainstorm_ideas"
+    },
+    {
+      "text": "ye cheez bilkul asaan tarike se samjha do",
+      "intent": "explain_simply"
+    },
+    {
+      "text": "is kahani ke liye ek badhiya sheershak socho",
+      "intent": "make_title"
+    },
+    {
+      "text": "is lambe text ka nichod ek line me do",
+      "intent": "shorten_text",
+      "also_ok": [
+        "file_summary",
+        "clipboard_summarize"
+      ]
+    },
+    {
+      "text": "is angrezi shabd ka arth samjha do",
+      "intent": "define_word",
+      "also_ok": [
+        "explain_simply"
+      ]
+    },
+    {
+      "text": "work from home ke acche aur bure pehlu batao",
+      "intent": "pros_cons"
+    },
+    {
+      "text": "omelette banane ka poora tarika bata do",
+      "intent": "how_to_steps"
+    },
+    {
+      "text": "barish ke mausam pe do line ki shayari suna do",
+      "intent": "write_poem"
+    },
+    {
+      "text": "aaj mann nahi lag raha thoda hausla de do",
+      "intent": "motivate_me"
+    },
+    {
+      "text": "kuch hasi mazaak wali baat suna do",
+      "intent": "tell_joke"
+    },
+    {
+      "text": "sone se pehle ek nanhi si kahani suna do",
+      "intent": "tell_story"
+    },
+    {
+      "text": "dimag lagane wali koi paheli suna do",
+      "intent": "tell_riddle"
+    },
+    {
+      "text": "khush ke liye milte julte shabd batao",
+      "intent": "synonyms_antonyms"
+    },
+    {
+      "text": "is baat ko kisi aur tarah se keh do",
+      "intent": "rephrase_text"
+    },
+    {
+      "text": "koi mazedaar jaankari sunao samundar ke baare me",
+      "intent": "fun_fact"
+    },
+    {
+      "text": "mera din achha karne ke liye kuch pyaara bolo",
+      "intent": "give_compliment"
+    },
+    {
+      "text": "do sau ml chalees ka ya ek litre sattar ka kaunsa faydemand",
+      "intent": "unit_price_compare"
+    },
+    {
+      "text": "aaj raat ke khane me kya banaya jaye",
+      "intent": "recipe_suggest"
+    },
+    {
+      "text": "do hazaar chaubees leap year tha kya",
+      "intent": "leap_year_check"
+    },
+    {
+      "text": "farvari me kitne din hote hain is saal",
+      "intent": "days_in_month"
+    },
+    {
+      "text": "kis word se tuk milta hai raat",
+      "intent": "rhyming_words"
+    },
+    {
+      "text": "mera naya password bana do bees character ka",
+      "intent": "password_generate"
+    },
+    {
+      "text": "aeris shabd ka sha256 nikaal do",
+      "intent": "text_hash"
+    },
+    {
+      "text": "do unique id generate kar do",
+      "intent": "uuid_generate"
+    },
+    {
+      "text": "is text ko hex me convert kar do",
+      "intent": "hex_convert"
+    },
+    {
+      "text": "ye paragraph padhne me kitni der lagegi",
+      "intent": "reading_time"
+    },
+    {
+      "text": "is json ko theek se dikhao",
+      "intent": "json_format"
+    },
+    {
+      "text": "is link ko url encode kar do",
+      "intent": "url_convert"
+    },
+    {
+      "text": "is heading ka url slug bana do",
+      "intent": "slugify"
+    },
+    {
+      "text": "das lakh pe saat percent teen saal chakravriddhi byaj",
+      "intent": "compound_interest"
+    },
+    {
+      "text": "mujhe roz kitni calorie leni chahiye weight 68 height 172 age 26 male",
+      "intent": "bmr_calorie"
+    },
+    {
+      "text": "chaubees december ko paida hua tha kaunsi rashi",
+      "intent": "zodiac_sign"
+    },
+    {
+      "text": "das kilometer bhaaga pachpan minute me pace kya raha",
+      "intent": "running_pace"
+    },
+    {
+      "text": "chaar sau kilometer ke trip me kitna petrol kharch hoga mileage aaraah",
+      "intent": "fuel_trip_cost"
+    },
+    {
+      "text": "mere weight ke hisaab se roz kitna paani peena chahiye",
+      "intent": "water_intake"
+    },
+    {
+      "text": "paanch sau me se chaar sau athasath aaye kitne percent",
+      "intent": "marks_percentage"
+    },
+    {
+      "text": "agar abhi so jaun to subah fresh uthne ka best time kya hai",
+      "intent": "sleep_cycle"
+    },
+    {
+      "text": "aath point saat cgpa ka percentage kitna hoga",
+      "intent": "cgpa_percentage"
+    },
+    {
+      "text": "pandrah august unnees sau athanve ka life path number",
+      "intent": "numerology"
+    },
+    {
+      "text": "do sau ka khareeda dhai sau me becha kitna fayda hua",
+      "intent": "profit_loss"
+    },
+    {
+      "text": "aaj battees degree aur satar percent humidity kitna garm lagega",
+      "intent": "heat_index"
+    },
+    {
+      "text": "do sau kilometer saaठ kmph pe kitne ghante lagenge",
+      "intent": "travel_time"
+    },
+    {
+      "text": "hazaar rupaye pe pachchees phir dus percent chhoot final kitna",
+      "intent": "discount_stack"
+    },
+    {
+      "text": "solah bacchon ko chaar chaar ke groups me kaise baatun",
+      "intent": "team_split"
+    },
+    {
+      "text": "aaj das hazaar kadam chala kitni calorie jali hogi",
+      "intent": "calories_burned"
+    },
+    {
+      "text": "swatantrata diwas aane me kitne din bache hain",
+      "intent": "festival_countdown"
+    },
+    {
+      "text": "do hazaar me paida hue to kaunsa chinese animal",
+      "intent": "chinese_zodiac"
+    },
+    {
+      "text": "is hafte weekend aane me kitne din reh gaye",
+      "intent": "weekend_countdown"
+    },
+    {
+      "text": "pizza shabd ka scrabble me kitna score banega",
+      "intent": "scrabble_score"
+    },
+    {
+      "text": "bees by pandrah feet ke kamre ka area kitna hoga",
+      "intent": "area_calc"
+    },
+    {
+      "text": "meri height ek sau athasath cm hai sahi weight kitna",
+      "intent": "ideal_weight"
+    },
+    {
+      "text": "is mahine teen sau units aaye bijli ka bill kitna banega",
+      "intent": "electricity_bill"
+    },
+    {
+      "text": "athaais saal umar sattar kilo body fat percentage kya hai",
+      "intent": "body_fat"
+    },
+    {
+      "text": "paanch degree me tees kmph hawa chale to kitni thand lagegi",
+      "intent": "wind_chill"
+    },
+    {
+      "text": "aaj saal ka kaunsa hafta chal raha hai",
+      "intent": "week_number"
+    },
+    {
+      "text": "aath ghante extra kaam kiya do sau prati ghante overtime kitna",
+      "intent": "overtime_pay"
+    },
+    {
+      "text": "tees degree aur sattar percent humidity me dew point kya hoga",
+      "intent": "dew_point"
+    },
+    {
+      "text": "do gb ki file bees mbps pe kitni der me download hogi",
+      "intent": "download_time"
+    },
+    {
+      "text": "paanch sau square feet deewar ke liye kitna paint lagega",
+      "intent": "paint_quantity"
+    },
+    {
+      "text": "do sau square feet floor pe do by do feet tiles kitni lagengi",
+      "intent": "tile_count"
+    },
+    {
+      "text": "chaar logon ki recipe ko aath logon ke liye kaise badhaun",
+      "intent": "recipe_scale"
+    },
+    {
+      "text": "paanch hazaar mahine ke barah percent pe das saal sip kitna banega",
+      "intent": "sip_calculator"
+    },
+    {
+      "text": "teen saal me paanch lakh chahiye to har mahine kitna bachaun",
+      "intent": "savings_goal"
+    },
+    {
+      "text": "ek lakh dus saal baad chhe percent mehngai pe kitne ke barabar",
+      "intent": "inflation_adjust"
+    },
+    {
+      "text": "aath percent return pe paisa kitne saal me dugna hoga",
+      "intent": "rule_of_72"
+    },
+    {
+      "text": "ek lakh se do lakh paanch saal me kitna cagr raha",
+      "intent": "cagr"
+    },
+    {
+      "text": "pachaas lakh ke ghar pe bees percent down payment kitna aur loan kitna",
+      "intent": "down_payment"
+    },
+    {
+      "text": "pachaas hazaar fixed do sau price ek sau bees lagat break even kitne units",
+      "intent": "break_even"
+    },
+    {
+      "text": "sau rupaye lagat pe pacchees percent markup se kitne me bechu",
+      "intent": "markup_margin"
+    },
+    {
+      "text": "gyarah sau assi me se atharah percent gst hata ke base price batao",
+      "intent": "gst_inclusive"
+    },
+    {
+      "text": "capital a letter ka ascii code kya hota hai",
+      "intent": "ascii_value"
+    },
+    {
+      "text": "ye pan number ABCDE1234F sahi format me hai kya",
+      "intent": "id_validate"
+    },
+    {
+      "text": "programming shabd me kitne swar aur vyanjan hain",
+      "intent": "vowel_consonant"
+    },
+    {
+      "text": "teiis ko ordinal form me kaise likhte hain",
+      "intent": "ordinal_number"
+    },
+    {
+      "text": "nau hazaar second me kitne ghante aur minute hote hain",
+      "intent": "duration_humanize"
+    },
+    {
+      "text": "pandrah august ko meri birthday hai kitne din bache",
+      "intent": "next_birthday"
+    },
+    {
+      "text": "is card number ka luhn checksum sahi hai kya",
+      "intent": "luhn_check"
+    },
+    {
+      "text": "solah sau achhattar bai nau sau chhaasath resolution paanch inch screen ka ppi",
+      "intent": "ppi_calculator"
+    },
+    {
+      "text": "bijli chamakne ke saat second baad awaaz aayi kitni door thi",
+      "intent": "thunder_distance"
+    },
+    {
+      "text": "baarah volt aur chaar ohm pe current kitna hoga",
+      "intent": "ohms_law"
+    },
+    {
+      "text": "teen hazaar mah battery paanch sau ma draw pe kitni der chalegi",
+      "intent": "battery_life"
+    },
+    {
+      "text": "pandrah sau watt ka ac aath ghante roz chale to mahine ka bill",
+      "intent": "appliance_power_cost"
+    },
+    {
+      "text": "sau megahertz frequency ka wavelength kitna hota hai",
+      "intent": "frequency_wavelength"
+    },
+    {
+      "text": "paanch trijya wale circle ka area kitna hoga",
+      "intent": "circle_calc"
+    },
+    {
+      "text": "teen aur chaar bhuja wale right triangle ka karan",
+      "intent": "pythagoras"
+    },
+    {
+      "text": "teen chaar paanch bhuja wale tribhuj ka kshetrafal",
+      "intent": "triangle_area"
+    },
+    {
+      "text": "paanch radius wale gole ka volume kitna hoga",
+      "intent": "volume_calc"
+    },
+    {
+      "text": "das cheezon me se do kितne tarike se chun sakte hain",
+      "intent": "combinations_permutations"
+    },
+    {
+      "text": "do x square jamaa teen x ghata paanch ke roots nikaalo",
+      "intent": "quadratic_solver"
+    },
+    {
+      "text": "tees degree ka sine kitna hota hai",
+      "intent": "trig_calc"
+    },
+    {
+      "text": "sau ka log base das kitna hoga",
+      "intent": "log_calc"
+    },
+    {
+      "text": "pehla pad do antar teen aur das pad ka yog",
+      "intent": "sequence_calc"
+    },
+    {
+      "text": "dasva fibonacci number kya hota hai",
+      "intent": "fibonacci"
+    },
+    {
+      "text": "in numbers ka standard deviation nikaalo do chaar chaar paanch",
+      "intent": "variance_std"
+    },
+    {
+      "text": "paanch volt supply do volt led bees milliamp ke liye resistor",
+      "intent": "led_resistor"
+    },
+    {
+      "text": "zero zero se teen chaar ke beech ki doori kitni hai",
+      "intent": "coordinate_distance"
+    },
+    {
+      "text": "assi number weight teen navve number weight do ka weighted average",
+      "intent": "weighted_average"
+    },
+    {
+      "text": "das aur tees ke beech kitne prime numbers hain",
+      "intent": "prime_list"
+    },
+    {
+      "text": "value pachaasi mean sattar aur std das ka z score",
+      "intent": "z_score"
+    },
+    {
+      "text": "napa hua pachaanve asli sau percent error kitna",
+      "intent": "percent_error"
+    },
+    {
+      "text": "ek lakh tevees hazaar ko scientific notation me batao",
+      "intent": "scientific_notation"
+    },
+    {
+      "text": "shoonya point saat paanch ko bhinn me badlo",
+      "intent": "fraction_convert"
+    },
+    {
+      "text": "aadha jamaa ek tihaai kitna hota hai",
+      "intent": "fraction_math"
+    },
+    {
+      "text": "do is to teen barabar x is to baarah me x kya hai",
+      "intent": "proportion_solve"
+    },
+    {
+      "text": "teen point ek chaar ek panch nau ko do dashamlav tak round karo",
+      "intent": "rounding_sigfig"
+    },
+    {
+      "text": "saat bataa teen ko mishrit sankhya me likho",
+      "intent": "mixed_number"
+    },
+    {
+      "text": "paintaalis kilometer prati ghanta hawa kaunse beaufort par hai",
+      "intent": "beaufort_scale"
+    },
+    {
+      "text": "aaj aqi ek sau assi hai kaunsi category hui",
+      "intent": "aqi_category"
+    },
+    {
+      "text": "sattarah ko paanch se divide karne pe kitna bacha",
+      "intent": "modulo_calc"
+    },
+    {
+      "text": "sau decibel awaaz kitni khatarnak hai kaan ke liye",
+      "intent": "decibel_scale"
+    },
+    {
+      "text": "richter scale par saat magnitude ka bhukamp kitna tez",
+      "intent": "richter_scale"
+    },
+    {
+      "text": "tees saal ki age pe max heart rate aur zones kya honge",
+      "intent": "heart_rate_zones"
+    },
+    {
+      "text": "aaj uv index aath hai kitni dhoop se bachna chahiye",
+      "intent": "uv_index"
+    },
+    {
+      "text": "sau kilo paanch baar utha raha hoon max kitna hoga",
+      "intent": "one_rep_max"
+    },
+    {
+      "text": "paanch kilo ghataane me kitne din lagenge paanch sau deficit pe",
+      "intent": "calorie_deficit"
+    },
+    {
+      "text": "do binary numbers one zero one zero aur one one zero jodo",
+      "intent": "base_arithmetic"
+    },
+    {
+      "text": "sattar kilo weight pe muscle ke liye kitna protein chahiye",
+      "intent": "protein_needs"
+    },
+    {
+      "text": "saath kmph se gaya chalis se laut aaya average speed kya",
+      "intent": "average_speed"
+    },
+    {
+      "text": "ek aadmi chhe din doosra chaar din saath kitne din",
+      "intent": "work_rate"
+    },
+    {
+      "text": "paanch kilo mass das acceleration pe force kitna",
+      "intent": "force_calc"
+    },
+    {
+      "text": "paanch kilo dravyaman das velocity ki kinetic energy",
+      "intent": "energy_calc"
+    },
+    {
+      "text": "das kilo mass do volume ka density kya hoga",
+      "intent": "density_calc"
+    },
+    {
+      "text": "sau newton force do meter square area pe pressure",
+      "intent": "pressure_calc"
+    },
+    {
+      "text": "paanch kilo mass das velocity ka momentum kya hoga",
+      "intent": "momentum_calc"
+    },
+    {
+      "text": "das newton force paanch meter distance pe kitna kaam hua",
+      "intent": "work_power"
+    },
+    {
+      "text": "kaam wala mode chalu kar do",
+      "intent": "activate_mode"
+    },
+    {
+      "text": "sone wala mode band kar do",
+      "intent": "deactivate_mode"
+    },
+    {
+      "text": "kaun kaun se modes available hain",
+      "intent": "list_modes"
+    }
+  ]
+}

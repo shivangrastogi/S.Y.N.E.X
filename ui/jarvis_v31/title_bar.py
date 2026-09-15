@@ -45,12 +45,12 @@ class TitleBar(QWidget):
 
         brand = QLabel("A.E.R.I.S")
         brand.setFont(inter(13, 700))
-        brand.setStyleSheet(f"color: {J.TEXT_PRI.name()}; letter-spacing: 2px;")
+        brand.setStyleSheet(f"color: {J.TEXT_PRI.name()}; ")
         lay.addWidget(brand)
 
         sub = QLabel("JARVIS v3.1")
         sub.setFont(inter(10, 500))
-        sub.setStyleSheet(f"color: {J.TEXT_MUT.name()}; letter-spacing: 0.5px;")
+        sub.setStyleSheet(f"color: {J.TEXT_MUT.name()}; ")
         lay.addWidget(sub)
 
         # vertical divider

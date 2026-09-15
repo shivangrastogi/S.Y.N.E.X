@@ -23,6 +23,54 @@ def engine(tmp_memory_path, tmp_feedback_db):
     e.feedback.close()
 
 
+# ─── Orchestration smoke (I7: brain → response → TTS wiring) ────────────
+
+def test_orchestration_smoke_text_to_speak(engine):
+    """A simple utterance produces a non-empty reply that _speak forwards
+    verbatim to the TTS backend — the minimal end-to-end orchestration check
+    README §13.3 asks for ("send 'hi' → TTS got a non-empty string")."""
+    reply = engine.process_text("hello")
+    assert isinstance(reply, str) and reply.strip()
+
+    spoken = []
+
+    class _FakeTTS:
+        def speak(self, text):
+            spoken.append(text)
+
+    engine._tts = _FakeTTS()
+    engine._speak(reply)
+    assert spoken == [reply]
+    assert spoken[0].strip()                 # non-empty string reached TTS
+
+
+def test_orchestration_speak_ignores_empty(engine):
+    spoken = []
+
+    class _FakeTTS:
+        def speak(self, text):
+            spoken.append(text)
+
+    engine._tts = _FakeTTS()
+    engine._speak("")                         # empty → no backend call
+    assert spoken == []
+
+
+# ─── Dispatch side-channel (I2: per-reply "which skill fired" chip) ──────
+
+def test_last_dispatch_side_channel(engine):
+    """A skill-routed turn populates engine.last_dispatch with chip metadata."""
+    from core.activity_digest import format_chip
+    r = engine.process_text("what time is it")
+    assert r  # some response came back
+    meta = engine.last_dispatch
+    assert meta is not None
+    assert meta["intent"]                       # an intent was recorded
+    assert "latency_ms" in meta and meta["latency_ms"] >= 0
+    chip = format_chip(meta)
+    assert meta["intent"] in chip and "ms" in chip
+
+
 # ─── Memory store + recall ──────────────────────────────────────────────
 
 def test_memory_store_and_recall_english(engine):
@@ -80,8 +128,13 @@ def test_slot_fill_cancel(engine):
 # ─── Bandit feedback ─────────────────────────────────────────────────────
 
 def test_correction_recorded(engine):
-    """Saying 'galat' after an execution flips reward to -1."""
-    engine.process_text("weather batao")
+    """Saying 'galat' after an execution flips reward to -1.
+
+    Uses "mausam kaisa hai" — still owned by the legacy get_weather stub
+    (offline-safe). "weather batao" moved to the weather_local skill in
+    the 2026-07-04 pattern unification and would hit the network.
+    """
+    engine.process_text("mausam kaisa hai")
     r = engine.process_text("galat")
     assert r is not None and ("sorry" in r.lower() or "phir se" in r.lower())
     # The bandit threshold for get_weather should now be > default (drifted up)
@@ -92,7 +145,7 @@ def test_correction_recorded(engine):
 
 def test_implicit_acceptance(engine):
     """Any non-correction next turn implicitly accepts the prior."""
-    engine.process_text("weather batao")
+    engine.process_text("mausam kaisa hai")
     engine.process_text("hi")  # any benign next turn
     # The accepted feedback should have been recorded — utterance row has user_feedback set
     rows = engine.feedback._conn.execute(
@@ -114,3 +167,38 @@ def test_cancel_with_no_state(engine):
 def test_empty_input_returns_none(engine):
     assert engine.process_text("") is None
     assert engine.process_text("   ") is None
+
+
+# ─── Proactive OFFER "haan" → activate mode (Step 0d) ───────────────────
+
+def test_pending_offer_haan_activates_mode(engine):
+    """A parked mode-suggest offer + 'haan' runs activate_mode via executor."""
+    calls = []
+
+    def _rec(intent, slots):
+        calls.append((intent, dict(slots)))
+        return f"ran {intent}"
+
+    engine.executor.execute = _rec
+    engine._pending_offer = ("activate_mode", {"raw_text": "sleep"})
+    out = engine.process_text("haan")
+    assert out == "ran activate_mode"
+    assert calls == [("activate_mode", {"raw_text": "sleep"})]
+    assert engine._pending_offer is None       # one-turn window closed
+
+
+def test_pending_offer_other_input_drops_silently(engine):
+    """Any non-confirmation drops the offer (no activation) and processes
+    the new input normally — no scary 'cancelled' message."""
+    calls = []
+
+    def _rec(intent, slots):
+        calls.append((intent, dict(slots)))
+        return f"ran {intent}"
+
+    engine.executor.execute = _rec
+    engine._pending_offer = ("activate_mode", {"raw_text": "sleep"})
+    reply = engine.process_text("hello")
+    assert isinstance(reply, str) and reply.strip()
+    assert engine._pending_offer is None
+    assert all(intent != "activate_mode" for intent, _ in calls)

@@ -77,6 +77,13 @@ def _watcher_loop():
     pp = _try_pyperclip()
     if pp is None:
         return
+    # Serialize with the cloud-bridge clipboard sync thread — two unlocked
+    # pollers on the Win32 clipboard corrupt the heap (core/clipboard_lock).
+    try:
+        from core.clipboard_lock import install as _install_clip_lock
+        _install_clip_lock()
+    except Exception:
+        pass
     last = None
     while True:
         try:
@@ -138,8 +145,11 @@ def clipboard_history(slots: dict) -> str:
         "history item 1 copy karo", "history se 2 copy karo",
         "clipboard 1 wapas copy karo",
     ],
-    required_entities=["spec"],
-    prompts={"spec": "Kaunsa item copy karna hai? Number batao."},
+    # No hard gate: the handler already scans ALL slot values (incl. raw_text) for
+    # the index number, so gating on a `spec` slot the extractor doesn't fill just
+    # dead-ends at "kaunsa item?" even when "copy item 2" was given.
+    required_entities=[],
+    prompts={},
 )
 def copy_history_item(slots: dict) -> str:
     import re

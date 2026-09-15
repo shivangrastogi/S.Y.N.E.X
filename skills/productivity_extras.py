@@ -57,21 +57,49 @@ _SEARCH_EXCLUDE = {
 _SEARCH_MAX_HITS = 8
 _SEARCH_TIME_BUDGET_S = 3.5    # stay well under the 5 s breaker timeout
 
+# Command/filler words peeled off the raw phrase to recover the actual query
+# when the entity extractor didn't fill `content`. Position-independent (unlike
+# web_jumps' front-only peel) because file phrasings put the name at either end
+# ("file dhundo report" vs "report file kahaan hai").
+_FS_STOP = {
+    "file", "files", "folder", "dhundo", "dhoondo", "dhundho", "khojo",
+    "find", "search", "locate", "named", "name", "for", "called",
+    "kahaan", "kahan", "hai", "ka", "ki", "ko", "mera", "meri", "mere",
+    "my", "wali", "wala", "the", "a", "an", "please", "zara", "koi", "naam",
+}
+
+
+def _fs_query(slots: dict) -> str:
+    """Recover the search query: prefer an extracted `content` slot, else strip
+    known command/filler words out of the raw phrase (any position)."""
+    q = (slots.get("content") or "").strip()
+    if q:
+        return q
+    raw = (slots.get("raw_text") or slots.get("text") or "").lower()
+    toks = [t for t in re.findall(r"[a-z0-9._\-]+", raw) if t not in _FS_STOP]
+    return " ".join(toks).strip()
+
 
 @skill(
     name="file_search",
     description="Search recent user files by substring (case-insensitive)",
     patterns=[
-        "find file", "search file", "file dhundo", "find files named",
+        "file dhundo", "find files named",
         "search for file", "kahaan hai file", "locate file",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kya naam ke file dhundne hain?"},
+    # No hard gate: if `content` isn't extracted we recover the query from the
+    # raw phrase (_fs_query) instead of dead-ending at a "kaunsa file?" prompt
+    # even when the user already named the file ("file dhundo report").
+    required_entities=[],
+    prompts={},
 )
 def file_search(slots: dict) -> str:
-    query = (slots.get("content") or "").strip().lower()
-    if not query or len(query) < 2:
+    query = _fs_query(slots)
+    if not query:
+        return "Kya naam ke file dhundne hain? Jaise: 'file dhundo report'."
+    if len(query) < 2:
         return "At least 2 characters chahiye search ke liye."
+    query = query.lower()
     hits: list[tuple[float, str]] = []
     scanned = 0
     deadline = time.monotonic() + _SEARCH_TIME_BUDGET_S
@@ -129,11 +157,19 @@ def _slugify(text: str) -> str:
         "clipboard ko uppercase karo", "clipboard ko lowercase karo",
         "clipboard slug karo", "json pretty karo",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsa transform — upper / lower / slug / json / strip / reverse?"},
+    # No hard required-entity gate: the transform word ("uppercase") lives in
+    # the raw phrase, not in a `content` slot the extractor can fill, so gating
+    # on `content` would ask "kaunsa transform?" and never reach this handler
+    # (the actual text to transform comes from the clipboard, not the command).
+    required_entities=[],
+    prompts={},
 )
 def clipboard_transform(slots: dict) -> str:
-    mode_raw = (slots.get("content") or "").strip().lower()
+    # Check content AND raw_text — the entity extractor often strips the
+    # transform word out of `content` ("clipboard uppercase karo" → content
+    # "clipboard"), so we'd otherwise ask "kaunsa transform?" needlessly.
+    mode_raw = (str(slots.get("content") or "") + " " +
+                str(slots.get("raw_text") or slots.get("text") or "")).strip().lower()
     mode = next((t for t in _TRANSFORMS if t in mode_raw), None)
     if mode is None:
         return f"Transform batao: {', '.join(_TRANSFORMS)}."
@@ -167,6 +203,28 @@ def clipboard_transform(slots: dict) -> str:
 
 # ── kill_process ───────────────────────────────────────────────────── #
 
+# Verb/filler words peeled off the raw phrase to recover the process name when
+# the extractor didn't fill `content` ("kill firefox" → name "firefox"). Same
+# pattern as _fs_query: needed because relaxing the required-entity gate (so the
+# anchored "kill X" reaches this handler) means we must recover the name here.
+_KILL_STOP = {
+    "kill", "terminate", "close", "quit", "stop", "end", "band", "karo",
+    "kar", "kro", "do", "process", "app", "application", "force", "task",
+    "ko", "the", "exe", "please", "zara", "abhi", "wala", "wali",
+}
+
+
+def _proc_name(slots: dict) -> str:
+    """Recover the target process name: prefer `content`, else strip kill/close
+    verbs and filler out of the raw phrase."""
+    n = (slots.get("content") or "").strip()
+    if n:
+        return n
+    raw = (slots.get("raw_text") or slots.get("text") or "").lower()
+    toks = [t for t in re.findall(r"[a-z0-9.\-]+", raw) if t not in _KILL_STOP]
+    return " ".join(toks).strip()
+
+
 @skill(
     name="kill_process",
     description="Terminate a process by name (e.g. 'firefox', 'discord')",
@@ -175,13 +233,17 @@ def clipboard_transform(slots: dict) -> str:
         "kill chrome", "terminate", "process band karo",
         "kill app", "force quit",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsa process kill karna hai?"},
+    # No hard gate: the anchor routes "kill X" here, and the name lives in the
+    # verb phrase (not a `content` slot the extractor fills), so gating on
+    # `content` would dead-end at a "kaunsa process?" prompt. _proc_name recovers
+    # it; a bare "kill" with no target still returns the prompt below.
+    required_entities=[],
+    prompts={},
 )
 def kill_process(slots: dict) -> str:
-    name = (slots.get("content") or "").strip().lower()
+    name = _proc_name(slots).lower()
     if not name:
-        return "Process ka naam batao."
+        return "Kaunsa process kill karna hai? Jaise: 'kill firefox'."
     if len(name) < 3:
         return "Process name kam se kam 3 letters ka ho — safety ke liye."
     # Hard block on common safety hazards.
@@ -240,7 +302,7 @@ def _fire_timer(label: str) -> None:
     description="Set a timer — '5 minute timer', '10 min timer', '30 minute pomodoro'",
     patterns=[
         "5 minute timer", "10 minute timer", "15 minute timer",
-        "30 minute timer", "set timer", "1 hour timer", "timer lagao",
+        "30 minute timer", "set timer", "timer lagao",
         "pomodoro timer", "60 minute timer",
         "timer set karo", "5 minute baad batao",
     ],
@@ -272,7 +334,7 @@ def quick_timer(slots: dict) -> str:
     name="append_note",
     description="Append a quick note to data/scratch.md with a timestamp",
     patterns=[
-        "note this", "add note", "save note", "note likho",
+        "add note", "save note", "note likho",
         "remember this", "scratch note", "quick note",
         "yaad rakhna", "likh lo",
     ],

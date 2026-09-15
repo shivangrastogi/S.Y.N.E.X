@@ -488,6 +488,57 @@ class AutomationEngine:
             payload = {"routines": [r.to_dict() for r in self._routines.values()]}
         write_atomic_json(self._path, payload, indent=2)
 
+    def create_routine(self, *, name: str, trigger: Trigger,
+                       actions: list[Action], description: str = "",
+                       enabled: bool = True) -> Routine:
+        """Create + persist a new routine (used by the Automations UI
+        builder). Registers the live matcher/deadline immediately, so a
+        'daily 09:00' routine created at 08:59 fires a minute later —
+        no restart, no manual reload."""
+        base = _re.sub(r"[^a-z0-9]+", "_", (name or "routine").lower()).strip("_") \
+            or "routine"
+        with self._lock:
+            rid = base
+            n = 2
+            while rid in self._routines:
+                rid = f"{base}_{n}"; n += 1
+            r = Routine(id=rid, name=name or rid, description=description,
+                        trigger=trigger, actions=actions, enabled=enabled)
+            self._routines[rid] = r
+            if trigger.kind == "time":
+                cron = trigger.params.get("cron")
+                if cron:
+                    try:
+                        self._matchers[rid] = _CronMatcher(cron)
+                    except Exception as e:
+                        log.warning("[automation] bad cron for new %s: %s", rid, e)
+            elif trigger.kind == "interval":
+                try:
+                    secs = max(60.0, float(trigger.params.get("seconds", 3600)))
+                except Exception:
+                    secs = 3600.0
+                self._next_fire[rid] = time.monotonic() + secs
+        self.save()
+        log.info("[automation] created routine %s (%s)", rid, trigger.summary())
+        try:
+            from core.log_setup import event
+            event("routine_created", id=rid, trigger=trigger.kind)
+        except Exception:
+            pass
+        return r
+
+    def delete_routine(self, rid: str) -> bool:
+        """Remove a routine permanently (UI delete button)."""
+        with self._lock:
+            if rid not in self._routines:
+                return False
+            self._routines.pop(rid)
+            self._matchers.pop(rid, None)
+            self._next_fire.pop(rid, None)
+        self.save()
+        log.info("[automation] deleted routine %s", rid)
+        return True
+
     def _read_file(self) -> dict:
         if not os.path.exists(self._path):
             return {"routines": []}
@@ -559,9 +610,26 @@ class AutomationEngine:
             log.debug("[automation] no workspace monitor: %s", e)
 
         # Gesture events — gesture engine uses add_listener (no unsubscribe).
+        # PEEK ONLY: get_gesture_engine() would CONSTRUCT the engine, and
+        # its __init__ imports mediapipe → tensorflow (~15-20 s block on
+        # whatever thread calls start(), typically the GUI thread at boot).
+        # If the engine doesn't exist yet, the scheduler loop retries the
+        # attach on its 30 s tick until "gesture mode on" has created it.
+        self._gesture_attached = False
+        self._try_attach_gesture_listener()
+
+    def _try_attach_gesture_listener(self) -> None:
+        """Attach the gesture-trigger listener iff the engine already
+        exists. Never constructs it. Idempotent; cheap enough for polls."""
+        if self._gesture_attached:
+            return
         try:
-            from core.gesture_engine import get_gesture_engine
-            get_gesture_engine().add_listener(self._on_gesture)
+            from core import gesture_engine as _gem
+            eng = _gem._DEFAULT_ENGINE
+            if eng is not None:
+                eng.add_listener(self._on_gesture)
+                self._gesture_attached = True
+                log.info("[automation] gesture-trigger listener attached")
         except Exception as e:
             log.debug("[automation] no gesture engine: %s", e)
 
@@ -629,6 +697,12 @@ class AutomationEngine:
                 self._tick()
             except Exception:
                 log.exception("[automation] tick raised")
+            # Late-attach the gesture listener once "gesture mode on" has
+            # actually constructed the engine (peek only — see start()).
+            try:
+                self._try_attach_gesture_listener()
+            except Exception:
+                pass
             if self._stop.wait(self._poll_s):
                 return
 

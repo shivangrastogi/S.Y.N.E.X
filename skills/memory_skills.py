@@ -21,6 +21,28 @@ log = logging.getLogger(__name__)
 _RECALL_THRESHOLD = 0.35   # below this, treat as "no real match"
 
 
+# Leading trigger phrases peeled off the raw phrase to recover the search query
+# ("recall mera favourite colour" → "mera favourite colour") when the extractor
+# didn't fill `content`. Longest-first so multi-word triggers win.
+_RECALL_LEAD = (
+    "what did i say about", "search memory", "find conversation",
+    "remember the time", "remember when", "memory search", "kya kaha tha",
+    "yaad dilao", "yaad karo", "recall", "remember", "search", "find",
+)
+
+
+def _recall_query(slots: dict) -> str:
+    q = (slots.get("content") or "").strip()
+    if q:
+        return q
+    raw = (slots.get("raw_text") or slots.get("text") or "").strip()
+    lo = raw.lower()
+    for t in _RECALL_LEAD:
+        if lo.startswith(t):
+            return raw[len(t):].strip(" :,-?")
+    return raw
+
+
 @skill(
     name="recall",
     description="Recall past conversations semantically (by meaning, not keyword)",
@@ -30,11 +52,14 @@ _RECALL_THRESHOLD = 0.35   # below this, treat as "no real match"
         "yaad karo", "yaad dilao", "memory search",
         "kya kaha tha", "remember the time",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kya recall karna hai?"},
+    # No hard gate: the query follows the trigger in the phrase — gating on a
+    # `content` slot the extractor doesn't fill would ask "kya recall karna hai?"
+    # even when it was given. _recall_query recovers it.
+    required_entities=[],
+    prompts={},
 )
 def recall(slots: dict) -> str:
-    query = (slots.get("content") or "").strip()
+    query = _recall_query(slots)
     if len(query) < 3:
         return "Search query thodi bigger batao."
     mem = semantic_memory.get()

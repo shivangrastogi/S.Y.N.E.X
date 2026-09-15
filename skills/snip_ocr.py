@@ -90,7 +90,16 @@ def _select_region_tk():
 def _ocr(image) -> str:
     try:
         import pytesseract
-        return pytesseract.image_to_string(image, lang="eng+hin").strip()
+        # Prefer English+Hindi, but degrade to English-only when the
+        # 'hin' traineddata isn't installed (the default UB-Mannheim
+        # install ships only eng+osd) instead of failing the whole OCR.
+        try:
+            return pytesseract.image_to_string(image, lang="eng+hin").strip()
+        except Exception as lang_err:
+            if "hin" in str(lang_err).lower() or "language" in str(lang_err).lower():
+                log.info("[snip_ocr] hin traineddata missing — using eng only")
+                return pytesseract.image_to_string(image, lang="eng").strip()
+            raise
     except Exception as e:
         log.info("[snip_ocr] tesseract unavailable: %s", e)
         return ""

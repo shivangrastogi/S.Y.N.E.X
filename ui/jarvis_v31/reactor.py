@@ -510,7 +510,7 @@ class ReactorStateText(QWidget):
         self._sub = QLabel("All systems nominal. Ready for your command.")
         self._sub.setFont(mono(11, 400))
         self._sub.setAlignment(Qt.AlignCenter)
-        self._sub.setStyleSheet(f"color: {J.TEXT_MUT.name()}; letter-spacing: 0.4px;")
+        self._sub.setStyleSheet(f"color: {J.TEXT_MUT.name()}; ")
         self._sub.setMaximumWidth(460)
         self._sub.setWordWrap(True)
         root.addWidget(self._sub, alignment=Qt.AlignHCenter)
@@ -542,7 +542,7 @@ class ReactorStateText(QWidget):
         self._dot.set_color(spec.color)
 
         self._main.setStyleSheet(
-            f"color: {spec.color.name()}; letter-spacing: 4px;"
+            f"color: {spec.color.name()}; "
         )
         self._main.setText(main_text)
         self._sub.setText(sub_fn(self._last_input))

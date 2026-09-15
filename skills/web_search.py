@@ -371,7 +371,7 @@ def _get_llm_chat():
                  "and cache the answer locally for instant recall later."),
     patterns=[
         "search online", "search online ai", "search online for ai",
-        "search karo online", "google karo", "google search karo",
+        "search karo online",
         "internet pe dhundo", "internet par dhundo", "online dhundo",
         "search the web", "look this up online", "find online",
         "search online what is ai", "search online about machine learning",

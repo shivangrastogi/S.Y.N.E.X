@@ -1,3 +1,109 @@
+# A.E.R.I.S — Real-Use Roadmap v2 (2026-07-04)
+
+> Written after the foundation sprint: instant boot (window ~2-3 s), full
+> dependency lighting (OCR/clipboard/scheduler/NER), conversation layer
+> (dialogue context + chat gate + embedded Qwen 1.5B, no Ollama), the
+> Great Pattern Unification (61 collisions → 0, guarded by test), and the
+> safety pass (WM_CLOSE-first closes, browser-foreground guard).
+> Ordered by what a real daily user feels first.
+
+## ✅ Done (this sprint)
+- Instant open/close · staged low-CPU boot · AERIS.bat pinned launcher
+- All skill families live (OCR eng+hin, clipboard, window mgmt, reminders, NER)
+- Conversation: pronoun/analogy follow-ups, say-again, chat-vs-command gate
+- Embedded local LLM (lazy load, idle unload, anti-echo) + desi persona
+- One owner per trigger phrase (+ regression guard test)
+- Safe closes: save-prompts fire, tab keys only reach real browsers
+
+## 🔜 Next (blocked on user)
+- [ ] **USER: run `python -m core.train_intent`** — activates the neural
+      router on the clean corpus; biggest single accuracy jump available.
+- [ ] USER (1 min): Windows Security → Exclusions → add this folder
+      (Defender scans cause the 2-12 s boot variance).
+- [ ] DECISION: upgrade chat model to Qwen2.5-3B-Instruct Q4 (~2 GB,
+      ~2× reply latency, much better context-following + some Hinglish
+      output). 1.5B ceiling reached: coherent desi-English, weak nuance.
+
+## 🎯 Iteration queue (real-use order, loop works through these)
+1. ~~Encoder-based chat/command classifier~~ ✅ DONE (loop iter 2,
+   2026-07-04): core/chat_gate.py — logistic head over the brain's own
+   encoder; corpus = 355 skills' patterns + data/chat_corpus.json
+   (~110 chat + 25 paraphrase-command examples); threshold 0.65
+   calibrated on probes; subspan-inflated confidence can no longer
+   bypass the gate (full-span 0.90 bar vs trimmed-span 0.99 bar);
+   _NEVER_CHAT domain words (weather/battery/time) hard-route to
+   skills. 8/8 routing probes + 46 regression tests green.
+2. Post-retrain routing re-measure (same probe suite; before/after table).
+3. Live voice round-trip hardening: mic → STT → conversation → TTS
+   (barge-in, partial-transcript UX, wake-word reliability). NEEDS USER
+   at the mic — next joint session.
+4. ~~TTS phrase cache wiring~~ ✅ was already wired (verified round-trip
+   in loop iter 3: lookup/store hit on repeated short phrases).
+5. ~~Conversation memory bridge~~ ✅ DONE (loop iter 3, 2026-07-04):
+   core/fact_bridge.py — high-precision frames (likes / favourite X /
+   works at / learning / birthday, Hinglish + English, negation +
+   pronoun + run-on guards) auto-store KG triples from chat turns;
+   kg.query grew "what do i like / mujhe kya pasand hai / what am i
+   learning" recall. Verified full loop: say it in chat → ask later →
+   answered. 13 new tests; 65 KG-suite green.
+6. ~~Undo/confirm for destructive skills~~ ✅ DONE (loop iter 4,
+   2026-07-04): core/confirm_gate.py — 14 irreversible skills
+   (kill_process, kg_forget, vault_delete, clipboard_clear, …) now park
+   behind a one-turn "pakka? haan/cancel" gate at the execution choke
+   point; any other input aborts AND still runs as a fresh command.
+   Reversible actions already had core/action_history undo. Also fixed:
+   "kill process X" was being hijacked by the gazetteer hint into
+   close_app (bypassing both the user's explicit intent AND the gate).
+   6 new tests; 67 suite green.
+7. ~~Routine builder UI~~ ✅ DONE (loop iter 5, 2026-07-04): "＋ New"
+   button on the Automations tab opens a builder dialog — trigger
+   (Daily at HH:MM / Every N min / Battery below % / Manual) + up to 3
+   actions (Run skill w/ autocomplete over all 355 skills / Open app /
+   Open URL / Notify). engine.create_routine registers live matchers
+   (no restart needed) + delete_routine added. 9 new tests, offscreen
+   construction verified against the real 10-routine store.
+8. Wake-word personalisation + voice-ID as second factor for gestures.
+   NEEDS USER (voice recordings).
+
+## 📱 AERIS Bridge — phone ↔ laptop (built 2026-07-04)
+Zero-config internet remote: both devices are outbound Firebase clients,
+E2E AES-256-GCM encrypted, no IPs/hosting. Firestore = encrypted mailbox.
+- ✅ Laptop: `core/cloud_bridge.py` (mailbox listener, presence, stale-msg
+  guard, QR pairing) + 5 skills (`phone pair karo`, bridge on/off/status,
+  `phone unpair karo` kill-switch). Engine `process_text` now thread-safe.
+  LIVE round-trip verified through real Firestore.
+- ✅ Phone: `aeris_remote/` Flutter app — QR-scan pairing, chat screen,
+  quick-action chips (lock/screenshot/battery/vol/sleep), native en-IN
+  Hinglish voice button, laptop-online dot, unpair. `flutter analyze`
+  clean; Dart↔Python crypto verified byte-compatible.
+- 🔜 Phase 2: FCM push (act when app closed), laptop→phone actions
+  (ring phone, phone battery), notification mirror.
+- 🔜 Phase 3: encrypted file/screenshot transfer, clipboard sync, LAN
+  fast-path (same-WiFi → skip Firebase for ~20ms).
+- USER TODO: `flutterfire configure` (adds google-services.json), then
+  `flutter run` / `flutter build apk` (see aeris_remote/SETUP.md).
+
+## 🌅 Roadmap v3 — Proactive AERIS (drafted loop iter 6)
+The assistant should not only ANSWER — it should show up at the right
+moments. Ordered by value-per-risk:
+1. ~~Day wrap-up~~ ✅ DONE (iter 6): `day_summary` skill — screen time +
+   AERIS activity + today's spend + battery/uptime in one spoken report
+   ("aaj ka summary do"). Shipped "Evening Wrap-up" routine (21:30,
+   disabled by default — enable via the Automations tab or
+   "enable evening wrap-up").
+2. Welcome-back moment: presence sees you return after 30+ min →
+   micro-briefing (missed notifications, next meeting). Camera-gated;
+   build in a joint session.
+3. Meeting-aware DND: workspace MEETING profile → auto notification
+   mute + auto-unmute on exit.
+4. Weekly Friday report: workspace + expenses trends over 7 days.
+5. Idle stretch nudges: interval routine template (ship disabled).
+6. Proactive low-storage / high-RAM warnings via resource monitor.
+
+---
+
+# (v1 below — original hero-tier roadmap, kept for reference)
+
 # A.E.R.I.S — Hero-tier Roadmap
 
 **Goal:** turn AERIS from "a desktop chat app that wraps an LLM" into a

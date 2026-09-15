@@ -1,0 +1,54 @@
+{
+    "_comment": "Modes / Scenes — one command runs many actions. Activate by name: 'work mode chalu karo', 'sleep mode off'. Each step is {skill, slots}; slots pass to that skill's handler (parameterised skills read slots.content). Edit freely and say 'reload modes'. 'off' steps reverse the mode.",
+
+    "work": {
+        "description": "Deep work — distracting apps band, Do-Not-Disturb on, brightness full.",
+        "aliases": ["work", "kaam", "office", "focus", "study", "padhai"],
+        "on": [
+            {"skill": "focus_deep_on"},
+            {"skill": "brightness_set", "slots": {"content": "90"}}
+        ],
+        "off": [
+            {"skill": "focus_deep_off"},
+            {"skill": "brightness_set", "slots": {"content": "70"}}
+        ]
+    },
+
+    "sleep": {
+        "description": "Wind down — brightness low, volume mute.",
+        "aliases": ["sleep", "sone", "raat", "night", "bed", "sona"],
+        "on": [
+            {"skill": "brightness_set", "slots": {"content": "15"}},
+            {"skill": "volume_mute"}
+        ],
+        "off": [
+            {"skill": "brightness_set", "slots": {"content": "70"}}
+        ]
+    },
+
+    "movie": {
+        "description": "Movie / chill — volume up, brightness dim, DND on.",
+        "aliases": ["movie", "film", "chill", "netflix", "cinema", "entertainment"],
+        "on": [
+            {"skill": "focus_deep_on"},
+            {"skill": "volume_set", "slots": {"content": "70"}},
+            {"skill": "brightness_set", "slots": {"content": "45"}}
+        ],
+        "off": [
+            {"skill": "focus_deep_off"},
+            {"skill": "brightness_set", "slots": {"content": "70"}}
+        ]
+    },
+
+    "meeting": {
+        "description": "Meeting — DND on, volume set for calls.",
+        "aliases": ["meeting", "call", "presentation", "zoom", "conference"],
+        "on": [
+            {"skill": "focus_deep_on"},
+            {"skill": "volume_set", "slots": {"content": "60"}}
+        ],
+        "off": [
+            {"skill": "focus_deep_off"}
+        ]
+    }
+}

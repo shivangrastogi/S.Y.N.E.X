@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -59,6 +60,34 @@ from typing import Callable, Optional
 from core.vision_engine import get_vision_engine
 
 log = logging.getLogger(__name__)
+
+
+def camera_idle_seconds() -> float:
+    """Seconds of no-hand-in-frame before the webcam is released.
+
+    ``AERIS_CAMERA_IDLE_S``; **0 (the default) disables the release**, so
+    behaviour is unchanged unless you opt in. Read at call time so it can be
+    changed without a restart, and so tests can set it.
+
+    Off by default on purpose: releasing the camera means gestures stop
+    working until they are switched back on. That is a product decision, not
+    a technical one — the machinery is here, the choice is the user's.
+    """
+    raw = os.environ.get("AERIS_CAMERA_IDLE_S")
+    if raw is None or not str(raw).strip():
+        return 0.0
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        log.warning("[gestures] bad AERIS_CAMERA_IDLE_S=%r — ignoring", raw)
+        return 0.0
+
+
+@dataclass
+class _LandmarkPoint:
+    x: float
+    y: float
+    z: float = 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -108,6 +137,25 @@ def _tap(vk: int) -> None:
     _press(vk); time.sleep(0.02); _release(vk)
 
 
+def _foreground_exe_name() -> str:
+    """Return the foreground window's process exe name (e.g. 'code.exe'),
+    lowercased. '' on any failure / non-Windows host."""
+    try:
+        u32 = ctypes.windll.user32
+        hwnd = u32.GetForegroundWindow()
+        if not hwnd:
+            return ""
+        pid = ctypes.c_ulong()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        try:
+            import psutil  # type: ignore
+            return (psutil.Process(int(pid.value)).name() or "").lower()
+        except Exception:
+            return ""
+    except Exception:
+        return ""
+
+
 def _foreground_title() -> str:
     try:
         u32 = ctypes.windll.user32
@@ -144,6 +192,16 @@ def _alt_tab(reverse: bool = False) -> None:
         _release(_VK_LMENU)
 
 
+def _alt_tab_forward() -> None:
+    """Alt+Tab — switch to the next (right-side) app in the alt-tab list."""
+    _alt_tab(reverse=False)
+
+
+def _alt_tab_backward() -> None:
+    """Alt+Shift+Tab — cycle backward (toward the left side of the alt-tab list)."""
+    _alt_tab(reverse=True)
+
+
 def _ctrl_tab(reverse: bool = False) -> None:
     _press(_VK_LCONTROL)
     try:
@@ -173,6 +231,71 @@ def _volume(direction: str, ticks: int = 3) -> None:
     vk = _VK_VOLUME_UP if direction == "up" else _VK_VOLUME_DN
     for _ in range(ticks):
         _tap(vk); time.sleep(0.03)
+
+
+_VOLUME_FALLBACK_STATE: dict = {
+    "warned": False,         # only log the missing-pycaw warning once
+    "last_pct": None,        # last percentage we tried to push
+}
+
+
+def _set_volume_pct(pct: int) -> bool:
+    """Set absolute speaker volume (0..100). Returns True when applied.
+
+    Three-tier strategy:
+      1. Modern pycaw — ``AudioDevice.EndpointVolume`` attribute (already cast).
+      2. Legacy pycaw — ``.Activate(IAudioEndpointVolume._iid_, ...)``.
+      3. Fallback when pycaw is missing — convert the percentage delta into
+         a proportional burst of VK_VOLUME_UP / VK_VOLUME_DOWN key taps
+         (each tap ≈ 2 % on Windows). Less smooth than pycaw but means the
+         gesture works without the extra dependency.
+    """
+    pct = int(max(0, min(100, pct)))
+    level = pct / 100.0
+    # ── 1. Modern pycaw ──
+    try:
+        from pycaw.pycaw import AudioUtilities  # type: ignore
+        sp = AudioUtilities.GetSpeakers()
+        vol = getattr(sp, "EndpointVolume", None)
+        if vol is not None:
+            vol.SetMasterVolumeLevelScalar(level, None)
+            _VOLUME_FALLBACK_STATE["last_pct"] = pct
+            return True
+    except Exception:
+        pass
+    # ── 2. Legacy pycaw ──
+    try:
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume  # type: ignore
+        from ctypes import POINTER, cast
+        from comtypes import CLSCTX_ALL  # type: ignore
+        devices = AudioUtilities.GetSpeakers()
+        iface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        vol = cast(iface, POINTER(IAudioEndpointVolume))
+        vol.SetMasterVolumeLevelScalar(level, None)
+        _VOLUME_FALLBACK_STATE["last_pct"] = pct
+        return True
+    except Exception as e:
+        if not _VOLUME_FALLBACK_STATE["warned"]:
+            log.warning(
+                "[gestures] pycaw unavailable (%s) — using VK_VOLUME_UP/DOWN "
+                "key-tap fallback. Install pycaw + comtypes for smooth "
+                "absolute-volume control.", e
+            )
+            _VOLUME_FALLBACK_STATE["warned"] = True
+    # ── 3. Key-tap fallback (delta-driven). Each Windows volume tap ≈ 2 %. ──
+    last = _VOLUME_FALLBACK_STATE["last_pct"]
+    if last is None:
+        last = 50
+    delta = pct - last
+    n_taps = max(-10, min(10, int(round(delta / 2.0))))
+    if n_taps > 0:
+        for _ in range(n_taps):
+            _tap(_VK_VOLUME_UP); time.sleep(0.01)
+    elif n_taps < 0:
+        for _ in range(-n_taps):
+            _tap(_VK_VOLUME_DN); time.sleep(0.01)
+    _VOLUME_FALLBACK_STATE["last_pct"] = pct
+    return True
 
 
 def _media_play_pause() -> None:
@@ -393,6 +516,15 @@ def _classify_static(lm, hand_label: str) -> str:
         return "three_up"
 
     if n_ext >= 4:
+        # Discriminate sideways palm (rotated ~90° so the four MCP joints line
+        # up vertically) from a front-facing palm. Used to gate the
+        # sideways-palm app-switch gesture.
+        mcp_i = lm[_MCPS["index"]]
+        mcp_p = lm[_MCPS["pinky"]]
+        dx_mcp = abs(mcp_i.x - mcp_p.x)
+        dy_mcp = abs(mcp_i.y - mcp_p.y)
+        if dy_mcp > dx_mcp * 1.3:
+            return "sideways_palm"
         return "open_palm"
     if n_ext == 1 and states["index"]:
         return "point"
@@ -408,6 +540,10 @@ class _GestureState:
     last_static: str = "none"
     last_static_at: float = 0.0
     last_emit_at: dict = field(default_factory=dict)
+    static_window: deque = field(default_factory=lambda: deque(maxlen=_STATIC_CONSENSUS_WINDOW))
+    armed: bool = True
+    neutral_frames: int = 0
+    smoothed_hands: list = field(default_factory=list)
     palm_track: deque = field(default_factory=lambda: deque(maxlen=15))
     palm_hold_since: float = 0.0
     # Wave detection: track x-velocity sign changes inside a sliding window.
@@ -422,6 +558,24 @@ class _GestureState:
     # Air-stroke recognition: index-fingertip trail while in pointing pose.
     stroke_track: list = field(default_factory=list)   # list of (t, x, y)
     stroke_started_at: float = 0.0
+    # ── Lock-screen sequence (palm → fist → palm → fist) ──
+    # 0=waiting for palm, 1=palm-held 0.3s, 2=palm→fist seen, 3=fist→palm seen.
+    # Step advances to 4 (fires) on the second fist transition.
+    lock_seq_step: int = 0
+    lock_palm_started_at: float = 0.0
+    lock_last_progress_at: float = 0.0
+    # ── Double-pinch (play/pause) — rising edges of thumb-index touch ──
+    last_pinch_state: bool = False
+    pinch_events: deque = field(default_factory=lambda: deque(maxlen=4))
+    # ── Continuous volume gesture (closed fingers + thumb↔index distance) ──
+    volume_armed: bool = False
+    volume_arm_started_at: float = 0.0
+    volume_last_emit_at: float = 0.0
+    volume_last_pct: int = -1
+    # ── Sideways-palm app switch (rotated palm + horizontal motion) ──
+    side_palm_stable_since: float = 0.0
+    side_palm_anchor_x: float = 0.0
+    side_palm_anchored: bool = False
 
 
 def _mute_mic_action() -> None:
@@ -473,41 +627,79 @@ def _arrow_right() -> None:
 
 
 DEFAULT_ACTIONS: dict[str, Callable[[], None]] = {
-    # ── original 6 ──
-    "fist":            _lock_screen,
+    # ── Sequenced gestures — collision-free, intentional ──
+    "palm_fist_lock":   _lock_screen,           # palm(0.3s) → fist → palm → fist
+    "double_pinch":     _media_play_pause,      # 2 quick pinches in OK-sign region
+    "app_switch_next":  _alt_tab_forward,       # sideways palm + motion left
+    "app_switch_prev":  _alt_tab_backward,      # sideways palm + motion right
+
+    # ── Open-palm motion gestures ──
     "swipe_left":      lambda: _smart_swipe("left"),
     "swipe_right":     lambda: _smart_swipe("right"),
-    "thumbs_up":       lambda: _volume("up", 3),
-    "thumbs_down":     lambda: _volume("down", 3),
-    "open_palm_hold":  _media_play_pause,
-    # ── round 2 (6) ──
-    "peace":           _screenshot_snip,
-    "pinch":           _mute_mic_action,
-    "three_up":        _media_next_track,
-    "ok_sign":         _open_palette_action,
     "swipe_up":        lambda: _scroll_page("up"),
     "swipe_down":      lambda: _scroll_page("down"),
-    # ── round 3 (advanced) — 5 new ──
-    "two_palm_spread": _zoom_in,           # Both palms apart → Ctrl++
-    "two_palm_pinch":  _zoom_out,          # Both palms together → Ctrl+-
-    "clap":            _clap_wake_action,  # Both hands clap → focus AERIS
-    "wave":            _esc_dismiss,       # Open palm rapid L/R → Esc
-    "long_fist":       _open_palette_action,  # Fist held 3s+ → palette toggle
-    # ── round 4 (stroke recognition) — 4 new ──
-    "stroke_circle":      _refresh_page,    # Index-finger circle → F5
-    "stroke_x":           _close_tab,       # Index-finger X → Ctrl+W
-    "stroke_check":       _enter_confirm,   # Index-finger check → Enter
-    "stroke_arrow_right": _arrow_right,     # Index-finger arrow → Right
+    "wave":            _esc_dismiss,            # rapid L↔R wave → Esc
+
+    # ── Quick volume taps (still useful, non-colliding) ──
+    "thumbs_up":       lambda: _volume("up", 3),
+    "thumbs_down":     lambda: _volume("down", 3),
+
+    # ── One-shot static poses ──
+    "peace":           _screenshot_snip,
+    "three_up":        _media_next_track,
+    "long_fist":       _open_palette_action,    # 3s fist → command palette
+
+    # ── Two-handed gestures ──
+    "two_palm_spread": _zoom_in,
+    "two_palm_pinch":  _zoom_out,
+    "clap":            _clap_wake_action,
+
+    # ── Air strokes (index-finger draw) ──
+    "stroke_circle":      _refresh_page,
+    "stroke_x":           _close_tab,
+    "stroke_check":       _enter_confirm,
+    "stroke_arrow_right": _arrow_right,
 }
 
+# Sensitivity multiplier maps a small set of named levels to a single
+# scaling factor that the swipe gate (and similar motion thresholds)
+# multiply against their base values. Higher = harder to fire.
+_SENSITIVITY_LEVELS: dict[str, float] = {
+    "very_sensitive": 0.7,    # easier to fire — for users with limited motion
+    "sensitive":      0.85,
+    "normal":         1.0,    # default
+    "relaxed":        1.2,    # harder to fire — fewer false positives
+    "very_relaxed":   1.5,
+}
+
+
+def _sensitivity_multiplier() -> float:
+    """Read the user-chosen sensitivity level from settings. Falls back to
+    1.0 (default) on any error so a missing settings file never breaks
+    the engine."""
+    try:
+        from core import settings as _settings
+        level = str(_settings.get("gesture_sensitivity") or "normal").lower()
+    except Exception:
+        return 1.0
+    return _SENSITIVITY_LEVELS.get(level, 1.0)
+
+
 _GESTURE_COOLDOWN_S = 1.4
-_FIST_HOLD_S = 0.6           # short fist (0.6s)  = lock screen
+_FIST_HOLD_S = 1.0           # short fist (1.0s)  = lock screen
 _LONG_FIST_S = 3.0           # long  fist (3.0s) = palette toggle (deliberate)
 _PALM_HOLD_S = 0.9           # palm steady for ~0.9s = play/pause toggle
-_HOLD_S = 0.35               # static-pose gestures (peace, ok_sign, pinch,
+_HOLD_S = 0.55               # static-pose gestures (peace, ok_sign, pinch,
                              #   three_up) need this much steady time before
                              #   firing — avoids misfires during natural hand
                              #   transitions through these poses.
+
+# Human-intent gates. A raw pose can flicker while the user is forming it,
+# so we only act on a gesture after it dominates a short rolling window.
+_STATIC_CONSENSUS_WINDOW = 5
+_STATIC_CONSENSUS_REQUIRED = 4
+_REARM_NEUTRAL_FRAMES = 10
+_LANDMARK_SMOOTH_ALPHA = 0.55
 
 # Two-handed zoom: distance between wrist centers, normalised 0..1.
 _TWO_HAND_DELTA_THRESH = 0.15   # ≥15% rapid change in distance = zoom event
@@ -529,6 +721,30 @@ _STROKE_MIN_POINTS = 12
 _STROKE_MAX_DURATION_S = 2.0
 _STROKE_MIN_BBOX = 0.10         # tiny strokes don't count — needs ≥10% of frame
 
+# ── Lock-screen sequence (palm → fist → palm → fist) ──
+_LOCK_INITIAL_PALM_HOLD_S = 0.30   # initial palm must be held this long to "arm"
+_LOCK_SEQ_TIMEOUT_S = 4.0          # whole sequence must finish within this
+                                   # (bumped 3 → 4s — gives breathing room
+                                   # to perform the 4-step sequence without
+                                   # rushing; user feedback was "awkward").
+
+# ── Double-pinch play/pause ──
+_DOUBLE_PINCH_MIN_INTERVAL_S = 0.08
+_DOUBLE_PINCH_MAX_INTERVAL_S = 0.80
+_DOUBLE_PINCH_WINDOW_S = 1.2
+
+# ── Continuous volume gesture ──
+_VOLUME_ARM_HOLD_S = 0.20          # how long the fist+pinch must be held to arm
+_VOLUME_EMIT_INTERVAL_S = 0.08     # throttle updates to ~12 Hz
+_VOLUME_MIN_PCT_DELTA = 3          # don't repeat if % barely changed
+_VOLUME_FULL_NORM = 2.5            # thumb↔index distance / palm width at 100%
+
+# ── Sideways-palm app switch ──
+_SIDE_PALM_HOLD_S = 0.30         # bumped 0.20 → 0.30 — gives a clearer
+                                 # "commit" beat before motion is read
+_SIDE_PALM_SWIPE_THRESH = 0.12   # bumped 0.10 → 0.12 — needs a more
+                                 # deliberate sideways motion to switch app
+
 
 class GestureEngine:
     def __init__(self, actions: Optional[dict] = None):
@@ -539,6 +755,9 @@ class GestureEngine:
         self._mp_hands = None
         self._lock = threading.RLock()
         self._enabled = False
+        # Idle camera release (see camera_idle_seconds / _maybe_idle_release).
+        self._last_hand_at = 0.0
+        self._idle_release_pending = False
         self._listeners: list[Callable[[str], None]] = []
         self._mediapipe_ok = self._init_mediapipe()
         # Cursor-mode toggle (independent of `_enabled` — gesture
@@ -546,6 +765,9 @@ class GestureEngine:
         # mouse when this is True).
         self._cursor_mode = False
         self._screen_w, self._screen_h = _screen_size()
+        # Cached most-recent frame so the face gate can re-identify the
+        # user on demand without re-subscribing to the VisionEngine.
+        self._latest_frame = None
 
     # ----------- init / status ----------- #
 
@@ -622,8 +844,50 @@ class GestureEngine:
             ok = get_vision_engine().subscribe("gestures", self._on_frame)
             if not ok:
                 return False
+            self._state = _GestureState()
             self._enabled = True
+            self._last_hand_at = time.monotonic()
+            self._idle_release_pending = False
             return True
+
+    # ── idle camera release (opt-in) ──────────────────────────────
+    #
+    # VisionEngine already holds the webcam open only while something is
+    # subscribed, and releases it when the last consumer leaves — that part
+    # was always right. The gap was here: GestureEngine never unsubscribed on
+    # its own, so enabling gestures once kept the camera (and MediaPipe
+    # inference at ~30 fps) running until the app closed, whether or not a
+    # hand had been in front of it for hours.
+    #
+    # OFF BY DEFAULT, deliberately. Auto-releasing means gestures silently
+    # stop working until re-enabled, which is a product decision rather than
+    # a technical one — `AERIS_CAMERA_IDLE_S=<seconds>` opts in.
+
+    def _note_hand_seen(self) -> None:
+        self._last_hand_at = time.monotonic()
+
+    def _maybe_idle_release(self) -> None:
+        window = camera_idle_seconds()
+        if window <= 0 or self._idle_release_pending or not self._enabled:
+            return
+        if time.monotonic() - getattr(self, "_last_hand_at", 0.0) < window:
+            return
+        self._idle_release_pending = True
+        log.info("[gestures] no hand for %.0fs — releasing the camera", window)
+
+        # MUST hand off: this runs on the VisionEngine capture thread, and
+        # stop() -> unsubscribe() -> VisionEngine.stop() joins that very
+        # thread. Joining yourself raises; a one-shot worker avoids it.
+        def _release():
+            try:
+                self.stop()
+            except Exception as e:
+                log.warning("[gestures] idle release failed: %s", e)
+            finally:
+                self._idle_release_pending = False
+
+        threading.Thread(target=_release, name="gesture-idle-release",
+                         daemon=True).start()
 
     def stop(self) -> None:
         with self._lock:
@@ -657,7 +921,86 @@ class GestureEngine:
 
     # ----------- per-frame ----------- #
 
+    def _clear_tracks(self) -> None:
+        st = self._state
+        st.palm_track.clear()
+        st.wave_track.clear()
+        st.two_hand_track.clear()
+        st.stroke_track = []
+        st.palm_hold_since = 0.0
+        st.static_window.clear()
+        st.smoothed_hands = []
+        # New gesture state — hand left frame, reset every in-progress chain.
+        st.lock_seq_step = 0
+        st.lock_palm_started_at = 0.0
+        st.last_pinch_state = False
+        st.pinch_events.clear()
+        st.volume_armed = False
+        st.volume_arm_started_at = 0.0
+        st.volume_last_pct = -1
+        st.side_palm_stable_since = 0.0
+        st.side_palm_anchored = False
+
+    def _mark_neutral_frame(self) -> None:
+        # Reached only on frames with no hand in them — the natural place to
+        # notice the camera has nothing to watch (see _maybe_idle_release).
+        self._maybe_idle_release()
+        st = self._state
+        if st.armed:
+            st.neutral_frames = 0
+            return
+        st.neutral_frames += 1
+        if st.neutral_frames >= _REARM_NEUTRAL_FRAMES:
+            st.armed = True
+            st.neutral_frames = 0
+            st.last_static = "none"
+            st.last_static_at = 0.0
+
+    def _stable_static(self, raw_static: str) -> str:
+        """Return a pose only after K-frame consensus.
+
+        This is the human-friendly part: while the user's hand is moving
+        toward a final pose, intermediate shapes show up for a frame or two.
+        Those are treated as "none" until one pose wins the rolling window.
+        """
+        st = self._state
+        st.static_window.append(raw_static)
+        if len(st.static_window) < _STATIC_CONSENSUS_WINDOW:
+            return "none"
+        for name in set(st.static_window):
+            if name == "none":
+                continue
+            if sum(1 for x in st.static_window if x == name) >= _STATIC_CONSENSUS_REQUIRED:
+                return name
+        return "none"
+
+    def _smooth_hands(self, hands: list[tuple]) -> list[tuple]:
+        """EMA-smooth landmark coordinates to reduce visible pose jitter."""
+        st = self._state
+        if len(st.smoothed_hands) != len(hands):
+            st.smoothed_hands = []
+            for lms, _label in hands:
+                st.smoothed_hands.append([
+                    _LandmarkPoint(float(p.x), float(p.y), float(getattr(p, "z", 0.0)))
+                    for p in lms
+                ])
+            return [(st.smoothed_hands[i], hands[i][1]) for i in range(len(hands))]
+
+        alpha = _LANDMARK_SMOOTH_ALPHA
+        for hand_idx, (lms, _label) in enumerate(hands):
+            smoothed = st.smoothed_hands[hand_idx]
+            for i, p in enumerate(lms):
+                smoothed[i].x += alpha * (float(p.x) - smoothed[i].x)
+                smoothed[i].y += alpha * (float(p.y) - smoothed[i].y)
+                smoothed[i].z += alpha * (float(getattr(p, "z", 0.0)) - smoothed[i].z)
+        return [(st.smoothed_hands[i], hands[i][1]) for i in range(len(hands))]
+
     def _on_frame(self, frame_bgr) -> None:
+        # Cache the most recent BGR frame so the face-gate (which runs
+        # on-demand from _emit / _fire_continuous) can refresh its
+        # "who's in front of the camera" answer without re-subscribing
+        # to the VisionEngine.
+        self._latest_frame = frame_bgr
         try:
             import cv2
         except Exception:
@@ -679,9 +1022,8 @@ class GestureEngine:
             except Exception:
                 return
             if not res.hand_landmarks:
-                self._state.palm_track.clear()
-                self._state.wave_track.clear()
-                self._state.two_hand_track.clear()
+                self._clear_tracks()
+                self._mark_neutral_frame()
                 return
             for i, lms in enumerate(res.hand_landmarks):
                 label = "Right"
@@ -697,9 +1039,8 @@ class GestureEngine:
             except Exception:
                 return
             if not res.multi_hand_landmarks:
-                self._state.palm_track.clear()
-                self._state.wave_track.clear()
-                self._state.two_hand_track.clear()
+                self._clear_tracks()
+                self._mark_neutral_frame()
                 return
             for i, h in enumerate(res.multi_hand_landmarks):
                 label = "Right"
@@ -711,7 +1052,9 @@ class GestureEngine:
                 hands.append((h.landmark, label))
 
         now = time.monotonic()
+        self._note_hand_seen()          # a hand is in frame — reset idle clock
         st = self._state
+        hands = self._smooth_hands(hands)
 
         # ── Two-handed gestures (zoom + clap) ──
         if len(hands) >= 2:
@@ -722,13 +1065,57 @@ class GestureEngine:
         # ── Single-hand gestures use the FIRST hand only ──
         lms = hands[0][0]
         hand_label = hands[0][1]
-        static = _classify_static(lms, hand_label)
+        raw_static = _classify_static(lms, hand_label)
+        static = self._stable_static(raw_static)
+
+        # ── Custom user-trained gestures ──
+        # Runs even before the armed gate so recording can happen while
+        # the engine cycles. A successful fire goes through the regular
+        # _emit path so face-gate / cooldown still apply.
+        try:
+            from core.custom_gestures import get_custom_gesture_engine
+            cg_result = get_custom_gesture_engine().feed(lms)
+            if cg_result and not cg_result.startswith(("recorded:", "saved:")):
+                # Match fired — surface as a "custom:<name>" gesture so
+                # bindings can target it (e.g. bind custom:my-pose to X).
+                self._emit(f"custom:{cg_result}")
+        except Exception as _cg_err:
+            log.debug("[gestures] custom gesture feed failed: %s", _cg_err)
+
+        # ── Continuous gestures (bypass the arm/neutral-rest gate) ──
+        # Volume control and sideways-palm app switching are designed to
+        # repeat while the user holds the pose, so they don't go through
+        # the disarm/rearm cycle.
+        self._handle_volume_continuous(lms, hand_label, now)
+        self._handle_sideways_palm_switch(lms, static, now)
+
+        if not st.armed:
+            if static == "none":
+                self._mark_neutral_frame()
+            else:
+                st.neutral_frames = 0
+            st.last_static = static
+            return
+
+        if static == "none":
+            self._mark_neutral_frame()
+        else:
+            st.neutral_frames = 0
+
+        # ── Sequenced gestures (respect the arm/neutral-rest gate) ──
+        # Lock-screen sequence accumulates pose transitions; double-pinch
+        # counts rapid thumb-index touch onsets in OK-sign region.
+        self._update_lock_sequence(static, now)
+        self._detect_double_pinch(lms, hand_label, now)
 
         # ── Cursor mode (advanced) — drives mouse from index finger ──
         if self._cursor_mode:
             self._handle_cursor(lms)
 
         # ----- swipe (open_palm motion: horizontal OR vertical) + wave -----
+        # Note: lock screen and play/pause are NO LONGER bound here — they
+        # require the dedicated sequenced gestures (palm_fist_lock and
+        # double_pinch respectively).
         if static == "open_palm":
             wrist_x = lms[_WRIST].x
             wrist_y = lms[_WRIST].y
@@ -741,35 +1128,30 @@ class GestureEngine:
             else:
                 # Only emit swipes if NOT in the middle of a wave.
                 self._maybe_emit_swipe(now)
-            if st.palm_hold_since == 0.0:
-                st.palm_hold_since = now
-            elif now - st.palm_hold_since >= _PALM_HOLD_S and not self._is_palm_moving():
-                self._emit("open_palm_hold")
-                st.palm_hold_since = 0.0
         else:
             st.palm_track.clear()
             st.palm_hold_since = 0.0
             st.wave_track.clear()
 
-        # ----- fist hold: 0.6s = lock, 3.0s = long_fist (palette) -----
-        # last_static_at acts as the FIST-START timestamp. We never bump
-        # it forward while the fist is held — _emit's per-name cooldown
-        # is what prevents rapid refire. Once long_fist fires we PARK
-        # the start time far in the future so the SAME continuous hold
-        # doesn't refire long_fist; it resets only when the user lets go.
+        # ----- fist hold: 3.0s = long_fist (palette toggle) -----
+        # Plain 1-second fist no longer fires lock — that's now the
+        # palm→fist→palm→fist sequence (see _update_lock_sequence).
         if static == "fist":
             if st.last_static != "fist":
                 st.last_static_at = now
             held = now - st.last_static_at
             if held >= _LONG_FIST_S:
                 self._emit("long_fist")
-                st.last_static_at = now + 1e6   # parked
-            elif held >= _FIST_HOLD_S:
-                self._emit("fist")
+                st.last_static_at = now + 1e6   # parked until release
 
-        # ----- thumbs up / down — fire immediately -----
+        # ----- thumbs up / down — deliberate hold -----
         elif static in ("thumbs_up", "thumbs_down"):
-            self._emit(static)
+            if st.last_static == static:
+                if now - st.last_static_at >= _HOLD_S:
+                    self._emit(static)
+                    st.last_static_at = now + _GESTURE_COOLDOWN_S
+            else:
+                st.last_static_at = now
 
         # ----- point: capture index-fingertip trail for air-stroke -----
         # Trail is collected while the user is in pointing pose; when
@@ -789,12 +1171,15 @@ class GestureEngine:
             self._classify_and_emit_stroke()
             st.stroke_track = []
 
-        # ----- hold-required static poses (peace, three_up, pinch, ok_sign)
+        # ----- hold-required static poses (peace, three_up) -----
         # Fire only after the pose has been STEADY for _HOLD_S. This kills
         # spurious matches during natural hand motion through these
-        # configurations and gives the user a chance to "commit" the
-        # gesture instead of triggering an action they didn't mean.
-        elif static in ("peace", "three_up", "pinch", "ok_sign"):
+        # configurations.
+        #
+        # `pinch` and `ok_sign` are deliberately NOT in this list — they
+        # are intermediate states of the double-pinch (play/pause) and
+        # continuous-volume gestures and should not fire on their own.
+        elif static in ("peace", "three_up"):
             if st.last_static == static:
                 if now - st.last_static_at >= _HOLD_S:
                     self._emit(static)
@@ -924,6 +1309,240 @@ class GestureEngine:
             _mouse_click_left()
         st.cursor_was_pinched = is_pinched
 
+    # ── Sequenced gesture: lock-screen (palm → fist → palm → fist) ─
+
+    def _update_lock_sequence(self, static: str, now: float) -> None:
+        """Progress the four-step palm/fist sequence that fires the
+        ``palm_fist_lock`` event.
+
+        Steps:
+          0 → waiting for the initial open palm
+          1 → palm held ≥ _LOCK_INITIAL_PALM_HOLD_S
+          2 → first fist seen
+          3 → palm again
+          (next fist) → emit lock and reset
+
+        Any unrelated stable pose resets the machine. ``none`` is
+        ignored so the inevitable in-between frames don't break the
+        chain. The whole sequence must complete within
+        _LOCK_SEQ_TIMEOUT_S of the previous step.
+        """
+        st = self._state
+
+        # Step-timeout (skip when nothing has progressed yet).
+        if st.lock_seq_step > 0 and st.lock_last_progress_at > 0.0:
+            if now - st.lock_last_progress_at > _LOCK_SEQ_TIMEOUT_S:
+                st.lock_seq_step = 0
+                st.lock_palm_started_at = 0.0
+
+        if static == "none":
+            return
+
+        if st.lock_seq_step == 0:
+            if static == "open_palm":
+                if st.lock_palm_started_at == 0.0:
+                    st.lock_palm_started_at = now
+                elif now - st.lock_palm_started_at >= _LOCK_INITIAL_PALM_HOLD_S:
+                    st.lock_seq_step = 1
+                    st.lock_last_progress_at = now
+            else:
+                st.lock_palm_started_at = 0.0
+        elif st.lock_seq_step == 1:
+            if static == "fist":
+                st.lock_seq_step = 2
+                st.lock_last_progress_at = now
+            elif static != "open_palm":
+                st.lock_seq_step = 0
+                st.lock_palm_started_at = 0.0
+        elif st.lock_seq_step == 2:
+            if static == "open_palm":
+                st.lock_seq_step = 3
+                st.lock_last_progress_at = now
+            elif static != "fist":
+                st.lock_seq_step = 0
+                st.lock_palm_started_at = 0.0
+        elif st.lock_seq_step == 3:
+            if static == "fist":
+                self._emit("palm_fist_lock")
+                st.lock_seq_step = 0
+                st.lock_palm_started_at = 0.0
+            elif static != "open_palm":
+                st.lock_seq_step = 0
+                st.lock_palm_started_at = 0.0
+
+    # ── Sequenced gesture: double-pinch (play/pause) ──────────────
+
+    def _detect_double_pinch(self, lms, hand_label: str, now: float) -> None:
+        """Count thumb-index touch onsets while the hand is in OK-sign
+        region (≥2 of middle/ring/pinky extended). Two onsets spaced
+        between _DOUBLE_PINCH_MIN_INTERVAL_S and _DOUBLE_PINCH_MAX_INTERVAL_S
+        emit ``double_pinch``.
+        """
+        st = self._state
+
+        states = {f: _finger_extended(lms, f, hand_label) for f in _TIPS}
+        n_other = sum(1 for f in ("middle", "ring", "pinky") if states[f])
+        if n_other < 2:
+            st.last_pinch_state = False
+            st.pinch_events.clear()
+            return
+
+        d = _dist(lms[_TIPS["thumb"]], lms[_TIPS["index"]])
+        pinched_now = d < _PINCH_TOUCH_DIST
+
+        # Rising edge: thumb-index just touched.
+        if pinched_now and not st.last_pinch_state:
+            cutoff = now - _DOUBLE_PINCH_WINDOW_S
+            while st.pinch_events and st.pinch_events[0] < cutoff:
+                st.pinch_events.popleft()
+            st.pinch_events.append(now)
+            if len(st.pinch_events) >= 2:
+                interval = st.pinch_events[-1] - st.pinch_events[-2]
+                if _DOUBLE_PINCH_MIN_INTERVAL_S <= interval <= _DOUBLE_PINCH_MAX_INTERVAL_S:
+                    self._emit("double_pinch")
+                    st.pinch_events.clear()
+
+        st.last_pinch_state = pinched_now
+
+    # ── Continuous gesture: volume control ─────────────────────────
+
+    def _handle_volume_continuous(self, lms, hand_label: str, now: float) -> None:
+        """Closed-fingers + thumb-index pinch held _VOLUME_ARM_HOLD_S =
+        ARMED. Once armed, the thumb-index distance (normalised by palm
+        width) is mapped continuously to absolute system volume.
+
+        Stays armed as long as middle/ring/pinky remain curled, so the
+        user can sweep volume smoothly. The gesture disarms instantly
+        when those fingers extend — preventing accidental volume jumps
+        when transitioning to a different pose.
+        """
+        st = self._state
+
+        states = {f: _finger_extended(lms, f, hand_label) for f in _TIPS}
+        others_curled = (
+            (not states["middle"])
+            and (not states["ring"])
+            and (not states["pinky"])
+        )
+
+        if not others_curled:
+            if st.volume_armed:
+                log.debug("[gestures] volume disarmed (fingers extended)")
+            st.volume_armed = False
+            st.volume_arm_started_at = 0.0
+            st.volume_last_pct = -1
+            return
+
+        d = _dist(lms[_TIPS["thumb"]], lms[_TIPS["index"]])
+        pinched_now = d < _PINCH_TOUCH_DIST
+
+        if not st.volume_armed:
+            if pinched_now:
+                if st.volume_arm_started_at == 0.0:
+                    st.volume_arm_started_at = now
+                elif now - st.volume_arm_started_at >= _VOLUME_ARM_HOLD_S:
+                    st.volume_armed = True
+                    st.volume_last_pct = -1
+                    log.info("[gestures] volume armed")
+            else:
+                st.volume_arm_started_at = 0.0
+            return
+
+        # Armed — throttled emit.
+        if (now - st.volume_last_emit_at) < _VOLUME_EMIT_INTERVAL_S:
+            return
+
+        # Normalise thumb-index distance by palm width for scale-invariance.
+        mcp_i = lms[_MCPS["index"]]
+        mcp_p = lms[_MCPS["pinky"]]
+        palm_w = ((mcp_i.x - mcp_p.x) ** 2 + (mcp_i.y - mcp_p.y) ** 2) ** 0.5
+        if palm_w < 0.01:
+            return
+        norm = d / palm_w
+        pct = int(max(0, min(100, (norm / _VOLUME_FULL_NORM) * 100)))
+
+        if st.volume_last_pct < 0 or abs(pct - st.volume_last_pct) >= _VOLUME_MIN_PCT_DELTA:
+            st.volume_last_pct = pct
+            st.volume_last_emit_at = now
+            _set_volume_pct(pct)
+            # Synthetic listener event so UIs can surface the new value.
+            event = f"volume_set:{pct}"
+            for fn in self._listeners:
+                try:
+                    fn(event)
+                except Exception:
+                    pass
+
+    # ── Continuous gesture: sideways-palm app switch ───────────────
+
+    def _handle_sideways_palm_switch(self, lms, static: str, now: float) -> None:
+        """Sideways palm (rotated ~90° so MCP joints are vertical) held
+        _SIDE_PALM_HOLD_S anchors the wrist position. Subsequent
+        horizontal motion past _SIDE_PALM_SWIPE_THRESH cycles apps:
+
+          * raw dx > 0 (user moves hand LEFT in their POV) → Alt+Tab
+            (next / right-side app in the alt-tab list)
+          * raw dx < 0 (user moves hand RIGHT in their POV) → Alt+Shift+Tab
+            (previous / left-side app)
+
+        After each fire the anchor moves to the current wrist position so
+        the user can keep moving in the same direction to cycle further.
+        """
+        st = self._state
+        if static != "sideways_palm":
+            st.side_palm_stable_since = 0.0
+            st.side_palm_anchored = False
+            return
+
+        if st.side_palm_stable_since == 0.0:
+            st.side_palm_stable_since = now
+            st.side_palm_anchored = False
+            return
+
+        if now - st.side_palm_stable_since < _SIDE_PALM_HOLD_S:
+            return
+
+        wrist_x = lms[_WRIST].x
+        if not st.side_palm_anchored:
+            st.side_palm_anchor_x = wrist_x
+            st.side_palm_anchored = True
+            return
+
+        dx = wrist_x - st.side_palm_anchor_x
+        if dx > _SIDE_PALM_SWIPE_THRESH:
+            self._fire_continuous("app_switch_next")
+            st.side_palm_anchor_x = wrist_x
+        elif dx < -_SIDE_PALM_SWIPE_THRESH:
+            self._fire_continuous("app_switch_prev")
+            st.side_palm_anchor_x = wrist_x
+
+    def _fire_continuous(self, name: str) -> None:
+        """Fire an action with only a per-name cooldown — bypasses the
+        arm/neutral-rest gate. Used by repeatable gestures (sideways-palm
+        app switching) so the user can sweep through many apps without
+        having to drop and re-raise their hand between each switch.
+        """
+        now = time.monotonic()
+        last = self._state.last_emit_at.get(name, 0.0)
+        if now - last < _GESTURE_COOLDOWN_S * 0.5:
+            return
+        if not self._face_gate_allows(name):
+            self._record_block(name, "face_gate")
+            return
+        self._state.last_emit_at[name] = now
+        action = self._resolve_action(name)
+        if action:
+            try:
+                action()
+            except Exception as e:
+                log.warning("[gestures] action %s raised: %s", name, e)
+        self._record_fire(name)
+        for fn in self._listeners:
+            try:
+                fn(name)
+            except Exception:
+                pass
+
     # ── Advanced: air-stroke classifier ────────────────────────────
 
     def _classify_and_emit_stroke(self) -> None:
@@ -1037,37 +1656,167 @@ class GestureEngine:
         dx = x_end - x_start
         dy = y_end - y_start
 
-        # Pick the dominant axis. Threshold ≈ 18 % of normalised
-        # coordinates — big enough to require a deliberate motion.
-        THRESH = 0.18
-        if abs(dx) >= THRESH and abs(dx) > abs(dy):
+        # ── Revamped swipe gate: BOTH delta AND velocity must qualify ──
+        # The static distance check alone fires too eagerly for casual
+        # hand motion ("just resting on my chin while I think"). Demand
+        # peak velocity > 0.7 frame-widths/sec so a slow drift across
+        # the window doesn't count — only a snappy, deliberate flick.
+        # The sensitivity multiplier scales BOTH thresholds — higher
+        # multiplier = harder to trigger = more relaxed gestures.
+        mult = _sensitivity_multiplier()
+        DELTA_THRESH = 0.22 * mult       # base 0.22
+        VELOCITY_THRESH = 0.7 * mult     # base 0.7 frame-widths/sec
+
+        # Peak per-segment velocity along the chosen axis. Skip the
+        # check entirely when fewer than 3 samples (window too short).
+        def _peak_velocity(axis: int) -> float:
+            peak = 0.0
+            for i in range(1, len(recent)):
+                t0, t1 = recent[i - 1][0], recent[i][0]
+                dt = t1 - t0
+                if dt <= 0:
+                    continue
+                d = abs(recent[i][axis] - recent[i - 1][axis]) / dt
+                peak = max(peak, d)
+            return peak
+
+        if abs(dx) >= DELTA_THRESH and abs(dx) > abs(dy) and _peak_velocity(1) >= VELOCITY_THRESH:
             # Mirror because webcam horizontally inverts user POV; swipe
             # with the right hand from user POV (left in image) reads as
             # "swipe_right" from the user's perspective.
             self._emit("swipe_left" if dx > 0 else "swipe_right")
             self._state.palm_track.clear()
-        elif abs(dy) >= THRESH and abs(dy) > abs(dx):
+        elif abs(dy) >= DELTA_THRESH and abs(dy) > abs(dx) and _peak_velocity(2) >= VELOCITY_THRESH:
             # Y axis: smaller-y is HIGHER on screen, so dy < 0 = upward.
             self._emit("swipe_up" if dy < 0 else "swipe_down")
             self._state.palm_track.clear()
 
     def _emit(self, name: str) -> None:
         now = time.monotonic()
+        if not self._state.armed:
+            return
         last = self._state.last_emit_at.get(name, 0.0)
         if now - last < _GESTURE_COOLDOWN_S:
             return
+        if not self._face_gate_allows(name):
+            self._record_block(name, "face_gate")
+            return
         self._state.last_emit_at[name] = now
-        action = self._actions.get(name)
+        self._state.armed = False
+        self._state.neutral_frames = 0
+        self._state.static_window.clear()
+        action = self._resolve_action(name)
         if action:
             try:
                 action()
             except Exception as e:
                 log.warning("[gestures] action %s raised: %s", name, e)
+        self._record_fire(name)
         for fn in self._listeners:
             try:
                 fn(name)
             except Exception:
                 pass
+
+    def _face_gate_allows(self, gesture: str = "") -> bool:
+        """Consult core.face_gate. Two layers:
+          1. ``is_master_present`` — is *any* master in frame?
+          2. ``gesture_allowed_for`` — does that master have permission
+             for *this* gesture (kid-mode allowlist)?
+
+        Fails OPEN on any error so a broken face stack never locks the
+        user out of their own assistant.
+        """
+        try:
+            from core import face_gate
+            if not face_gate.is_master_present(self._latest_frame):
+                return False
+            faces = face_gate.last_identified()
+            if not faces:
+                # Master gate said OK but we have no identified names yet
+                # (grace window / no recent inference). Allow — there's
+                # nothing to check against.
+                return True
+            return face_gate.gesture_allowed_for(faces, gesture)
+        except Exception as e:
+            log.debug("[gestures] face_gate raised: %s — allowing.", e)
+            return True
+
+    def _resolve_action(self, name: str):
+        """Pick the action callable for a gesture. Resolution order:
+
+          1. Per-app profile override — ``gesture_profiles_per_app[<app>][<gesture>]``
+             lets the user bind "peace = format-document" in VS Code while
+             keeping "peace = screenshot" everywhere else.
+          2. Global binding override — ``gesture_binding.<name>`` (written
+             by the gesture_bind skill).
+          3. Built-in default action from DEFAULT_ACTIONS.
+        """
+        override_skill = self._per_app_override(name)
+        if not override_skill:
+            try:
+                from core import settings as _settings
+                override_skill = _settings.get(f"gesture_binding.{name}")
+            except Exception:
+                override_skill = None
+        if override_skill:
+            try:
+                from core.skill_registry import get_skill
+                sk = get_skill(str(override_skill))
+                if sk is not None:
+                    return lambda: sk.run({"raw_text": f"gesture:{name}"})
+            except Exception as e:
+                log.debug("[gestures] override skill %s lookup failed: %s",
+                          override_skill, e)
+        return self._actions.get(name)
+
+    def _per_app_override(self, gesture: str) -> Optional[str]:
+        """Look up ``gesture_profiles_per_app[<foreground_app>][gesture]``.
+        Returns the skill name or None. Match keys against the foreground
+        process exe name (case-insensitive substring), so 'code' / 'code.exe'
+        both match Visual Studio Code.
+        """
+        try:
+            from core import settings as _settings
+            profiles = _settings.get("gesture_profiles_per_app") or {}
+            if not isinstance(profiles, dict) or not profiles:
+                return None
+        except Exception:
+            return None
+        exe = _foreground_exe_name().lower()
+        if not exe:
+            return None
+        stem = exe.rsplit(".", 1)[0]
+        for key, mapping in profiles.items():
+            if not isinstance(mapping, dict):
+                continue
+            kl = str(key).strip().lower()
+            if kl == exe or kl == stem or kl in exe:
+                val = mapping.get(gesture)
+                if val:
+                    return str(val)
+        return None
+
+    def _record_fire(self, name: str) -> None:
+        try:
+            from core import gesture_trace
+            gesture_trace.log_fire(name)
+        except Exception:
+            pass
+
+    def _record_block(self, name: str, reason: str) -> None:
+        try:
+            from core import gesture_trace
+            gesture_trace.log_block(name, reason)
+        except Exception:
+            pass
+        # Count the block for the diagnostics surface.
+        try:
+            from core import face_gate
+            if reason == "face_gate":
+                face_gate.record_block(name)
+        except Exception:
+            pass
 
 
 # Singleton.
@@ -1075,7 +1824,30 @@ _DEFAULT_ENGINE: Optional[GestureEngine] = None
 
 
 def get_gesture_engine() -> GestureEngine:
+    """The process-wide gesture engine.
+
+    With ``AERIS_SPLIT_VISION=1`` this returns a `RemoteGestureEngine` instead
+    — the same seven-method surface every caller outside `core/` uses, backed
+    by the camera + MediaPipe running in a child process (§6.30). Deciding it
+    here rather than at each call site is what makes the cutover one line
+    instead of edits across five files.
+
+    Note `main_window` deliberately *peeks* at `_DEFAULT_ENGINE` rather than
+    calling this (constructing the engine on the GUI thread freezes it), so the
+    split object has to land in the same variable — which it does.
+    """
     global _DEFAULT_ENGINE
     if _DEFAULT_ENGINE is None:
+        try:
+            from core.remote_gesture_engine import (
+                RemoteGestureEngine, split_vision_enabled,
+            )
+            if split_vision_enabled():
+                _DEFAULT_ENGINE = RemoteGestureEngine()
+                log.info("[gestures] split mode — camera runs in a child process")
+                return _DEFAULT_ENGINE
+        except Exception as e:
+            # A broken split must not cost the user gestures entirely.
+            log.warning("[gestures] split mode unavailable (%s) — in-process", e)
         _DEFAULT_ENGINE = GestureEngine()
     return _DEFAULT_ENGINE

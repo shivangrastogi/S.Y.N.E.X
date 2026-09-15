@@ -31,7 +31,24 @@ def clipboard_copy(slots: dict) -> str:
     text = (slots.get("content") or "").strip()
     if not text:
         return "Kya copy karna hai? Text batao."
+    # Capture the previous clipboard so the copy is reversible via "undo".
+    try:
+        prev = pyperclip.paste() or ""
+    except Exception:
+        prev = ""
     pyperclip.copy(text)
+    try:
+        from core.action_history import record
+
+        def _undo(prev=prev):
+            pyperclip.copy(prev)
+            if prev:
+                return f"Clipboard wapas pehle jaisa kar diya: {prev[:40]}"
+            return "Clipboard khaali kar diya (pehle jaisa)."
+
+        record(f"clipboard set to '{text[:30]}'", _undo, skill="clipboard_copy")
+    except Exception:
+        pass
     return f"Copy kar liya: {text[:60]}{'...' if len(text) > 60 else ''}"
 
 

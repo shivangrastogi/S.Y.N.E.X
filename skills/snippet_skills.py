@@ -69,12 +69,16 @@ def _normalise_trigger(raw: str) -> str:
         "snippet sig", "snippet email", "type sig", "type email",
         "expand", "paste sig", "sig copy karo", "snippet expand karo",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsa snippet expand karna hai? (e.g. sig, email, date)"},
+    # No hard gate: the trigger key is in the phrase ("expand brb"), and
+    # _normalise_trigger already peels the "expand "/"snippet " prefix — so read
+    # raw_text when the extractor didn't fill `content` instead of dead-ending.
+    required_entities=[],
+    prompts={},
 )
 def text_expand(slots: dict) -> str:
-    trig = _normalise_trigger(slots.get("content") or "")
-    if not trig:
+    trig = _normalise_trigger(slots.get("content") or slots.get("raw_text")
+                              or slots.get("text") or "")
+    if not trig or trig in ("expand", "snippet", "snip", "type"):
         return "Snippet trigger batao. 'text expand list' se sab dekho."
     snips = _load()
     if trig not in snips:

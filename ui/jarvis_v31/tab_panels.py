@@ -8,18 +8,23 @@ Tabs: home · chat · auto · brain · memory · system · settings
 """
 from __future__ import annotations
 
+import logging
 import math
 import platform
 import sys
 import time
+from typing import Optional
+
+log = logging.getLogger(__name__)
 
 from PyQt5.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal as pyqtSignal
 from PyQt5.QtGui import (
     QBrush, QColor, QLinearGradient, QPainter, QPen,
 )
 from PyQt5.QtWidgets import (
-    QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
+    QComboBox, QCompleter, QDialog, QFormLayout, QFrame, QGridLayout,
+    QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
+    QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from .animation_bus import get_bus
@@ -29,9 +34,65 @@ from .tokens import J, inter, mono, rgba
 # ─── Shared primitives ────────────────────────────────────────── #
 
 class _GlassPanel(QWidget):
+    """Base for every tab panel. Owns the glass paint **and the rule that a
+    panel nobody is looking at does no work.**
+
+    Panels poll: Vision every 800 ms, Workbook every 2.5 s, Trust every 30 s,
+    and four more refresh off the animation bus's `tick_slow`. All of that
+    used to run from boot until quit, whether or not the panel was on screen —
+    AERIS is designed to sit open all day, so "forever" is the operative word.
+    §6.20 made panels build on first view, which narrowed it to "forever after
+    you visit once"; this closes the rest.
+
+    `QStackedWidget` hides the page you switch away from, so Qt already
+    delivers exactly the signal needed — verified: switching fires `hideEvent`
+    on the old page and `showEvent` on the new, and hiding the window fires
+    `hideEvent` on the current page. That last one is a free win: a minimised
+    AERIS now polls nothing at all.
+
+    Timers registered through `_gated_timer` stop on hide and restart on show.
+    Showing also fires the callback once immediately, so a panel is never
+    stale on open — without it, Trust would show up to 30 s of staleness for
+    the sake of a poll that had been paused.
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(390)
+        self._gated: list[QTimer] = []
+
+    # ── visibility-gated polling ────────────────────────────────────
+    def _gated_timer(self, interval_ms: int, slot) -> QTimer:
+        """A QTimer that only runs while this panel is visible.
+
+        Deliberately not started here: construction happens before the panel
+        is shown, and `showEvent` is what starts it. A panel built but never
+        opened therefore never polls once.
+        """
+        t = QTimer(self)
+        t.setInterval(interval_ms)
+        t.timeout.connect(slot)
+        self._gated.append(t)
+        return t
+
+    def _panel_visible(self) -> bool:
+        """For `tick_slow` subscribers, which are connected to a shared bus
+        and so cannot simply be stopped — they check this instead."""
+        return self.isVisible()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        for t in self._gated:
+            if not t.isActive():
+                t.start()
+                # Fire once now: the panel may have been hidden across
+                # several intervals and should open fresh, not stale.
+                t.timeout.emit()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        for t in self._gated:
+            t.stop()
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -52,12 +113,16 @@ class _PanelHeader(QFrame):
         lay.setContentsMargins(20, 0, 16, 0); lay.setSpacing(8)
         left = QVBoxLayout(); left.setSpacing(2)
         t = QLabel(title); t.setFont(inter(11, 700))
-        t.setStyleSheet(f"color:{J.TEXT_PRI.name()};letter-spacing:2px;")
+        t.setStyleSheet(f"color:{J.TEXT_PRI.name()};")
         s = QLabel(sub); s.setFont(mono(10, 400))
         s.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+        self._sub = s   # mind panels update this live (ability counts etc.)
         left.addWidget(t); left.addWidget(s)
         lay.addLayout(left); lay.addStretch(1)
         lay.addWidget(_BlinkDot(color))
+
+    def set_subtitle(self, text: str) -> None:
+        self._sub.setText(text)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -98,7 +163,7 @@ def _scrollable(content: QWidget) -> QScrollArea:
 
 def _sec(text: str) -> QLabel:
     l = QLabel(text); l.setFont(mono(9, 700))
-    l.setStyleSheet(f"color:{J.TEXT_MUT.name()};letter-spacing:1.5px;")
+    l.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
     return l
 
 
@@ -130,7 +195,7 @@ class _StatCard(QWidget):
         self._value_lbl.setStyleSheet(f"color:{color.name()};")
         self._value_lbl.setAlignment(Qt.AlignCenter)
         l = QLabel(label); l.setFont(mono(9, 400))
-        l.setStyleSheet(f"color:{J.TEXT_MUT.name()};letter-spacing:0.4px;")
+        l.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
         l.setAlignment(Qt.AlignCenter); l.setWordWrap(True)
         lay.addWidget(self._value_lbl); lay.addWidget(l)
 
@@ -216,6 +281,10 @@ class HomePanel(_GlassPanel):
     expose elsewhere, just composed.
     """
 
+    # Emitted by the WxFetch daemon thread; Qt queues the slot call back
+    # onto the GUI thread so the label update is thread-safe.
+    _wx_ready = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._bus = get_bus()
@@ -233,19 +302,19 @@ class HomePanel(_GlassPanel):
         # ── Big clock + date ──
         self._clock = QLabel("--:--")
         self._clock.setFont(mono(36, 700))
-        self._clock.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:2px;")
+        self._clock.setStyleSheet(f"color:{J.CYAN.name()};")
         self._clock.setAlignment(Qt.AlignCenter)
         lay.addWidget(self._clock)
         self._date = QLabel("—")
         self._date.setFont(mono(10, 400))
-        self._date.setStyleSheet(f"color:{J.TEXT_MUT.name()};letter-spacing:1px;")
+        self._date.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
         self._date.setAlignment(Qt.AlignCenter)
         lay.addWidget(self._date)
 
         # ── Workspace + battery row ──
         self._workspace = QLabel("workspace: —")
         self._workspace.setFont(mono(9, 700))
-        self._workspace.setStyleSheet(f"color:{J.AMBER.name()};letter-spacing:1px;")
+        self._workspace.setStyleSheet(f"color:{J.AMBER.name()};")
         self._workspace.setAlignment(Qt.AlignCenter)
         lay.addWidget(self._workspace)
 
@@ -306,6 +375,11 @@ class HomePanel(_GlassPanel):
     # ── tick ───────────────────────────────────────────────────────
 
     def _maybe_refresh(self):
+        # tick_slow comes off the shared animation bus, so this cannot
+        # simply be stopped like a gated timer — it checks instead.
+        # A panel the user is not looking at refreshes nothing.
+        if not self.isVisible():
+            return
         now = time.monotonic()
         if now - self._last_refresh < 1.0:
             return
@@ -401,19 +475,37 @@ class HomePanel(_GlassPanel):
             self._events_label.setText("(no event bus)")
 
     def _fetch_weather(self):
-        """Pulled out so the GUI thread doesn't block on the HTTP call.
-        On Windows this still runs on the GUI thread but in a separate
-        slot, so input events get a chance between the timer fire and
-        the network call.
+        """Fetch weather on a daemon thread — the urlopen to open-meteo
+        was previously synchronous ON THE GUI THREAD (caught live with
+        py-spy blocking in ssl.read during boot). The worker emits
+        ``_wx_ready`` which Qt queues back onto the GUI thread, so the
+        label update stays thread-safe.
         """
-        try:
-            from skills.info_skills import weather_local
-            txt = weather_local({})
+        if getattr(self, "_wx_inflight", False):
+            return
+        self._wx_inflight = True
+        if not getattr(self, "_wx_signal_wired", False):
+            self._wx_ready.connect(self._on_weather_ready)
+            self._wx_signal_wired = True
+
+        import threading
+
+        def _worker():
+            try:
+                from skills.info_skills import weather_local
+                txt = weather_local({})
+            except Exception as e:
+                txt = f"(weather unavailable: {e})"
+            self._wx_ready.emit(txt)
+
+        threading.Thread(target=_worker, name="WxFetch", daemon=True).start()
+
+    def _on_weather_ready(self, txt: str) -> None:
+        self._wx_inflight = False
+        if not txt.startswith("(weather unavailable"):
             self._wx_cache_text = txt
             self._wx_cache_ts = time.monotonic()
-            self._wx_label.setText(txt)
-        except Exception as e:
-            self._wx_label.setText(f"(weather unavailable: {e})")
+        self._wx_label.setText(txt)
 
 
 # ─── Brain panel ──────────────────────────────────────────────── #
@@ -566,6 +658,11 @@ class _LiveMetrics(QWidget):
         lay.addWidget(self._breakers)
 
     def _tick(self):
+        # tick_slow comes off the shared animation bus, so this cannot
+        # simply be stopped like a gated timer — it checks instead.
+        # A panel the user is not looking at refreshes nothing.
+        if not self.isVisible():
+            return
         # Throttle to 1 Hz — tick_slow fires ~15 Hz which is overkill.
         now = time.monotonic()
         if now - self._last_refresh < 1.0:
@@ -951,23 +1048,31 @@ class VisionPanel(_GlassPanel):
         lay.addStretch(1)
         root.addWidget(_scrollable(inner), 1)
 
-        # Poll engine state every 800ms — light enough to never lag the GUI.
-        self._poll = QTimer(self); self._poll.timeout.connect(self._refresh)
-        self._poll.start(800)
+        # Poll engine state every 800ms — light enough to never lag the
+        # GUI (measured 0.2 ms per pass). Gated on visibility all the same:
+        # 800 ms is the fastest poll in the app, and there is no reason to
+        # run it for a tab that is not on screen.
+        self._poll = self._gated_timer(800, self._refresh)
 
         self._events: list[str] = []
 
     def _refresh(self) -> None:
+        # PEEK at the engine singletons — NEVER construct them from this
+        # 800 ms poll. get_gesture_engine() builds GestureEngine, whose
+        # __init__ imports mediapipe → tensorflow → keras → sklearn →
+        # scipy: a ~20 s GUI-thread freeze right after boot (caught live
+        # with py-spy). If the singletons don't exist yet, the panels
+        # simply read OFFLINE/OFF until "gesture mode on" creates them.
         try:
-            from core.gesture_engine import get_gesture_engine
-            from core.vision_engine import get_vision_engine
-            ge = get_gesture_engine()
-            ve = get_vision_engine()
+            from core import gesture_engine as _gem
+            from core import vision_engine as _vem
+            ge = _gem._DEFAULT_ENGINE       # may be None — that's fine
+            ve = _vem._DEFAULT              # may be None — that's fine
         except Exception:
             return
 
-        cam_on = ve.is_running()
-        ges_on = ge.is_enabled()
+        cam_on = bool(ve is not None and ve.is_running())
+        ges_on = bool(ge is not None and ge.is_enabled())
         self._cam_row.findChildren(QLabel)[1].setText("LIVE" if cam_on else "OFFLINE")
         self._cam_row.findChildren(QLabel)[1].setStyleSheet(
             f"color:{(J.GREEN if cam_on else J.TEXT_MUT).name()};"
@@ -977,8 +1082,8 @@ class VisionPanel(_GlassPanel):
             f"color:{(J.GREEN if ges_on else J.TEXT_MUT).name()};"
         )
 
-        # Listen for emitted gestures.
-        if not getattr(self, "_listener_attached", False):
+        # Listen for emitted gestures (only once the engine exists).
+        if ge is not None and not getattr(self, "_listener_attached", False):
             try:
                 ge.add_listener(self._on_gesture)
                 self._listener_attached = True
@@ -995,10 +1100,21 @@ class VisionPanel(_GlassPanel):
 # ─── Workbook panel ───────────────────────────────────────────── #
 
 class WorkbookPanel(_GlassPanel):
-    """Quick-action surface for the expense / tasks / meetings workbook."""
+    """Quick-action surface for the expense / tasks / meetings workbook.
+
+    Reads its numbers on a worker thread — see `_refresh`. The signal is how
+    the result crosses back: emitting from the worker delivers `_apply_stats`
+    on the GUI thread via Qt's queued connection, which is the only safe way
+    to touch a widget from another thread.
+    """
+
+    #: worker -> GUI. dict of tile-key -> display string.
+    stats_ready = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._loading = False
+        self.stats_ready.connect(self._apply_stats)
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
         root.addWidget(_PanelHeader("WORKBOOK", "Expenses · tasks · cloud sync", J.AMBER))
 
@@ -1045,22 +1161,62 @@ class WorkbookPanel(_GlassPanel):
         lay.addStretch(1)
         root.addWidget(_scrollable(inner), 1)
 
-        self._poll = QTimer(self); self._poll.timeout.connect(self._refresh)
-        self._poll.start(2500)
-        self._refresh()
+        # Was `QTimer.start(2500)` + a synchronous `_refresh()` right here.
+        # That call is what made this panel cost 2.8 s to construct (the
+        # openpyxl import) and it then re-read the workbook off disk every
+        # 2.5 s forever, on the GUI thread, at 73-96 ms a pass. Now: gated on
+        # visibility, and the read itself runs on a worker (see `_refresh`).
+        self._poll = self._gated_timer(2500, self._refresh)
 
+    # ── data loading, off the GUI thread ─────────────────────────────
     def _refresh(self) -> None:
+        """Kick a worker to read the workbook; the GUI thread only paints.
+
+        This used to do the whole thing inline: import openpyxl, load the
+        xlsx off disk, walk two sheets — 73-96 ms per pass on the GUI thread,
+        every 2.5 s while the tab was open. At 30 FPS that is three dropped
+        frames, regularly, which reads as a stutter on the one tab you are
+        looking at.
+
+        Only one read is ever in flight: a slow disk (or a workbook being
+        written by the expense skill) must not pile up threads behind a
+        2.5 s timer. If a pass is still running when the next tick arrives,
+        that tick is simply skipped — the data is about to be replaced
+        anyway.
+        """
+        if getattr(self, "_loading", False):
+            return
+        self._loading = True
+        import threading
+        threading.Thread(target=self._load_and_emit, name="WorkbookRead",
+                         daemon=True).start()
+
+    def _load_and_emit(self) -> None:
+        """Worker body. Touches no widget — returns plain data via signal."""
+        try:
+            data = self._read_workbook()
+        except Exception:
+            data = {}
+        finally:
+            self._loading = False
+        try:
+            self.stats_ready.emit(data)
+        except Exception:
+            pass          # panel destroyed while the read was in flight
+
+    def _read_workbook(self) -> dict:
+        """Pure I/O + parsing. No Qt, so it is safe on a worker thread."""
+        out: dict = {}
         try:
             import openpyxl
             from pathlib import Path
             wb_path = Path(__file__).resolve().parents[2] / "data" / "jarvis_workbook.xlsx"
             if not wb_path.exists():
-                self._spend_tile.findChildren(QLabel)[0].setText("—")
-                return
+                return {"spend": "—"}
             try:
                 wb = openpyxl.load_workbook(wb_path, read_only=True, data_only=False)
             except Exception:
-                return
+                return out
             # This-month total + top category from Category Summary tab.
             try:
                 cs = wb["Category Summary"]
@@ -1071,8 +1227,8 @@ class WorkbookPanel(_GlassPanel):
                     total += v
                     if v > top_v:
                         top_v, top_cat = v, str(row[0])
-                self._spend_tile.findChildren(QLabel)[0].setText(f"₹{int(total)}")
-                self._top_tile.findChildren(QLabel)[0].setText(
+                out["spend"] = f"₹{int(total)}"
+                out["top"] = (
                     top_cat if top_cat != "—" and len(top_cat) <= 12
                     else (top_cat[:11] + "…" if top_cat != "—" else "—")
                 )
@@ -1084,7 +1240,7 @@ class WorkbookPanel(_GlassPanel):
                 for row in tasks.iter_rows(min_row=2, values_only=True):
                     if row and (row[4] or "").lower() == "open":
                         open_n += 1
-                self._tasks_tile.findChildren(QLabel)[0].setText(str(open_n))
+                out["tasks"] = str(open_n)
             except Exception:
                 pass
             wb.close()
@@ -1094,10 +1250,28 @@ class WorkbookPanel(_GlassPanel):
         # Cached searches count.
         try:
             from core.knowledge_cache import get_default_cache
-            n = get_default_cache().stats().get("entries", 0)
-            self._search_tile.findChildren(QLabel)[0].setText(str(n))
+            out["searches"] = str(get_default_cache().stats().get("entries", 0))
         except Exception:
             pass
+        return out
+
+    def _apply_stats(self, data: dict) -> None:
+        """GUI-thread slot: paint whatever the worker managed to read.
+
+        Keyed by tile rather than positional, and every key optional — a
+        workbook missing its Tasks sheet should leave that tile alone, not
+        blank the other three.
+        """
+        for key, tile in (("spend", self._spend_tile),
+                          ("top", self._top_tile),
+                          ("tasks", self._tasks_tile),
+                          ("searches", self._search_tile)):
+            if key not in data:
+                continue
+            try:
+                tile.findChildren(QLabel)[0].setText(data[key])
+            except Exception:
+                pass
 
 
 # ─── Routines panel ───────────────────────────────────────────── #
@@ -1131,7 +1305,7 @@ class _RoutineCard(QFrame):
         # ── Header row ─────────────────────────────────────────
         hr = QHBoxLayout(); hr.setSpacing(8)
         title = QLabel(routine.name); title.setFont(inter(11, 700))
-        title.setStyleSheet(f"color:{J.TEXT_PRI.name()};letter-spacing:0.5px;")
+        title.setStyleSheet(f"color:{J.TEXT_PRI.name()};")
         hr.addWidget(title, 1)
 
         toggle = _ToggleChip(routine.enabled, parent=self)
@@ -1225,14 +1399,156 @@ class _ToggleChip(QPushButton):
         self.setStyleSheet(
             f"QPushButton{{background:rgba({col.red()},{col.green()},{col.blue()},0.15);"
             f"color:{col.name()};border:1px solid rgba({col.red()},{col.green()},{col.blue()},0.55);"
-            "border-radius:10px;padding:1px 9px;letter-spacing:1px;}"
+            "border-radius:10px;padding:1px 9px;}"
             f"QPushButton:hover{{background:rgba({col.red()},{col.green()},{col.blue()},0.28);}}"
         )
 
 
+class _RoutineBuilderDialog(QDialog):
+    """"＋ New" routine builder — the missing half of the Automations tab
+    (the empty-state used to say "edit data/routines.json by hand").
+
+    Deliberately simple v1: one trigger (Daily at HH:MM / Every N minutes
+    / Battery below N% / Manual) + up to three actions (Run skill / Open
+    app / Open URL / Notify). Covers the routines real users actually
+    make; exotic triggers stay JSON-editable.
+    """
+
+    _ACTION_KINDS = ["Run skill", "Open app", "Open URL", "Notify"]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("New Routine")
+        self.setModal(True)
+        self.setMinimumWidth(430)
+        lay = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self._name = QLineEdit()
+        self._name.setPlaceholderText("e.g. Evening wrap-up")
+        form.addRow("Name", self._name)
+
+        trig_row = QHBoxLayout()
+        self._trig_kind = QComboBox()
+        self._trig_kind.addItems(["Daily at", "Every N minutes",
+                                  "Battery below %", "Manual only"])
+        self._trig_value = QLineEdit()
+        self._trig_value.setPlaceholderText("21:30")
+        self._trig_kind.currentIndexChanged.connect(self._on_trig_kind)
+        trig_row.addWidget(self._trig_kind)
+        trig_row.addWidget(self._trig_value, 1)
+        form.addRow("Trigger", trig_row)
+        lay.addLayout(form)
+
+        lay.addWidget(QLabel("Actions (top to bottom):"))
+        self._action_rows: list[tuple[QComboBox, QLineEdit]] = []
+        skills = self._skill_names()
+        for i in range(3):
+            row = QHBoxLayout()
+            kind = QComboBox(); kind.addItems(
+                (["(none)"] if i else []) + self._ACTION_KINDS)
+            val = QLineEdit()
+            val.setPlaceholderText("skill name / app / url / message")
+            if skills:
+                comp = QCompleter(skills)
+                comp.setCaseSensitivity(Qt.CaseInsensitive)
+                val.setCompleter(comp)
+            row.addWidget(kind); row.addWidget(val, 1)
+            self._action_rows.append((kind, val))
+            lay.addLayout(row)
+
+        self._err = QLabel(""); self._err.setStyleSheet("color:#e5484d;")
+        self._err.setWordWrap(True)
+        lay.addWidget(self._err)
+
+        btns = QHBoxLayout(); btns.addStretch(1)
+        cancel = QPushButton("Cancel"); cancel.clicked.connect(self.reject)
+        save = QPushButton("Create routine"); save.setDefault(True)
+        save.clicked.connect(self._on_save)
+        btns.addWidget(cancel); btns.addWidget(save)
+        lay.addLayout(btns)
+
+        self.created = None          # Routine on success
+
+    @staticmethod
+    def _skill_names() -> list:
+        try:
+            from core.skill_registry import REGISTRY
+            return sorted(REGISTRY.keys())
+        except Exception:
+            return []
+
+    def _on_trig_kind(self, idx: int) -> None:
+        ph = ["21:30", "30", "20", ""][idx]
+        self._trig_value.setPlaceholderText(ph)
+        self._trig_value.setEnabled(idx != 3)
+
+    # ── build + validate ────────────────────────────────────────
+    def _build(self):
+        """Returns (trigger, actions) or raises ValueError with a human
+        message. Pure — unit-testable without showing the dialog."""
+        from core.automation import Action, Trigger
+        import re as _re
+        idx = self._trig_kind.currentIndex()
+        v = self._trig_value.text().strip()
+        if idx == 0:
+            m = _re.fullmatch(r"(\d{1,2}):(\d{2})", v)
+            if not m or not (0 <= int(m.group(1)) < 24 and 0 <= int(m.group(2)) < 60):
+                raise ValueError("Daily trigger needs a time like 21:30")
+            trigger = Trigger(kind="time",
+                              params={"cron": f"{int(m.group(2))} {int(m.group(1))} * * *"})
+        elif idx == 1:
+            if not v.isdigit() or not (1 <= int(v) <= 1440):
+                raise ValueError("Interval needs minutes 1-1440")
+            trigger = Trigger(kind="interval", params={"seconds": int(v) * 60})
+        elif idx == 2:
+            if not v.isdigit() or not (1 <= int(v) <= 99):
+                raise ValueError("Battery trigger needs a percent 1-99")
+            trigger = Trigger(kind="battery_below", params={"percent": int(v)})
+        else:
+            trigger = Trigger(kind="manual", params={})
+
+        actions = []
+        for kind_cb, val_le in self._action_rows:
+            k = kind_cb.currentText()
+            val = val_le.text().strip()
+            if k == "(none)" or not val:
+                continue
+            if k == "Run skill":
+                actions.append(Action(kind="run_skill",
+                                      params={"name": val, "slots": {}}))
+            elif k == "Open app":
+                actions.append(Action(kind="open_app", params={"value": val}))
+            elif k == "Open URL":
+                url = val if _re.match(r"https?://", val) else f"https://{val}"
+                actions.append(Action(kind="open_url", params={"value": url}))
+            elif k == "Notify":
+                actions.append(Action(kind="notify",
+                                      params={"title": "AERIS", "body": val}))
+        if not actions:
+            raise ValueError("Add at least one action")
+        return trigger, actions
+
+    def _on_save(self) -> None:
+        name = self._name.text().strip()
+        if not name:
+            self._err.setText("Give the routine a name."); return
+        try:
+            trigger, actions = self._build()
+        except ValueError as e:
+            self._err.setText(str(e)); return
+        try:
+            from core.automation import get_engine
+            self.created = get_engine().create_routine(
+                name=name, trigger=trigger, actions=actions)
+        except Exception as e:
+            self._err.setText(f"Save failed: {e}"); return
+        self.accept()
+
+
 class RoutinesPanel(_GlassPanel):
     """Right-rail Automation tab. Lists routines, lets the user enable
-    /disable / run them. Refresh button re-reads from disk.
+    /disable / run / delete them, and CREATE new ones via the builder.
     """
 
     def __init__(self, parent=None):
@@ -1253,6 +1569,16 @@ class RoutinesPanel(_GlassPanel):
         )
         refresh.clicked.connect(self.refresh)
         bar.addWidget(refresh)
+        new_btn = QPushButton("＋  New")
+        new_btn.setFont(mono(9, 700))
+        new_btn.setCursor(Qt.PointingHandCursor)
+        new_btn.setStyleSheet(
+            f"QPushButton{{background:rgba({J.PURPLE.red()},{J.PURPLE.green()},{J.PURPLE.blue()},0.14);"
+            f"color:{J.PURPLE.name()};border:1px solid rgba({J.PURPLE.red()},{J.PURPLE.green()},{J.PURPLE.blue()},0.36);"
+            "border-radius:5px;padding:4px 10px;}}"
+        )
+        new_btn.clicked.connect(self._on_new)
+        bar.addWidget(new_btn)
         bar.addStretch(1)
         self._count = QLabel("")
         self._count.setFont(mono(9, 400))
@@ -1329,6 +1655,16 @@ class RoutinesPanel(_GlassPanel):
             get_engine().run_routine(rid, reason="GUI run-now")
         except Exception:
             pass
+
+    def _on_new(self) -> None:
+        """Open the routine builder; refresh the list on success."""
+        try:
+            dlg = _RoutineBuilderDialog(self)
+            if dlg.exec_() and dlg.created is not None:
+                self.refresh()
+        except Exception as e:
+            self._empty_label.setText(f"Builder failed:\n{e}")
+            self._empty_label.show()
 
 
 # ─── Notifications panel ──────────────────────────────────────── #
@@ -1539,7 +1875,7 @@ class SmartSuggestionsPanel(_GlassPanel):
 
         self._ctx_label = QLabel("Context: detecting...")
         self._ctx_label.setFont(mono(9, 700))
-        self._ctx_label.setStyleSheet(f"color:{J.AMBER.name()};letter-spacing:1px;")
+        self._ctx_label.setStyleSheet(f"color:{J.AMBER.name()};")
         self._ctx_label.setContentsMargins(16, 10, 16, 6)
         root.addWidget(self._ctx_label)
 
@@ -1561,6 +1897,11 @@ class SmartSuggestionsPanel(_GlassPanel):
     # ── throttled tick ─────────────────────────────────────────────
 
     def _maybe_refresh(self):
+        # tick_slow comes off the shared animation bus, so this cannot
+        # simply be stopped like a gated timer — it checks instead.
+        # A panel the user is not looking at refreshes nothing.
+        if not self.isVisible():
+            return
         now = time.monotonic()
         if now - self._last_refresh < 2.0:
             return
@@ -1696,7 +2037,8 @@ class SmartSuggestionsPanel(_GlassPanel):
             if w is not None:
                 w.setParent(None)
 
-        cards = self._pick_suggestions(ctx)
+        cards = [c for c in self._pick_suggestions(ctx)
+                 if self._payload_ok(c["kind"], c["payload"])]
         for i, c in enumerate(cards):
             card = _SuggestionCard(
                 title=c["title"], sub=c["sub"], kind=c["kind"],
@@ -1706,6 +2048,88 @@ class SmartSuggestionsPanel(_GlassPanel):
             row, col = divmod(i, 2)
             self._grid.addWidget(card, row, col)
 
+    def _payload_ok(self, kind: str, payload: str) -> bool:
+        """Self-healing quick actions: a card whose skill/routine no longer
+        exists is HIDDEN (and logged once) instead of shipping as a dead
+        button — the audit's B2 fix. Text payloads always pass (the brain
+        handles free text)."""
+        if kind == "text":
+            return True
+        try:
+            if kind == "skill":
+                from core.skill_registry import REGISTRY
+                if len(REGISTRY) < 10:
+                    return True    # boot: discovery pending — validate later
+                if payload in REGISTRY:
+                    return True
+                ok = payload in self._legacy_intents()
+            elif kind == "routine":
+                ok = payload in self._routine_ids()
+            else:
+                ok = True
+        except Exception:
+            return True     # never let validation break the panel
+        if not ok and payload not in self._warned_payloads:
+            self._warned_payloads.add(payload)
+            log.warning("[quick] hiding dead %s action %r (not registered)",
+                        kind, payload)
+        return ok
+
+    _warned_payloads: set = set()
+    _legacy_cache: Optional[set] = None
+    _routine_cache: Optional[set] = None
+
+    @classmethod
+    def _legacy_phrase(cls, intent: str) -> str:
+        """First intents.json pattern for a legacy intent ('' if unknown)."""
+        try:
+            import json as _json
+            import os as _os
+            root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+                _os.path.abspath(__file__))))
+            with open(_os.path.join(root, "data", "intents.json"),
+                      encoding="utf-8") as f:
+                cfg = _json.load(f).get(intent) or {}
+            pats = cfg.get("patterns") or []
+            return pats[0] if pats else ""
+        except Exception:
+            return ""
+
+    @classmethod
+    def _legacy_intents(cls) -> set:
+        if cls._legacy_cache is None:
+            try:
+                import json as _json
+                import os as _os
+                root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+                    _os.path.abspath(__file__))))
+                with open(_os.path.join(root, "data", "intents.json"),
+                          encoding="utf-8") as f:
+                    cls._legacy_cache = set(_json.load(f).keys())
+            except Exception:
+                cls._legacy_cache = set()
+        return cls._legacy_cache
+
+    @classmethod
+    def _routine_ids(cls) -> set:
+        if cls._routine_cache is None:
+            ids: set = set()
+            try:
+                import json as _json
+                import os as _os
+                root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+                    _os.path.abspath(__file__))))
+                with open(_os.path.join(root, "data", "routines.json"),
+                          encoding="utf-8") as f:
+                    data = _json.load(f)
+                for r in (data.get("routines") or []):
+                    if isinstance(r, dict) and r.get("id"):
+                        ids.add(str(r["id"]))
+            except Exception:
+                pass
+            cls._routine_cache = ids
+        return cls._routine_cache
+
     def _on_card(self, kind: str, payload: str) -> None:
         if kind == "skill":
             try:
@@ -1714,6 +2138,14 @@ class SmartSuggestionsPanel(_GlassPanel):
                 s = REGISTRY.get(payload)
                 if s is not None:
                     call(payload, s.run, {})
+                    return
+                # Legacy intents.json skills (volume_up, show_desktop, …)
+                # have no registry handler — running them silently did
+                # NOTHING (audit follow-up to B1). Route their canonical
+                # phrase through the brain, which executes them properly.
+                phrase = self._legacy_phrase(payload)
+                if phrase:
+                    self.submit_text.emit(phrase)
             except Exception:
                 pass
         elif kind == "routine":
@@ -1724,6 +2156,183 @@ class SmartSuggestionsPanel(_GlassPanel):
                 pass
         elif kind == "text":
             self.submit_text.emit(payload)
+
+
+# ─── Trust panel ──────────────────────────────────────────────── #
+
+def _pill(text: str, color: QColor) -> QLabel:
+    l = QLabel(text)
+    l.setFont(mono(8, 700))
+    l.setStyleSheet(
+        f"color:{QColor(J.BG).name()};background:{color.name()};"
+        f"border-radius:7px;padding:1px 7px;")
+    return l
+
+
+class _TrustBtn(QPushButton):
+    def __init__(self, text: str, color: QColor, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFont(mono(9, 700))
+        self.setStyleSheet(
+            "QPushButton{background:transparent;"
+            f"color:{color.name()};border:1px solid {rgba(color,0.45).name()};"
+            "border-radius:6px;padding:2px 8px;}"
+            f"QPushButton:hover{{background:{rgba(color,0.15).name()};}}"
+            "QPushButton:disabled{color:rgba(100,116,139,120);"
+            "border-color:rgba(100,116,139,60);}")
+
+
+class TrustPanel(_GlassPanel):
+    """Trust cockpit — the /mind TRUST+AUDIT panels, native (P6).
+
+    Reads/acts through the SAME tested layer the HTTP dashboard uses
+    (`core.trust_view.snapshot` / `apply_action`) — no parallel logic.
+    Refreshes every 30 s and immediately after any control action.
+    Snapshot is cheap (in-memory ledger cache + grants dict), so it runs
+    on the GUI thread; any backend hiccup shows an error line, never a
+    crash.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
+        root.addWidget(_PanelHeader("TRUST", "autonomy · audit", J.GREEN))
+
+        body = QWidget()
+        self._lay = QVBoxLayout(body)
+        self._lay.setContentsMargins(16, 14, 16, 16); self._lay.setSpacing(8)
+
+        self._state_row = QHBoxLayout(); self._state_row.setSpacing(6)
+        self._lay.addLayout(self._state_row)
+        self._lay.addSpacing(4)
+        self._lay.addWidget(_sec("AUTONOMY PER CLASS"))
+        self._grants_box = QVBoxLayout(); self._grants_box.setSpacing(4)
+        self._lay.addLayout(self._grants_box)
+        self._lay.addSpacing(6)
+        self._lay.addWidget(_sec("AUDIT · KYA KIYA, KYUN"))
+        self._audit_box = QVBoxLayout(); self._audit_box.setSpacing(4)
+        self._lay.addLayout(self._audit_box)
+        self._lay.addStretch(1)
+
+        root.addWidget(_scrollable(body), 1)
+
+        # Gated: `_gated_timer` fires once on show, which replaces the
+        # 200 ms singleShot that existed to avoid a 30 s wait for first data.
+        self._poll = self._gated_timer(30_000, self._refresh)
+
+    # -- actions (same tested layer as the HTTP dashboard) ----------
+
+    def _act(self, action: str, params: dict) -> None:
+        try:
+            from core import trust_view
+            trust_view.apply_action(action, params)
+        except Exception:
+            pass
+        self._refresh()
+
+    # -- refresh -----------------------------------------------------
+
+    @staticmethod
+    def _clear(lay) -> None:
+        while lay.count():
+            it = lay.takeAt(0)
+            w = it.widget()
+            if w is not None:
+                w.deleteLater()
+            elif it.layout() is not None:
+                TrustPanel._clear(it.layout())
+
+    def _refresh(self) -> None:
+        try:
+            from core import trust_view
+            snap = trust_view.snapshot(audit_n=10)
+        except Exception as e:
+            self._clear(self._state_row)
+            err = QLabel(f"trust load nahi hua: {e}")
+            err.setFont(mono(9, 400)); err.setWordWrap(True)
+            err.setStyleSheet(f"color:{J.RED.name()};")
+            self._state_row.addWidget(err)
+            return
+        self._build_state(snap)
+        self._build_grants(snap.get("grants") or [])
+        self._build_audit(snap.get("audit") or [])
+
+    def _build_state(self, snap: dict) -> None:
+        self._clear(self._state_row)
+        panic = bool(snap.get("panic"))
+        btn = _TrustBtn("▶ RESUME" if panic else "⏻ PANIC", J.RED)
+        btn.clicked.connect(lambda _=False, on=(not panic):
+                            self._act("panic", {"on": on}))
+        self._state_row.addWidget(btn)
+        if panic:
+            self._state_row.addWidget(_pill("HALTED · L0", J.RED))
+        qh = snap.get("quiet_hours") or {}
+        if qh.get("active"):
+            self._state_row.addWidget(_pill("QUIET", J.PURPLE))
+        st = snap.get("stats") or {}
+        self._state_row.addWidget(_pill(f"✓{st.get('allow', 0)}", J.GREEN))
+        self._state_row.addWidget(_pill(f"?{st.get('confirm', 0)}", J.PURPLE))
+        self._state_row.addWidget(_pill(f"✗{st.get('deny', 0)}", J.RED))
+        spend = snap.get("spend_today") or 0
+        if spend:
+            self._state_row.addWidget(_pill(f"₹{spend}", J.AMBER))
+        self._state_row.addStretch(1)
+
+    def _build_grants(self, grants: list) -> None:
+        self._clear(self._grants_box)
+        for g in grants:
+            row = QWidget()
+            h = QHBoxLayout(row); h.setContentsMargins(0, 1, 0, 1); h.setSpacing(6)
+            name = QLabel(g["cls"]); name.setFont(mono(10, 700))
+            name.setStyleSheet(f"color:{J.TEXT_SEC.name()};")
+            name.setToolTip(g.get("blurb") or "")
+            h.addWidget(name)
+            h.addStretch(1)
+            lvl = int(g["granted"])
+            col = J.GREEN if lvl >= 3 else (J.PURPLE if lvl >= 2 else J.RED)
+            h.addWidget(_pill(g["granted_name"], col))
+            if g.get("capped"):
+                h.addWidget(_pill(f"CAP L{g['hard_cap']}", J.RED))
+            ceiling = g["hard_cap"] if g.get("hard_cap") is not None else 5
+            dn = _TrustBtn("▼", J.TEXT_SEC); dn.setEnabled(lvl > 0)
+            up = _TrustBtn("▲", J.CYAN); up.setEnabled(lvl < ceiling)
+            cls = g["cls"]
+            dn.clicked.connect(lambda _=False, c=cls, v=lvl - 1:
+                               self._act("grant", {"cls": c, "level": v}))
+            up.clicked.connect(lambda _=False, c=cls, v=lvl + 1:
+                               self._act("grant", {"cls": c, "level": v}))
+            h.addWidget(dn); h.addWidget(up)
+            self._grants_box.addWidget(row)
+
+    def _build_audit(self, audit: list) -> None:
+        self._clear(self._audit_box)
+        if not audit:
+            empty = QLabel("abhi tak kuch autonomous nahi kiya")
+            empty.setFont(mono(9, 400))
+            empty.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+            self._audit_box.addWidget(empty)
+            return
+        for a in audit:
+            row = QWidget()
+            v = QVBoxLayout(row); v.setContentsMargins(0, 2, 0, 2); v.setSpacing(1)
+            top = QHBoxLayout(); top.setSpacing(6)
+            act = QLabel(f"{a.get('time', '')}  {a.get('action', '')}")
+            act.setFont(mono(9, 700))
+            act.setStyleSheet(f"color:{J.TEXT_PRI.name()};")
+            top.addWidget(act)
+            top.addStretch(1)
+            dec = a.get("decision", "")
+            col = {"allow": J.GREEN, "confirm": J.PURPLE}.get(dec, J.RED)
+            top.addWidget(_pill(dec, col))
+            v.addLayout(top)
+            why = QLabel(f"{a.get('cls', '')} · {a.get('why', '')}")
+            why.setFont(mono(8, 400)); why.setWordWrap(True)
+            why.setStyleSheet(f"color:{J.TEXT_MUT.name()};")
+            v.addWidget(why)
+            self._audit_box.addWidget(row)
+            self._audit_box.addWidget(_divider())
 
 
 # ─── Right-panel stack ────────────────────────────────────────── #
@@ -1741,41 +2350,177 @@ _TAB_INDEX = {
     "routines": 8,
     "events":   9,
     "quick":    10,
+    "trust":    11,
+    "abilities": 12,
+    "intel":     13,
+    "continuity": 14,
 }
 
 
 class RightPanelStack(QWidget):
-    """Hosts all tab panels; exposes `chat_panel` and `switch_tab(key)`."""
+    """Hosts all tab panels; exposes `chat_panel` and `switch_tab(key)`.
+
+    Panels are built **on first view**, not at boot (§4.1). Constructing all
+    fifteen eagerly cost 5.4 s and 31.5 MB on this machine, of which the user
+    saw exactly one — the stack opens on chat (index 1) and most sessions
+    never leave it. `WorkbookPanel` alone was 3.7 s and 20.5 MB, because its
+    constructor calls `_refresh()`, which imports openpyxl and loads the whole
+    workbook off disk. For a tab nobody had clicked.
+
+    Each unbuilt slot holds an empty placeholder so `QStackedWidget` indices
+    stay exactly as `_TAB_INDEX` describes them; the first `_ensure(idx)`
+    swaps the placeholder for the real panel at the same index. A panel is
+    built at most once.
+
+    Two panels are wired to signals at boot (`quick_panel.submit_text`,
+    `abilities_panel.use_phrase`). Connecting to those directly would force
+    them to exist, defeating the whole thing — so the stack re-exports them
+    as its own signals and forwards once the real panel is built. Nothing can
+    emit them before then anyway: they originate in buttons the user has to
+    see to press.
+    """
+
+    #: Relays for panels that are connected at boot but built on demand.
+    quick_submit_text = pyqtSignal(str)
+    abilities_use_phrase = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(390)
 
         from .glass_chat_panel import GlassChatPanel
+        # Chat is the landing tab — it is the one panel always paid for.
         self.chat_panel = GlassChatPanel()
 
         self._stack = QStackedWidget(self)
         self._stack.setFixedWidth(390)
-        self._stack.addWidget(HomePanel())         # 0
-        self._stack.addWidget(self.chat_panel)     # 1
-        self._stack.addWidget(BrainPanel())        # 2
-        self._stack.addWidget(MemoryPanel())       # 3
-        self._stack.addWidget(SystemPanel())       # 4
-        self._stack.addWidget(SettingsPanel())     # 5
-        self._stack.addWidget(VisionPanel())       # 6
-        self._stack.addWidget(WorkbookPanel())     # 7
-        self.routines_panel = RoutinesPanel()
-        self._stack.addWidget(self.routines_panel) # 8
-        self.notifications_panel = NotificationsPanel()
-        self._stack.addWidget(self.notifications_panel)  # 9
-        self.quick_panel = SmartSuggestionsPanel()
-        self._stack.addWidget(self.quick_panel)          # 10
+
+        # Factories, keyed by the stack index in _TAB_INDEX. Deliberately
+        # lambdas rather than the classes themselves: the MIND panels come
+        # from factory functions, and `mind_panels` should not be imported
+        # until one is actually opened.
+        self._factories = {
+            0:  HomePanel,
+            2:  BrainPanel,
+            3:  MemoryPanel,
+            4:  SystemPanel,
+            5:  SettingsPanel,
+            6:  VisionPanel,
+            7:  WorkbookPanel,
+            8:  RoutinesPanel,
+            9:  NotificationsPanel,
+            10: SmartSuggestionsPanel,
+            11: TrustPanel,
+            12: lambda: _mind("make_abilities_panel")(),
+            13: lambda: _mind("make_intelligence_panel")(),
+            14: lambda: _mind("make_continuity_panel")(),
+        }
+        self._built: dict[int, QWidget] = {}
+
+        for idx in range(15):
+            if idx == 1:
+                self._stack.addWidget(self.chat_panel)
+            else:
+                self._stack.addWidget(self._placeholder())
         self._stack.setCurrentIndex(1)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(0)
         lay.addWidget(self._stack)
 
+    # ── lazy construction ────────────────────────────────────────────
+    @staticmethod
+    def _placeholder() -> QWidget:
+        """An empty stand-in that keeps the stack index occupied."""
+        w = QWidget()
+        w.setFixedWidth(390)
+        return w
+
+    def _ensure(self, idx: int) -> Optional[QWidget]:
+        """Build the panel at `idx` if it is not built yet. Returns it.
+
+        A panel whose constructor raises must not take the window with it —
+        the slot keeps its placeholder, the tab switch still works, and the
+        failure is logged once rather than on every click (the factory is
+        dropped, so a broken panel degrades to a blank tab).
+        """
+        if idx in self._built:
+            return self._built[idx]
+        factory = self._factories.get(idx)
+        if factory is None:
+            return None
+        try:
+            panel = factory()
+        except Exception:
+            log.exception("[tab_panels] panel %d failed to build", idx)
+            self._factories.pop(idx, None)
+            return None
+        old = self._stack.widget(idx)
+        self._stack.removeWidget(old)
+        old.deleteLater()
+        self._stack.insertWidget(idx, panel)   # same index — _TAB_INDEX holds
+        self._built[idx] = panel
+        self._connect_relays(idx, panel)
+        return panel
+
+    def _connect_relays(self, idx: int, panel: QWidget) -> None:
+        """Forward a freshly built panel's signals into the stack's relays."""
+        try:
+            if idx == 10:
+                panel.submit_text.connect(self.quick_submit_text)
+            elif idx == 12:
+                panel.use_phrase.connect(self.abilities_use_phrase)
+        except Exception:
+            log.exception("[tab_panels] relay wiring failed for panel %d", idx)
+
+    def peek(self, key: str) -> Optional[QWidget]:
+        """The panel for `key` **only if already built** — never constructs.
+
+        For callers that want to refresh a panel the user has actually
+        opened, without paying to create one they have not.
+        """
+        return self._built.get(_TAB_INDEX.get(key, -1))
+
+    # ── named accessors ──────────────────────────────────────────────
+    # Properties, not attributes: touching one builds its panel on demand,
+    # so external callers keep working unchanged while boot stays cheap.
+
+    @property
+    def routines_panel(self):
+        return self._ensure(8)
+
+    @property
+    def notifications_panel(self):
+        return self._ensure(9)
+
+    @property
+    def quick_panel(self):
+        return self._ensure(10)
+
+    @property
+    def trust_panel(self):
+        return self._ensure(11)
+
+    @property
+    def abilities_panel(self):
+        return self._ensure(12)
+
+    @property
+    def intel_panel(self):
+        return self._ensure(13)
+
+    @property
+    def continuity_panel(self):
+        return self._ensure(14)
+
     def switch_tab(self, key: str) -> None:
-        self._stack.setCurrentIndex(_TAB_INDEX.get(key, 1))
+        idx = _TAB_INDEX.get(key, 1)
+        self._ensure(idx)                      # no-op for chat and re-visits
+        self._stack.setCurrentIndex(idx)
         self.chat_panel.set_automation_visible(key == "auto")
+
+
+def _mind(factory_name: str):
+    """Fetch a MIND panel factory, importing `mind_panels` on first use."""
+    from . import mind_panels
+    return getattr(mind_panels, factory_name)()

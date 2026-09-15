@@ -78,6 +78,23 @@ def _parse_percent(text: str) -> int | None:
     return max(0, min(100, int(m.group(1))))
 
 
+def _record_brightness_undo(prev) -> None:
+    """Register an undo restoring the prior brightness % (no-op if unknown)."""
+    if prev is None:
+        return
+    try:
+        from core.action_history import record
+
+        def _undo(prev=int(prev)):
+            if _set_brightness(prev):
+                return f"Brightness wapas {prev}% kar diya."
+            return "Brightness undo nahi kar paya."
+
+        record(f"brightness → {int(prev)}%", _undo, skill="brightness")
+    except Exception:
+        pass
+
+
 @skill(
     name="brightness_set",
     description="Set screen brightness to an absolute percentage",
@@ -86,14 +103,20 @@ def _parse_percent(text: str) -> int | None:
         "screen brightness 75", "screen 25 percent", "display 80",
         "screen bright 90",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kitni brightness chahiye (0-100)?"},
+    # No hard gate: the level is a number in the phrase and _parse_percent scans
+    # the whole string, so gating on a `content` slot the extractor doesn't fill
+    # dead-ends at "kitni brightness?" even when "brightness 75" was given.
+    required_entities=[],
+    prompts={},
 )
 def brightness_set(slots: dict) -> str:
-    pct = _parse_percent(slots.get("content") or "")
+    pct = _parse_percent(slots.get("content") or slots.get("raw_text")
+                         or slots.get("text") or "")
     if pct is None:
         return "Brightness percent batao — jaise 'brightness 60'."
+    prev = _get_brightness()                  # capture for undo before changing
     if _set_brightness(pct):
+        _record_brightness_undo(prev)         # "undo" restores the old level
         return f"Brightness {pct}% kar diya."
     return ("Brightness change nahi ho saka. "
             "'pip install screen-brightness-control' karo for full support.")

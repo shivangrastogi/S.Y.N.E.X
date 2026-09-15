@@ -1,0 +1,20 @@
+{
+    "_comment": "Cross-skill chains — when the trigger event fires, also run every skill in 'then'. Triggers are gesture names (palm_fist_lock, peace, etc.), skill names (lock_screen, screenshot_full), or 'custom:<name>' for trained custom gestures. Edit and run 'reload chains' to apply.",
+
+    "lock_then_pause": {
+        "description": "Whenever the screen is locked, also pause music.",
+        "trigger": "palm_fist_lock",
+        "then": [
+            {"skill": "stop_music"}
+        ]
+    },
+
+    "screenshot_then_journal": {
+        "description": "After a screenshot, log it to the journal.",
+        "trigger": "peace",
+        "then": [
+            {"skill": "note_append",
+             "slots": {"raw_text": "log captured a screenshot"}}
+        ]
+    }
+}

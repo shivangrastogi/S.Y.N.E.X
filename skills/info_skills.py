@@ -142,11 +142,15 @@ def _refresh_rates() -> dict:
         "convert 50 eur to usd", "exchange rate",
         "kitne ka hai", "convert", "exchange",
     ],
-    required_entities=["content"],
-    prompts={"content": "Format: '100 usd to inr'"},
+    # No hard gate: the amount+currencies are in the phrase and _CONV_RE scans
+    # the whole string, so gating on a `content` slot the extractor doesn't fill
+    # dead-ends at the format prompt even when "100 usd to inr" was given.
+    required_entities=[],
+    prompts={},
 )
 def currency_convert(slots: dict) -> str:
-    raw = (slots.get("content") or "").strip()
+    raw = (slots.get("content") or slots.get("raw_text")
+           or slots.get("text") or "").strip()
     m = _CONV_RE.search(raw)
     if not m:
         return "Format: '100 usd to inr'."
@@ -240,14 +244,19 @@ def _parse_date(token: str) -> Optional[date]:
         "days between", "date diff", "how many days",
         "kitne din", "date difference",
     ],
-    required_entities=["content"],
-    prompts={"content": "Format: 'YYYY-MM-DD and YYYY-MM-DD' (or 'today' / 'tomorrow' / 'yesterday')"},
+    # No hard gate: the dates live in the phrase itself and _DATE_RE scans the
+    # whole string, so gating on a `content` slot the extractor doesn't fill just
+    # dead-ends at a format prompt even when both dates were given.
+    required_entities=[],
+    prompts={},
 )
 def date_diff(slots: dict) -> str:
-    raw = (slots.get("content") or "").strip()
+    raw = (slots.get("content") or slots.get("raw_text")
+           or slots.get("text") or "").strip()
     tokens = _DATE_RE.findall(raw)
     if len(tokens) < 2:
-        return "Do dates chahiye. Format: '2026-01-01 and today'."
+        return ("Do dates chahiye. Format: '2026-01-01 and today' "
+                "(ya 'today'/'tomorrow'/'yesterday').")
     d1 = _parse_date(tokens[0])
     d2 = _parse_date(tokens[1])
     if d1 is None or d2 is None:

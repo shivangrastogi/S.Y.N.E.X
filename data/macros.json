@@ -1,0 +1,44 @@
+{
+    "_comment": "AERIS macros — chain skill names by canonical name. Each entry's 'steps' is run top-to-bottom; per-step 'slots' override what the skill would have received. Custom macros: edit this file and reload via 'macro reload'.",
+
+    "morning_routine": {
+        "description": "Open browser + mail + calendar and read today's date.",
+        "steps": [
+            {"skill": "current_date"},
+            {"skill": "current_time"},
+            {"skill": "open_app", "slots": {"app_name": "chrome"}},
+            {"skill": "open_app", "slots": {"app_name": "mail"}},
+            {"skill": "open_app", "slots": {"app_name": "calendar"}}
+        ]
+    },
+
+    "focus_deep": {
+        "description": "Close distractions, open VS Code, start a focus session.",
+        "steps": [
+            {"skill": "close_app", "slots": {"app_name": "discord"}},
+            {"skill": "close_app", "slots": {"app_name": "telegram"}},
+            {"skill": "close_app", "slots": {"app_name": "whatsapp"}},
+            {"skill": "open_app",  "slots": {"app_name": "visual studio code"}},
+            {"skill": "focus_mode_on"}
+        ]
+    },
+
+    "end_of_day": {
+        "description": "Close work apps, take a final battery/system snapshot, then lock screen.",
+        "steps": [
+            {"skill": "battery_status"},
+            {"skill": "system_stats"},
+            {"skill": "close_app", "slots": {"app_name": "vs code"}},
+            {"skill": "close_app", "slots": {"app_name": "chrome"}},
+            {"skill": "lock_screen"}
+        ]
+    },
+
+    "media_break": {
+        "description": "Open Spotify and YouTube — quick relaxation jump.",
+        "steps": [
+            {"skill": "open_app",     "slots": {"app_name": "spotify"}},
+            {"skill": "youtube_jump", "slots": {"raw_text": "youtube relaxing music"}}
+        ]
+    }
+}

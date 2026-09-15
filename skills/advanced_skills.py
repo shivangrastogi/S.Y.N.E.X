@@ -106,7 +106,7 @@ def _ocr_via_winrt(png: bytes) -> Optional[str]:
     patterns=[
         "ocr screen", "read screen", "what's on my screen",
         "screen text", "extract text from screen",
-        "screen padho", "screen me kya likha hai",
+        "screen me kya likha hai",
         "scan screen", "ocr capture",
     ],
 )

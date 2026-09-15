@@ -1,0 +1,61 @@
+[
+  {
+    "id": "g_device_allow",
+    "goal": "torch on karo",
+    "llm_script": ["{\"tool\":\"torch_on\",\"args\":{}}",
+                   "{\"tool\":\"final\",\"reply\":\"ho gaya\"}"],
+    "tools": {"torch_on": "on"},
+    "expect": {"stopped": "final", "ran": ["torch_on"], "ledger": ["allow"],
+               "max_steps": 4}
+  },
+  {
+    "id": "g_payment_deny",
+    "goal": "500 bhej do",
+    "llm_script": ["{\"tool\":\"upi_pay\",\"args\":{\"amt\":500}}",
+                   "{\"tool\":\"final\",\"reply\":\"nahi kar sakta\"}"],
+    "tools": {},
+    "expect": {"stopped": "final", "ran": [], "ledger": ["deny"],
+               "max_steps": 4}
+  },
+  {
+    "id": "g_msg_confirm_cycle",
+    "goal": "rahul ko message bhejo",
+    "llm_script": ["{\"tool\":\"send_message\",\"args\":{\"to\":\"rahul\"}}",
+                   "{\"tool\":\"final\",\"reply\":\"bhej diya\"}"],
+    "tools": {"send_message": "sent"},
+    "expect": {"stopped": "blocked", "block_reason": "need_user", "ran": [],
+               "ledger": ["confirm"], "max_steps": 4,
+               "after_approve": {"stopped": "final",
+                                  "ran": ["send_message"],
+                                  "ledger": ["confirm", "allow"]}}
+  },
+  {
+    "id": "g_multi_step_chain",
+    "goal": "brightness kam karke music chala do",
+    "llm_script": ["{\"tool\":\"set_brightness\",\"args\":{\"pct\":40}}",
+                   "{\"tool\":\"play_music\",\"args\":{}}",
+                   "{\"tool\":\"final\",\"reply\":\"done\"}"],
+    "tools": {"set_brightness": "40%", "play_music": "playing"},
+    "expect": {"stopped": "final",
+               "ran": ["set_brightness", "play_music"],
+               "ledger": ["allow", "allow"], "max_steps": 5}
+  },
+  {
+    "id": "g_stuck_guard",
+    "goal": "impossible kaam",
+    "llm_script": ["{\"tool\":\"spin\",\"args\":{\"x\":1}}",
+                   "{\"tool\":\"spin\",\"args\":{\"x\":1}}",
+                   "{\"tool\":\"spin\",\"args\":{\"x\":1}}",
+                   "{\"tool\":\"spin\",\"args\":{\"x\":1}}"],
+    "tools": {"spin": "ERROR: x"},
+    "expect": {"stopped": "stuck", "max_steps": 8}
+  },
+  {
+    "id": "g_block_parks",
+    "goal": "goa trip plan karo",
+    "llm_script": ["{\"tool\":\"block\",\"reason\":\"need_user\",\"ask\":\"Kis din?\"}"],
+    "tools": {},
+    "expect": {"stopped": "blocked", "block_reason": "need_user", "ran": [],
+               "max_steps": 4}
+  }
+]

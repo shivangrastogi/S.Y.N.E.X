@@ -1,0 +1,9 @@
+{
+  "_help": "Fix a mis-routed command WITHOUT code or retraining. Each anchor forces a command to a specific intent/skill BEFORE the k-NN classifier runs. Add objects to 'anchors': {\"signal\": \"<regex>\", \"intent\": \"<intent/skill name>\", \"exclude\": \"<optional regex>\"}. If 'signal' matches the command AND 'exclude' does NOT, the command routes to 'intent'. Regexes are case-insensitive (Python re). Keep 'signal' specific so you don't over-catch. Find intent/skill names in docs/COMMANDS.md. Restart AERIS after editing. The built-in anchors (arithmetic, get_time, search_web, define_word, gcd_lcm, is-prime, reminder/kholo guards, text-case ops) are always active in addition to these.",
+  "_example": {
+    "signal": "\\b(count characters|kitne characters|length of|kitne letters)\\b",
+    "exclude": "",
+    "intent": "count_chars"
+  },
+  "anchors": []
+}

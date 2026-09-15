@@ -71,6 +71,24 @@ _PERSON_WITH_RE = re.compile(
 )
 
 _PUNCT_STRIP_RE = re.compile(r"[^\w\s+\-.:/%]")
+
+# Fallback for unknown apps the gazetteer doesn't cover. Captures either:
+#   * "<verb> <app>"  — e.g. "open spotify", "launch krita", "start blender"
+#   * "<app> <verb>"  — e.g. "krita kholo", "blender chalu karo", "obs chalao"
+# Stops at the next verb, "karo" suffix, or punctuation so we don't slurp
+# a whole sentence. The captured name is lowercased + passed straight to
+# the executor; if Windows can't resolve it via PATH or `start`, the user
+# gets a clean "nahi khul raha" reply instead of a silent no-op.
+_APP_VERB_RE = re.compile(
+    r"(?:"
+    r"(?:open|launch|start|run)\s+(?P<app_pre>[\w][\w .\-]{1,40}?)"
+    r"(?=\s+(?:please|now|karo|do|de|app|window)\b|[.,!?]|$)"
+    r"|"
+    r"(?P<app_post>[\w][\w .\-]{1,40}?)\s+"
+    r"(?:kholo|chalao|chalu\s+karo|kholna|launch\s+karo|open\s+karo|start\s+karo|chala\s+do)"
+    r")",
+    re.IGNORECASE,
+)
 _WS_RE = re.compile(r"\s+")
 
 
@@ -190,6 +208,13 @@ class EntityExtractor:
         self.nlp = None
         self.app_aliases: dict[str, list[str]] = {}
         self.intents: dict = {}
+        # Lite boot (core/lite_ml.py) skips the spaCy phase entirely. Setting
+        # this makes the NER layer load it on the first utterance that
+        # actually reaches it, instead of never — so a slot-filling command
+        # still gets NER, while the many commands that never need it pay
+        # nothing. `_spacy_tried` keeps a failed load from retrying forever.
+        self.defer_spacy = False
+        self._spacy_tried = False
         # ``lazy=True`` lets the GUI boot pipeline drive the three sub-phases
         # individually so progress can advance between gazetteer / intents /
         # spaCy load (the spaCy step alone can take 5-15s on cold disk).
@@ -207,7 +232,41 @@ class EntityExtractor:
         with open(self.intents_path, "r", encoding="utf-8") as f:
             self.intents: dict = json.load(f)
 
+    def _ensure_spacy(self) -> bool:
+        """True if the spaCy pipeline is usable, loading it on demand when
+        boot deferred it. A no-op (returning False) when spaCy isn't
+        installed or a previous load already failed."""
+        if self.nlp is not None:
+            return True
+        if not self.defer_spacy or self._spacy_tried:
+            return False
+        self._spacy_tried = True
+        log.info("[EntityExtractor] deferred spaCy load — an utterance needs NER")
+        self._init_spacy()
+        return self.nlp is not None
+
+    def unload_spacy(self) -> bool:
+        """Drop the spaCy pipeline. True if something was actually freed.
+
+        spaCy is ~220 MB (and drags torch in via thinc), loaded on demand for
+        the person/time/date slots and — until this existed — never released.
+
+        Resets ``_spacy_tried`` so the next utterance that needs NER reloads
+        it. That flag exists to stop a *failed* load being retried on every
+        turn; a deliberate unload is not a failure, and leaving it set would
+        silently disable NER for the rest of the session.
+        """
+        if self.nlp is None:
+            return False
+        self.nlp = None
+        self._spacy_tried = False
+        import gc
+        gc.collect()
+        log.info("[EntityExtractor] spaCy unloaded (idle)")
+        return True
+
     def _init_spacy(self) -> None:
+        self._spacy_tried = True
         try:
             import spacy  # type: ignore
             self.nlp = spacy.load("en_core_web_sm")
@@ -309,6 +368,12 @@ class EntityExtractor:
         """
         if not text:
             return None
+        # Explicit "kill/terminate process" is a DIFFERENT skill
+        # (kill_process — force, confirm-gated). Hijacking it into the
+        # graceful close_app would silently downgrade the user's intent
+        # AND bypass the destructive-action confirmation.
+        if re.search(r"\b(?:kill|terminate)\b", text, re.IGNORECASE):
+            return None
         if self._extract_app(text) is None:
             return None
         toks = {t.lower() for t in re.findall(r"[a-zA-Z]+", text)}
@@ -364,6 +429,16 @@ class EntityExtractor:
             r = self._extract_app(text)
             if r:
                 out["app_name"] = r[0]; used_spans.append(r[1])
+            else:
+                # Fallback — pull "<verb> <X>" / "<X> <verb-suffix>" so
+                # apps not in the gazetteer still get a launch attempt.
+                # Verbs: open/launch/start/run (English) + kholo/chalu karo/chalao/chalu/start (Hinglish).
+                m = _APP_VERB_RE.search(text)
+                if m:
+                    candidate = (m.group("app_pre") or m.group("app_post") or "").strip()
+                    if candidate:
+                        out["app_name"] = candidate.lower()
+                        used_spans.append(m.span())
 
         # Layer 3a — "with X" person shortcut (works without spaCy)
         if "person" in required and "person" not in out:
@@ -372,8 +447,20 @@ class EntityExtractor:
                 out["person"] = m.group(1).strip()
                 used_spans.append(m.span(1))
 
-        # Layer 3b — spaCy NER
-        if self.nlp:
+        # Layer 3b — spaCy NER. Only the person/time/date slots come from
+        # here, so check whether any of them is BOTH required and still
+        # unfilled before touching spaCy at all.
+        #
+        # This guard is load-bearing under lite boot: `spacy.load()` pulls in
+        # torch (~220 MB via thinc), and `extract()` runs on every single
+        # dispatch. Calling _ensure_spacy() unconditionally here — as an
+        # earlier version of this did — meant the very first command dragged
+        # the whole ML runtime in, which is exactly what lite boot exists to
+        # avoid. Cheap commands ("time kya hai", "notepad kholo") require none
+        # of these three slots and now stay genuinely ML-free.
+        needs_ner = any(slot in required and slot not in out
+                        for slot in ("person", "time", "date"))
+        if needs_ner and self._ensure_spacy():
             ner = self._extract_ner(text)
             if "person" in required and "person" not in out and "PERSON" in ner:
                 v, sp = ner["PERSON"]

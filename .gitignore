@@ -1,20 +1,86 @@
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+
+# ---------- Environments ----------
 .env
 .venv/
 env/
 venv/
 ENV/
+
+# ---------- Editors / tooling ----------
 .idea/
 .vscode/
-*.log
 .claude/
+*.log
 
-.pytest_cache/
+# ---------- SECRETS (never commit) ----------
+# firebase_bridge.json is a service_account with a live private_key.
+# phone_token.txt / bridge_pair.json pair this laptop to the phone.
+# NOTE: must exclude the *contents*, not the directory itself — git will not
+# re-include a file that sits inside an excluded directory.
+data/secrets/*
+!data/secrets/*.example
 
-# Large neural-model weights — uploaded as GitHub release assets, not tracked
+# ---------- Model weights ----------
+# Large / regenerable weights: shipped as GitHub release assets, not tracked.
+data/models/llm/
+data/models/tessdata/
 data/models/intent_neural/model/model.safetensors
+data/models/yolov8n.pt
+data/models/face_landmarker.task
 core/model.tensor
 core/*.tensor
 core/*.safetensors
+
+# ---------- Archives / build bundles ----------
+*.rar
+*.zip
+aeris_train_bundle.zip
+
+# ---------- Runtime state (churns on every run) ----------
+data/audio_cache/
+data/*.sqlite
+data/clipboard_history.json
+data/entities.json
+data/last_boot.json
+data/mode_state.json
+data/focus_mode_state.json
+data/response_cache.json
+data/local_music_index.json
+data/repair_memory.json
+data/generated_code/
+data/report_card/
+data/logs/
+
+# ---------- PERSONAL DATA (this repo is public — never commit) ----------
+# What AERIS learns about *you*: face embeddings, memory, journals, notes,
+# expenses, activity. Shipped defaults (settings/routines/macros/modes,
+# intents + corpora, models) stay tracked; these are created on first use.
+data/face_registry*.json
+data/user_memory.json
+data/user_patterns.json
+data/learned_patterns.json
+data/knowledge_graph.json
+data/semantic_memory.npz
+data/goals.json
+data/ledger.jsonl
+data/presence_journal.jsonl
+data/doc_index.pkl
+data/doc_index_meta.json
+data/notes/
+data/scratch.md
+data/snippets.json
+data/custom_gestures.json
+data/jarvis_workbook.xlsx
+data/voice_id*
+data/affect*.json
+
+# ---------- Build output ----------
+**/build/
+
+# ---------- Android / Gradle ----------
+.gradle/

@@ -1,0 +1,204 @@
+{
+  "_comment": "Hand-curated natural example phrases per command, consumed by gen_commands_readme.py (leads the Examples list ahead of raw router patterns). Add batches over time; regenerate docs/COMMANDS.md after editing.",
+
+  "open_app": [
+    "chrome kholo", "open notepad", "spotify launch karo", "calculator open kar do",
+    "vs code kholo", "open file explorer", "settings kholo", "task manager open karo",
+    "discord chalu karo", "open whatsapp", "paint kholo", "microsoft word kholo",
+    "launch the terminal", "cmd kholo", "camera app open karo", "zara chrome kholo",
+    "open steam", "excel kholo", "AERIS notepad kholo", "brave browser launch karo",
+    "open the calculator please", "vlc kholo"
+  ],
+  "close_app": [
+    "chrome band karo", "close notepad", "spotify ko close kar do", "calculator band karo",
+    "vs code close karo", "band karo file explorer", "discord quit karo", "close whatsapp",
+    "paint band kar do", "word close karo", "kill the terminal", "cmd band karo",
+    "close this app", "chrome ko close karo please", "excel band karo", "vlc band karo",
+    "steam close karo", "browser band kar do", "yeh app band karo", "close all chrome windows",
+    "notepad ko quit karo", "shut this program"
+  ],
+  "take_screenshot": [
+    "screenshot lo", "screenshot lelo", "screen capture karo", "screengrab lelo",
+    "take a screenshot", "screen ka photo lo", "capture the screen", "screenshot please",
+    "abhi screenshot lo", "poori screen ka screenshot", "grab the screen", "ss lelo",
+    "screen save karo", "screenshot le lo AERIS", "screen ki image lo", "capture my screen",
+    "zara screenshot lo", "ek screenshot lelo", "screenshot maar do", "snap the screen",
+    "screen grab kar do", "screenshot le lena"
+  ],
+  "get_weather": [
+    "aaj mausam kaisa hai", "weather batao", "kya barish hogi aaj", "aaj ka weather",
+    "how's the weather", "mausam kaisa rahega", "temperature kitna hai", "is it going to rain",
+    "aaj garmi kitni hai", "weather update do", "kal ka mausam kaisa hoga", "baarish hone wali hai kya",
+    "what's the temperature outside", "aaj thand hai kya", "weather report do", "mausam ka haal batao",
+    "kitni garmi hai aaj", "will it rain today", "aaj dhoop hai ya baadal", "weather kaisa hai bahar",
+    "today's forecast", "mausam bata do zara"
+  ],
+  "get_time": [
+    "time kya hua", "kitne baje hain", "abhi time batao", "what time is it",
+    "samay kya hua hai", "time bolo", "kya time ho raha hai", "current time batao",
+    "abhi kitne baje hain", "time check karo", "batao kitne baje hain", "tell me the time",
+    "ghadi mein time dekho", "time kya hai abhi", "AERIS time batao", "zara time bolo",
+    "what's the time right now", "kitna time hua hai", "time please", "abhi ka time kya hai",
+    "clock dikhao", "time bata do"
+  ],
+  "search_web": [
+    "google karo best laptops 2026", "search karo python tutorials", "web pe dhundo iphone 16 price",
+    "google it", "internet pe search karo taj mahal history", "look up react hooks",
+    "google karo aaj ki news", "search the web for pizza recipe", "dhundo ipl schedule",
+    "web search karo elon musk", "google me dekho weather in delhi", "search for cheap flights",
+    "yeh google karo", "internet pe dhundo cricket score", "look this up online",
+    "google karo nearby restaurants", "search karo how to learn guitar", "web pe find karo bitcoin price",
+    "google kar do machine learning course", "browser me search karo", "khoj karo online",
+    "search karo latest movies"
+  ],
+  "play_music": [
+    "gaana bajao", "music play karo", "koi song chalao", "play some music",
+    "arijit singh ka gaana bajao", "music chalu karo", "koi acha gaana lagao", "play a song",
+    "bollywood songs bajao", "mood ke hisaab se music chalao", "gaana chala do", "put on some music",
+    "kuch music bajao", "song play kar do", "party songs bajao", "relaxing music chalao",
+    "AERIS gaana bajao", "play my playlist", "koi romantic gaana lagao", "music start karo",
+    "zara music chalao", "gaana suna do"
+  ],
+  "set_reminder": [
+    "mujhe yaad dilana 5 baje meeting hai", "reminder set karo doodh lene ka", "10 minute baad remind karna",
+    "remind me to call mom", "kal subah gym jaana yaad dilana", "reminder laga do dawai lene ka",
+    "shaam 6 baje remind karna", "set a reminder for the dentist", "yaad dilana bill bharne ka",
+    "30 min baad reminder", "remind me in an hour", "kal 9 baje reminder set karo",
+    "mujhe remind karna paani peene ke liye", "reminder banao project submit karne ka", "yaad rakhna interview hai kal",
+    "set reminder to water the plants", "1 ghante baad yaad dilana", "remind me tomorrow morning",
+    "reminder do meeting ke liye", "aaj raat 8 baje remind karna", "yaad dilate rehna break lene ka",
+    "reminder lagao"
+  ],
+  "create_note": [
+    "note banao meeting ke points", "likho ye note grocery list", "ek note create karo",
+    "make a note", "yeh likh lo idea ke liye", "note save karo password hint", "quick note banao",
+    "note me likho call the plumber", "jot this down", "AERIS note banao", "ek reminder note likho",
+    "note create karo shopping items", "yeh baat note kar lo", "add a note about the project",
+    "note likho weekend plans", "zara ye note kar lo", "save this as a note", "note banana hai ek",
+    "likh do ye baat", "meri note me add karo", "new note banao", "note me daal do ye"
+  ],
+  "lock_screen": [
+    "screen lock karo", "lock the pc", "lock karo", "screen lock kar do", "pc lock karo",
+    "lock my computer", "system lock karo", "abhi screen lock kar do", "computer ko lock karo",
+    "lock it", "AERIS screen lock karo", "zara lock kar do", "laptop lock karo", "screen band karke lock karo",
+    "lock the screen now", "lock kar do jaldi", "pc ko lock karo", "screen lock please",
+    "lock this machine", "windows lock karo", "lock ho jao", "screen lock kardo"
+  ],
+  "system_info": [
+    "system info batao", "cpu usage kitna hai", "ram kitni use ho rahi hai", "system status batao",
+    "how much ram is free", "disk space kitna bacha hai", "pc ki health batao", "system stats dikhao",
+    "cpu aur ram batao", "memory usage kya hai", "system ka haal batao", "kitni ram lagi hai abhi",
+    "show system information", "storage kitna khali hai", "performance batao", "system report do",
+    "AERIS system info", "hardware info dikhao", "cpu temperature batao", "kitna disk use hua hai",
+    "system details do", "resource usage batao"
+  ],
+  "shutdown_system": [
+    "computer band karo", "pc shutdown karo", "system band kar do", "shut down the pc",
+    "laptop band karo", "shutdown karo", "computer ko band karo", "power off karo",
+    "restart karo pc", "system restart karo", "pc ko sula do", "put the pc to sleep",
+    "sleep mode me daal do", "shutdown kar do please", "abhi band karo computer", "reboot the system",
+    "AERIS pc band karo", "system ko restart karo", "band kar do laptop", "computer sleep karo",
+    "turn off the computer", "pc off karo"
+  ],
+
+  "define_word": [
+    "iska matlab batao serendipity", "define the word ephemeral", "ye shabd ka matlab kya hai",
+    "meaning batao ubiquitous", "word meaning of resilience", "matlab kya hai nostalgia ka",
+    "define karo empathy", "gregarious ka matlab", "what does ambivalent mean", "iska arth batao",
+    "explain the word paradox", "candid meaning in hindi", "define serene", "ye word ka matlab samjhao",
+    "matlab batao diligent", "what is the meaning of eloquent", "shabd ka arth batao",
+    "meticulous kya hota hai", "define pragmatic please", "iska definition batao", "arth batao ephemeral",
+    "meaning kya hai resilient ka"
+  ],
+  "fix_grammar": [
+    "grammar theek karo: i has a pen", "iski grammar fix karo", "ye sentence sahi karo",
+    "fix the grammar in this line", "grammar check karo is line ki", "is line ko sahi likho",
+    "correct my grammar", "grammar sudhaaro", "ye galat likha hai theek karo", "spelling aur grammar fix karo",
+    "make this grammatically correct", "sentence sahi kar do", "proofread this sentence",
+    "meri english theek karo", "grammar mistake fix karo", "ise sahi angrezi me likho",
+    "correct this sentence for me", "grammar improve karo", "galtiyan theek karo is text ki",
+    "grammar wise sahi karo", "yeh line grammatically theek karo", "polish this sentence"
+  ],
+  "tell_joke": [
+    "ek joke sunao", "koi chutkula batao", "tell me a joke", "kuch funny sunao", "ek acha joke sunao",
+    "hasao mujhe", "koi mazedaar joke", "make me laugh", "ek aur joke", "chutkula sunao yaar",
+    "tell me something funny", "koi pj sunao", "joke maaro", "kuch hasane wala bolo", "ek short joke sunao",
+    "crack a joke", "bore ho raha hoon joke sunao", "ek programming joke sunao", "funny baat batao",
+    "ek dad joke sunao", "sunao koi joke", "AERIS ek joke sunao"
+  ],
+  "volume_up": [
+    "volume badhao", "awaaz badhao", "louder", "volume up karo", "thoda zor se", "audio badhao",
+    "sound increase karo", "volume tez karo", "aur awaaz badhao", "turn it up", "volume high karo",
+    "zara volume badhao", "awaaz tez karo", "sound badhao thoda", "increase the volume",
+    "volume upar karo", "louder please", "avaaz badha do", "make it louder", "volume thoda tez karo",
+    "sound zyada karo", "bump up the volume"
+  ],
+  "volume_mute": [
+    "mute karo", "awaaz band karo", "silent karo", "mute the sound", "sound band karo",
+    "volume mute karo", "chup karo", "mute kar do", "awaaz off karo", "silence it",
+    "mute it please", "abhi mute karo", "sound off karo", "zara mute karo", "AERIS mute karo",
+    "volume off karo", "sab awaaz band", "mute the audio", "gaana mute karo", "sound silent karo",
+    "awaaz gayab karo", "no sound karo"
+  ],
+  "open_website": [
+    "youtube kholo", "open github.com", "gmail kholo", "amazon kholo", "open wikipedia",
+    "flipkart ki site kholo", "open stackoverflow", "netflix kholo", "reddit kholo",
+    "chatgpt.com kholo", "open linkedin", "twitter kholo", "instagram website kholo",
+    "open the website hackernews", "google.com kholo", "browser me youtube kholo",
+    "open my email site", "leetcode kholo", "zara github kholo", "open whatsapp web",
+    "yeh website kholo", "spotify web kholo"
+  ],
+
+  "calculate": [
+    "25 into 4 kitna hota hai", "calculate 15 percent of 2000", "12 plus 37 kitna hai",
+    "what is 144 divided by 12", "square root of 256", "2 ki power 10 kya hai",
+    "kitna hota hai 999 minus 88", "45 aur 55 add karo", "calculate the tip on 800",
+    "18 ka 20 percent", "150 multiply by 3", "solve 100 - 37 + 12", "5 factorial kya hai",
+    "7 times 8", "compound interest nikalo", "kitne hue 60 divided by 5", "square of 17",
+    "calculate 3 to the power 4", "average of 10 20 30", "500 ka 15 percent kitna",
+    "root 81 kya hai", "12 percent of 5000 nikalo"
+  ],
+  "volume_down": [
+    "volume kam karo", "awaaz kam karo", "quieter", "volume down karo", "thoda dheere",
+    "sound kam karo", "volume neeche karo", "awaaz dheemi karo", "turn it down",
+    "volume low karo", "zara volume kam karo", "sound ghatao", "decrease the volume",
+    "awaaz halki karo", "volume thoda kam karo", "make it quieter", "sound neeche karo",
+    "aawaz kam kar do", "lower the volume", "dheere karo awaaz", "volume ghata do", "less volume"
+  ],
+  "play_youtube": [
+    "youtube pe lofi chalao", "play despacito on youtube", "youtube pe cricket highlights dikhao",
+    "youtube kholo aur music chalao", "play arijit singh on youtube", "youtube pe funny videos chalao",
+    "put on youtube", "youtube pe workout video lagao", "play the latest trailer on youtube",
+    "youtube pe cooking video chalao", "youtube pe news chalao", "play relaxing music on youtube",
+    "youtube pe motivational video", "youtube pe song laga do", "stream this on youtube",
+    "youtube pe podcast chalao", "play tech reviews on youtube", "youtube pe gaming video chalao",
+    "youtube pe bhajan chalao", "youtube pe standup comedy lagao", "youtube pe tutorial chalao",
+    "youtube khol ke gaana chalao"
+  ],
+  "tell_story": [
+    "ek kahani sunao", "tell me a story", "koi story sunao", "ek chhoti si kahani sunao",
+    "bedtime story sunao", "ek adventure story sunao", "koi interesting kahani batao",
+    "tell me a short story", "ek horror story sunao", "bacchon wali kahani sunao",
+    "ek motivational story sunao", "koi kahani suna do", "story time", "ek funny story sunao",
+    "ek sci-fi story sunao", "kahani suna do soone se pehle", "tell me a fairy tale",
+    "ek moral story sunao", "koi purani kahani sunao", "ek mystery story sunao",
+    "ek prem kahani sunao", "make up a story for me"
+  ],
+  "brainstorm_ideas": [
+    "brainstorm karo startup ideas", "mujhe kuch ideas do birthday gift ke", "ideas suggest karo weekend plan ke",
+    "give me ideas for a project", "youtube channel ke ideas do", "kuch business ideas batao",
+    "brainstorm content ideas", "app feature ideas do", "ideas chahiye party theme ke",
+    "suggest some ideas for dinner", "naye ideas do side hustle ke", "brainstorm blog topics",
+    "ek naam ke ideas do brand ke liye", "creative ideas do poster ke", "ideas batao date night ke",
+    "help me brainstorm", "kuch marketing ideas do", "gift ideas suggest karo", "ideas do trip planning ke",
+    "brainstorm karo essay topics", "startup ke liye 5 ideas do", "kuch fresh ideas chahiye"
+  ],
+  "motivate_me": [
+    "mujhe motivate karo", "motivate me", "kuch motivational bolo", "himmat badhao meri",
+    "ek motivational quote sunao", "mera mood theek karo", "positive kuch bolo", "cheer me up",
+    "mujhe push karo", "demotivated feel kar raha hoon", "kuch inspiring bolo", "mujhe encourage karo",
+    "give me some motivation", "aaj mann nahi lag raha motivate karo", "ek pep talk do",
+    "mujhe energy do", "motivational baat karo", "kuch hausla badhane wala bolo", "inspire me please",
+    "give me a boost", "haar maan raha hoon motivate karo", "mujhe uthao gire hue se"
+  ]
+}

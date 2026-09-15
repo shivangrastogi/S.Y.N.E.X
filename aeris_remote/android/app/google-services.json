@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "492038766816",
+    "project_id": "aeris---personal-assistant",
+    "storage_bucket": "aeris---personal-assistant.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:492038766816:android:f9f81b18a2581ff6f2d085",
+        "android_client_info": {
+          "package_name": "com.aeris.aeris_remote"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfaeMNaU8FhZsGeL2vThLMiGWQ0kbHC9Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

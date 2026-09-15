@@ -74,6 +74,55 @@ def _parse_percent(text: str) -> int | None:
     return max(0, min(100, val))
 
 
+# ── Mockable volume seam ───────────────────────────────────────────── #
+#
+# Reading/writing the master volume goes through these two functions so the
+# skill is testable headlessly (monkeypatch get_volume/set_volume with a fake
+# in-memory level) and so the undo path has one place to capture/restore from.
+
+
+def get_volume():
+    """Current master volume as a 0.0–1.0 scalar, or None if unavailable."""
+    ep = _endpoint()
+    if ep is None:
+        return None
+    try:
+        return float(ep.GetMasterVolumeLevelScalar())
+    except Exception as e:
+        log.warning("[volume] GetMasterVolumeLevelScalar failed: %s", e)
+        return None
+
+
+def set_volume(scalar: float) -> bool:
+    """Set master volume from a 0.0–1.0 scalar. True on success."""
+    ep = _endpoint()
+    if ep is None:
+        return False
+    try:
+        ep.SetMasterVolumeLevelScalar(max(0.0, min(1.0, scalar)), None)
+        return True
+    except Exception as e:
+        log.warning("[volume] SetMasterVolumeLevelScalar failed: %s", e)
+        return False
+
+
+def _record_volume_undo(prev_scalar) -> None:
+    """Register an undo that restores ``prev_scalar`` (no-op if unknown)."""
+    if prev_scalar is None:
+        return
+    try:
+        from core.action_history import record
+
+        def _undo(prev=prev_scalar):
+            if set_volume(prev):
+                return f"Volume wapas {int(round(prev * 100))}% kar diya."
+            return "Volume undo nahi kar paya."
+
+        record(f"volume → {int(round(prev_scalar * 100))}%", _undo, skill="volume")
+    except Exception:
+        pass
+
+
 @skill(
     name="volume_set",
     description="Set system volume to an absolute percentage",
@@ -82,20 +131,21 @@ def _parse_percent(text: str) -> int | None:
         "volume 60 kar do", "awaaz 40", "set volume to 75",
         "audio 80 percent", "loud 90", "loudness 25",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kitna volume chahiye (0-100)?"},
+    # No hard gate: the level is a number in the phrase and _parse_percent scans
+    # the whole string, so gating on a `content` slot the extractor doesn't fill
+    # dead-ends at "kitna volume?" even when "volume 60" was given.
+    required_entities=[],
+    prompts={},
 )
 def volume_set(slots: dict) -> str:
-    pct = _parse_percent(slots.get("content") or "")
+    pct = _parse_percent(slots.get("content") or slots.get("raw_text")
+                         or slots.get("text") or "")
     if pct is None:
         return "Volume percent batao — jaise 'volume 60'."
-    ep = _endpoint()
-    if ep is not None:
-        try:
-            ep.SetMasterVolumeLevelScalar(pct / 100.0, None)
-            return f"Volume {pct}% kar diya."
-        except Exception as e:
-            log.warning("[volume] SetMasterVolumeLevelScalar failed: %s", e)
+    prev = get_volume()                       # capture for undo before changing
+    if set_volume(pct / 100.0):
+        _record_volume_undo(prev)             # "undo" restores the old level
+        return f"Volume {pct}% kar diya."
     # Fallback: nudge volume via media keys.
     # We can't query current absolute volume without pycaw, so we just
     # press VK_VOLUME_DOWN 50 times then VK_VOLUME_UP pct/2 times.
@@ -111,15 +161,12 @@ def volume_set(slots: dict) -> str:
               "audio up", "thoda zor se", "bump volume"],
 )
 def volume_up(_slots: dict) -> str:
-    ep = _endpoint()
-    if ep is not None:
-        try:
-            cur = ep.GetMasterVolumeLevelScalar()
-            new = min(1.0, cur + 0.10)
-            ep.SetMasterVolumeLevelScalar(new, None)
+    cur = get_volume()
+    if cur is not None:
+        new = min(1.0, cur + 0.10)
+        if set_volume(new):
+            _record_volume_undo(cur)
             return f"Volume {int(new * 100)}% kar diya."
-        except Exception:
-            pass
     _press_key(_VK_VOLUME_UP, 4)
     return "Volume badha diya."
 
@@ -131,15 +178,12 @@ def volume_up(_slots: dict) -> str:
               "audio down", "dheere", "lower volume"],
 )
 def volume_down(_slots: dict) -> str:
-    ep = _endpoint()
-    if ep is not None:
-        try:
-            cur = ep.GetMasterVolumeLevelScalar()
-            new = max(0.0, cur - 0.10)
-            ep.SetMasterVolumeLevelScalar(new, None)
+    cur = get_volume()
+    if cur is not None:
+        new = max(0.0, cur - 0.10)
+        if set_volume(new):
+            _record_volume_undo(cur)
             return f"Volume {int(new * 100)}% kar diya."
-        except Exception:
-            pass
     _press_key(_VK_VOLUME_DOWN, 4)
     return "Volume kam kar diya."
 

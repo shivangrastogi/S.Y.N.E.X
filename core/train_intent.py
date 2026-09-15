@@ -5,28 +5,49 @@ Drop-in replacement for the k-NN cosine head. The trained model lives at
 JarvisBrain auto-detects it and routes through it; falls back to k-NN when
 the model is missing or its ``intents_hash`` no longer matches.
 
+Incremental-by-default (the continual-learning upgrade)
+-------------------------------------------------------
+When a previously trained model exists at ``data/models/intent_neural/``,
+training WARM-STARTS from its weights instead of the base checkpoint:
+the fine-tuned body is kept, the classification head is mapped by intent
+NAME (new intents get fresh rows, existing ones keep their learned
+weights), and only a few low-LR epochs run. Every retrain therefore
+*adds* to what the model already knows — generation N+1 builds on
+generation N. Use ``--fresh`` for a from-scratch run.
+
+The run lands in ``data/models/intent_neural_staging/``, is scored on the
+held-out golden set (``data/intent_eval.json``), and is promoted to live
+only if it doesn't regress (``core/model_registry.py`` archives the old
+model for one-command rollback).
+
+Typical cycle (all run by you, whenever enough new usage has piled up):
+
+    python -m core.learning_loop harvest    # real usage -> corpus
+    python -m core.train_intent             # incremental warm-start + gate
+    (restart AERIS)
+
 Run from project root:
 
-    python -m core.train_intent                         # defaults
+    python -m core.train_intent                         # incremental (auto)
+    python -m core.train_intent --fresh                 # full retrain
     python -m core.train_intent --epochs 8 --batch 16
-    python -m core.train_intent --model microsoft/Multilingual-MiniLM-L12-H384
+    python -m core.train_intent --no-promote            # stage only
     python -m core.train_intent --no-augment            # disable augmentation
 
-Output (under ``data/models/intent_neural/``):
+Output (staged, then promoted to ``data/models/intent_neural/``):
     model/                     HuggingFace save_pretrained
     tokenizer/                 HuggingFace save_pretrained
     labels.json                {id: intent_name} + intents_hash
-    metadata.json              train/val accuracy, epoch, model name, sizes
+    metadata.json              accuracy, generation, mode, lineage, sizes
 
 Notes
 -----
-* CPU training is supported. XLM-R-base on ~1500 augmented samples runs
-  in ~3-6 minutes per epoch on an i9-13900K. CUDA cuts that to seconds.
+* CPU training is supported; incremental runs (4 epochs, warm body) are
+  several times cheaper than a fresh 15-epoch run. CUDA cuts either to
+  minutes — see COLAB_TRAINING.md.
 * Augmentation 4-5x's the training set (lower/upper case variants,
   punctuation drop, common Hinglish particles like "bhai" / "yaar").
 * Class-weighted cross-entropy keeps rare intents from being ignored.
-* The model is small enough to retrain whenever you edit ``intents.json``;
-  the brain will pick the new weights up on the next start automatically.
 """
 
 from __future__ import annotations
@@ -78,14 +99,17 @@ log = logging.getLogger("train_intent")
 # ─── Defaults ──────────────────────────────────────────────────────── #
 
 DEFAULT_MODEL = "distilbert-base-multilingual-cased"  # 134M; ~2x faster than XLM-R on CPU
-DEFAULT_EPOCHS = 15
-DEFAULT_LR = 5e-5
+DEFAULT_EPOCHS_FRESH = 15
+DEFAULT_EPOCHS_INCREMENTAL = 4             # warm body converges fast
+DEFAULT_LR_FRESH = 5e-5
+DEFAULT_LR_INCREMENTAL = 2e-5              # gentler — protect prior knowledge
 DEFAULT_BATCH = 16
 DEFAULT_MAX_LEN = 48                       # patterns are short — 48 covers ~99%
 DEFAULT_VAL_RATIO = 0.15
 DEFAULT_SEED = 42
 
-OUT_DIR = os.path.join(_ROOT, "data", "models", "intent_neural")
+LIVE_DIR = os.path.join(_ROOT, "data", "models", "intent_neural")
+OUT_DIR = os.path.join(_ROOT, "data", "models", "intent_neural_staging")
 INTENTS_PATH = os.path.join(_ROOT, "data", "intents.json")
 
 
@@ -189,6 +213,102 @@ def _stratified_split(samples: list[Sample], val_ratio: float, rng: random.Rando
     return train, val
 
 
+# ─── Warm start (incremental fine-tuning) ──────────────────────────── #
+
+def _copy_head_rows(old_sd: dict, new_sd: dict,
+                    old_label2id: dict[str, int],
+                    new_label2id: dict[str, int]) -> int:
+    """Copy classification-head rows from an old state dict into a new one,
+    mapped by intent NAME (label ids shift when the sorted intent set grows).
+
+    Only touches parameters whose name marks them as head weights
+    ("classifier"/"score") AND whose leading dimension equals the label
+    count on both sides — body weights are never rewritten. Mutates
+    ``new_sd`` tensors in place; returns how many parameters were mapped.
+    """
+    n_old, n_new = len(old_label2id), len(new_label2id)
+    copied = 0
+    with torch.no_grad():
+        for key, new_t in new_sd.items():
+            if "classifier" not in key and "score" not in key:
+                continue
+            old_t = old_sd.get(key)
+            if old_t is None or not hasattr(new_t, "shape"):
+                continue
+            if (len(new_t.shape) < 1 or new_t.shape[0] != n_new
+                    or old_t.shape[0] != n_old
+                    or new_t.shape[1:] != old_t.shape[1:]):
+                continue
+            for intent, nid in new_label2id.items():
+                oid = old_label2id.get(intent)
+                if oid is not None:
+                    new_t[nid] = old_t[oid]
+            copied += 1
+    return copied
+
+
+def _load_warm_start(prev_dir: str, base_model_name: str,
+                     label2id: dict[str, int], id2label: dict[int, str],
+                     device):
+    """Try to warm-start from a previously trained model directory.
+
+    Returns ``(model, tokenizer, parent_meta)`` on success, else
+    ``(None, None, None)`` — caller falls back to a fresh base checkpoint.
+    """
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    model_sub = os.path.join(prev_dir, "model")
+    tok_sub = os.path.join(prev_dir, "tokenizer")
+    labels_p = os.path.join(prev_dir, "labels.json")
+    if not (os.path.isdir(model_sub) and os.path.isdir(tok_sub)
+            and os.path.exists(labels_p)):
+        return None, None, None
+
+    parent_meta: dict = {}
+    meta_p = os.path.join(prev_dir, "metadata.json")
+    if os.path.exists(meta_p):
+        try:
+            with open(meta_p, "r", encoding="utf-8") as f:
+                parent_meta = json.load(f)
+        except Exception:
+            parent_meta = {}
+    if parent_meta.get("model") and parent_meta["model"] != base_model_name:
+        print(f"[warm] previous model is {parent_meta['model']!r}, requested "
+              f"{base_model_name!r} — architectures differ, training FRESH.",
+              flush=True)
+        return None, None, None
+
+    try:
+        with open(labels_p, "r", encoding="utf-8") as f:
+            old_label2id = {str(k): int(v)
+                            for k, v in json.load(f).get("label2id", {}).items()}
+        if not old_label2id:
+            return None, None, None
+        tokenizer = AutoTokenizer.from_pretrained(tok_sub)
+        if old_label2id == label2id:
+            model = AutoModelForSequenceClassification.from_pretrained(model_sub)
+            print(f"[warm] label set unchanged ({len(label2id)} intents) — "
+                  "resuming full model.", flush=True)
+        else:
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model_sub, num_labels=len(label2id),
+                id2label=id2label, label2id=label2id,
+                ignore_mismatched_sizes=True,
+            )
+            old_model = AutoModelForSequenceClassification.from_pretrained(model_sub)
+            copied = _copy_head_rows(old_model.state_dict(), model.state_dict(),
+                                     old_label2id, label2id)
+            del old_model
+            shared = len(set(old_label2id) & set(label2id))
+            fresh = len(set(label2id) - set(old_label2id))
+            print(f"[warm] head remapped by intent name: {shared} kept, "
+                  f"{fresh} new, {copied} head param(s) copied.", flush=True)
+        return model.to(device), tokenizer, parent_meta
+    except Exception as e:
+        print(f"[warm] warm-start failed ({e}) — training FRESH.", flush=True)
+        return None, None, None
+
+
 # ─── Torch Dataset ─────────────────────────────────────────────────── #
 
 class IntentDataset(Dataset):
@@ -256,8 +376,20 @@ def train(args) -> None:
     print(f"[device] {device}  (cuda={torch.cuda.is_available()})", flush=True)
 
     # ── Load intents + build samples ───────────────────────────────
-    print("[data] loading intents + plugin patterns...", flush=True)
-    intents = load_all_intents(INTENTS_PATH)
+    # --corpus: train from a PRE-MERGED corpus file (exported on the
+    # laptop via `python -m core.export_corpus`). This is how Colab/GPU
+    # training works: the laptop's Windows-only skills can't import on
+    # Linux, so discovering them there would yield a different merged set
+    # and a hash the laptop brain rejects. Training from the exported
+    # corpus reproduces the laptop's exact hash. Without --corpus we
+    # discover normally (native retrain on the same machine).
+    if getattr(args, "corpus", None):
+        print(f"[data] loading PRE-MERGED corpus: {args.corpus}", flush=True)
+        with open(args.corpus, "r", encoding="utf-8") as _cf:
+            intents = json.load(_cf)
+    else:
+        print("[data] loading intents + plugin patterns...", flush=True)
+        intents = load_all_intents(INTENTS_PATH)
     hash_ = intents_hash(intents)
     normalizer = HinglishNormalizer()
     samples, label2id = _build_samples(intents, normalizer)
@@ -284,15 +416,36 @@ def train(args) -> None:
         print(f"[data] train: {len(train)}  val: {len(val)}  (no augmentation)",
               flush=True)
 
-    # ── Model + tokenizer ──────────────────────────────────────────
-    print(f"[model] loading {args.model}...", flush=True)
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        args.model,
-        num_labels=len(label2id),
-        id2label=id2label,
-        label2id=label2id,
-    ).to(device)
+    # ── Model + tokenizer (incremental warm-start when possible) ───
+    model = tokenizer = None
+    parent_meta: dict = {}
+    mode = "fresh"
+    if not args.fresh:
+        warm_dir = args.warm_start or LIVE_DIR
+        model, tokenizer, parent_meta = _load_warm_start(
+            warm_dir, args.model, label2id, id2label, device)
+        if model is not None:
+            mode = "incremental"
+            print(f"[model] INCREMENTAL — warm-started from {warm_dir}",
+                  flush=True)
+    if model is None:
+        print(f"[model] FRESH — loading base checkpoint {args.model}...",
+              flush=True)
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            args.model,
+            num_labels=len(label2id),
+            id2label=id2label,
+            label2id=label2id,
+        ).to(device)
+
+    # Resolve epochs/lr now that the mode is known (CLI overrides win).
+    incremental = mode == "incremental"
+    if args.epochs is None:
+        args.epochs = DEFAULT_EPOCHS_INCREMENTAL if incremental else DEFAULT_EPOCHS_FRESH
+    if args.lr is None:
+        args.lr = DEFAULT_LR_INCREMENTAL if incremental else DEFAULT_LR_FRESH
+    print(f"[train] mode={mode}  epochs={args.epochs}  lr={args.lr}", flush=True)
 
     train_loader = DataLoader(
         IntentDataset(train, tokenizer, args.max_len),
@@ -350,7 +503,9 @@ def train(args) -> None:
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    # ── Save ───────────────────────────────────────────────────────
+    # ── Save to STAGING ────────────────────────────────────────────
+    from core.model_registry import live_generation
+    generation = live_generation() + 1
     os.makedirs(OUT_DIR, exist_ok=True)
     model_dir = os.path.join(OUT_DIR, "model")
     tok_dir = os.path.join(OUT_DIR, "tokenizer")
@@ -362,44 +517,148 @@ def train(args) -> None:
             "label2id": label2id,
             "intents_hash": hash_,
         }, f, indent=2, ensure_ascii=False)
-    with open(os.path.join(OUT_DIR, "metadata.json"), "w", encoding="utf-8") as f:
-        json.dump({
-            "model": args.model,
-            "epochs": args.epochs,
-            "best_epoch": best_epoch,
-            "best_val_acc": round(best_val_acc, 4),
-            "num_intents": len(label2id),
-            "num_train_samples": len(train),
-            "num_val_samples": len(val),
-            "augmented": args.augment,
-            "max_len": args.max_len,
-            "lr": args.lr,
-            "batch": args.batch,
-            "seed": args.seed,
-            "trained_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "device": str(device),
-        }, f, indent=2)
+    # Reproducibility snapshot: the EXACT merged corpus this generation was
+    # trained on travels with the model (intents.json / skills / learned
+    # patterns keep evolving underneath — the snapshot doesn't).
+    with open(os.path.join(OUT_DIR, "corpus_snapshot.json"), "w",
+              encoding="utf-8") as f:
+        json.dump(intents, f, ensure_ascii=False, indent=0)
+    learned_src = os.path.join(_ROOT, "data", "learned_patterns.json")
+    if os.path.exists(learned_src):
+        import shutil
+        shutil.copy(learned_src, os.path.join(OUT_DIR, "learned_snapshot.json"))
+    metadata = {
+        "model": args.model,
+        "mode": mode,
+        "generation": generation,
+        "parent_trained_at": parent_meta.get("trained_at"),
+        "epochs": args.epochs,
+        "best_epoch": best_epoch,
+        "best_val_acc": round(best_val_acc, 4),
+        "golden_acc": None,
+        "num_intents": len(label2id),
+        "num_train_samples": len(train),
+        "num_val_samples": len(val),
+        "augmented": args.augment,
+        "max_len": args.max_len,
+        "lr": args.lr,
+        "batch": args.batch,
+        "seed": args.seed,
+        "trained_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "device": str(device),
+    }
+    _write_metadata(metadata)
 
     print(f"\n[done] best val_acc = {best_val_acc*100:.2f}% at epoch {best_epoch}",
           flush=True)
-    print(f"[done] saved to {OUT_DIR}", flush=True)
-    print("\nRestart AERIS (or call brain.reload()) for the brain to use this model.",
+    print(f"[done] staged at {OUT_DIR}  (generation {generation}, {mode})",
           flush=True)
+
+    # Free the training copy before the gate double-loads from disk.
+    del model
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    _gate_and_promote(args, intents, metadata)
+
+
+def _write_metadata(metadata: dict) -> None:
+    with open(os.path.join(OUT_DIR, "metadata.json"), "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+
+def _gate_and_promote(args, intents: dict, metadata: dict) -> None:
+    """Golden-set regression gate, then staging → live promotion.
+
+    Skips gracefully when the golden set or its deps are unavailable
+    (e.g. the Colab bundle) — an absent gate passes, matching the old
+    behaviour of writing straight to the live dir.
+    """
+    gate_ok, gate_msg = True, "no golden set — gate passed trivially"
+    if args.gate:
+        try:
+            from core.intent_eval import (evaluate_model_dir, gate as _gate,
+                                          load_golden, write_report)
+            items = load_golden(known_intents=set(intents.keys()))
+            if items:
+                print(f"\n[gate] scoring on {len(items)} held-out golden items...",
+                      flush=True)
+                new_res = evaluate_model_dir(OUT_DIR, items)
+                old_res = (evaluate_model_dir(LIVE_DIR, items)
+                           if os.path.isdir(LIVE_DIR) else None)
+                if new_res is None:
+                    raise RuntimeError("staged model failed to load for eval")
+                metadata["golden_acc"] = round(new_res.accuracy, 4)
+                _write_metadata(metadata)
+                write_report(new_res, "staging")
+                gate_ok, gate_msg = _gate(old_res, new_res)
+                print(f"[gate] staged golden acc: {new_res.accuracy*100:.1f}%",
+                      flush=True)
+        except Exception as e:
+            gate_msg = f"gate unavailable ({e}) — passing"
+    print(f"[gate] {'PASS' if gate_ok else 'FAIL'} — {gate_msg}", flush=True)
+
+    if not gate_ok:
+        print("\n[keep] staging retained, live model UNCHANGED.", flush=True)
+        print("  inspect : python -m core.intent_eval compare", flush=True)
+        print("  force   : python -m core.model_registry promote", flush=True)
+        return
+    if not args.promote:
+        print("\n[stage] --no-promote given — promote later with:", flush=True)
+        print("  python -m core.model_registry promote", flush=True)
+        return
+
+    from core.model_registry import PromotionError, promote_staging
+    try:
+        promote_staging(note=gate_msg)
+    except PromotionError as e:
+        print(f"\n[promote] FAILED: {e}", flush=True)
+        return
+    try:
+        from core.learning_loop import LearningStore
+        LearningStore().mark_trained()
+    except Exception:
+        pass
+    print(f"\n[promote] generation {metadata['generation']} is LIVE at {LIVE_DIR}",
+          flush=True)
+    print("Restart AERIS for the brain to pick it up. "
+          "Rollback: python -m core.model_registry rollback", flush=True)
 
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--model", default=DEFAULT_MODEL,
                    help=f"HF model id (default: {DEFAULT_MODEL})")
-    p.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
-    p.add_argument("--lr", type=float, default=DEFAULT_LR)
+    p.add_argument("--epochs", type=int, default=None,
+                   help=f"default: {DEFAULT_EPOCHS_INCREMENTAL} incremental / "
+                        f"{DEFAULT_EPOCHS_FRESH} fresh")
+    p.add_argument("--corpus", default=None,
+                   help="Path to a pre-merged corpus JSON (from "
+                        "export_corpus) — trains without skill discovery so "
+                        "GPU/Colab produces a laptop-matching hash.")
+    p.add_argument("--lr", type=float, default=None,
+                   help=f"default: {DEFAULT_LR_INCREMENTAL} incremental / "
+                        f"{DEFAULT_LR_FRESH} fresh")
     p.add_argument("--batch", type=int, default=DEFAULT_BATCH)
     p.add_argument("--max-len", type=int, default=DEFAULT_MAX_LEN)
     p.add_argument("--val-ratio", type=float, default=DEFAULT_VAL_RATIO)
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    p.add_argument("--fresh", action="store_true",
+                   help="Ignore any previous model — train from the base "
+                        "checkpoint (old behaviour)")
+    p.add_argument("--warm-start", default=None, metavar="DIR",
+                   help="Warm-start from this model dir instead of the live "
+                        "one (e.g. an unzipped Colab model)")
+    p.add_argument("--no-promote", dest="promote", action="store_false",
+                   help="Leave the trained model in staging; promote "
+                        "manually via core.model_registry")
+    p.add_argument("--no-gate", dest="gate", action="store_false",
+                   help="Skip the golden-set regression gate")
     p.add_argument("--no-augment", dest="augment", action="store_false",
                    help="Disable training-data augmentation")
-    p.set_defaults(augment=True)
+    p.set_defaults(augment=True, promote=True, gate=True)
     return p.parse_args()
 
 

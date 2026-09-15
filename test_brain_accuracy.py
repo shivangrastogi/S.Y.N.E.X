@@ -60,7 +60,7 @@ def run_accuracy_test():
         
         print(f"{query:<40} | {status}")
         if not is_correct:
-            print(f"    └─ Expected: {expected}, Got: {pred.intent} (Conf: {pred.confidence:.2f})")
+            print(f"    -- Expected: {expected}, Got: {pred.intent} (Conf: {pred.confidence:.2f})")
 
     total_time = time.time() - start_time
     accuracy = (passed / len(test_suite)) * 100
@@ -75,9 +75,9 @@ def run_accuracy_test():
     print("="*50)
 
     if accuracy > 80:
-        print("\nRESULT: Your Brain is ready for the interview! 🚀")
+        print("\nRESULT: Your Brain is ready for the interview!")
     else:
-        print("\nRESULT: Brain needs more examples in intents.json. 🧠")
+        print("\nRESULT: Brain needs more examples in intents.json.")
 
 if __name__ == "__main__":
     run_accuracy_test()

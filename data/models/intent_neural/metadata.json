@@ -1,16 +1,16 @@
 {
   "model": "distilbert-base-multilingual-cased",
   "epochs": 15,
-  "best_epoch": 4,
-  "best_val_acc": 0.7194,
-  "num_intents": 140,
-  "num_train_samples": 5308,
-  "num_val_samples": 196,
+  "best_epoch": 10,
+  "best_val_acc": 0.7383,
+  "num_intents": 378,
+  "num_train_samples": 14210,
+  "num_val_samples": 512,
   "augmented": true,
   "max_len": 48,
   "lr": 5e-05,
   "batch": 16,
   "seed": 42,
-  "trained_at": "2026-05-18T17:42:13",
-  "device": "cpu"
+  "trained_at": "2026-07-04T21:31:43",
+  "device": "cuda"
 }

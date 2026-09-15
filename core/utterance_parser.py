@@ -204,6 +204,14 @@ def find_best_interpretation(text: str, brain) -> tuple[Prediction, str]:
         if best_pred is None or pred.confidence > best_pred.confidence:
             best_pred = pred
             best_span = span
+        if best_pred.confidence >= 1.0:
+            # A deterministic tier (exact pattern / arithmetic / anchor)
+            # answered. Nothing can beat 1.0 under the strict `>` above, so
+            # the remaining spans cannot change the result — and evaluating
+            # them WOULD load the sentence encoder, since a truncated span
+            # like "+ 2" matches no cheap tier. This break is what keeps
+            # "2 + 2" and "notepad kholo" genuinely ML-free.
+            break
 
     assert best_pred is not None
     return best_pred, best_span

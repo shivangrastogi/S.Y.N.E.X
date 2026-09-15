@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 @skill(
     name="gesture_mode_on",
-    description="Activate hand-gesture control — 17 gestures + cursor mode for hands-free desktop control.",
+    description="Activate hand-gesture control — sequenced, collision-free gestures for hands-free desktop control.",
     patterns=[
         # English — explicit
         "gesture mode on", "gestures on", "open gesture mode",
@@ -53,24 +53,30 @@ def gesture_mode_on(slots: dict) -> str:
         return "Gestures already on hain, sir."
     if eng.start():
         return (
-            "Gesture mode ON. 17 gestures live:\n"
-            "  ── single-hand ──\n"
-            "  • Fist (0.6s)         → lock screen\n"
+            "Gesture mode ON. Live gestures:\n"
+            "  ── sequenced (no collisions) ──\n"
+            "  • Palm→Fist→Palm→Fist     → lock screen\n"
+            "  • Double-pinch (OK sign)  → play / pause media\n"
+            "  • Pinch hold (fingers closed) + spread → volume control\n"
+            "  • Sideways palm + L motion → Alt+Tab (next app)\n"
+            "  • Sideways palm + R motion → Alt+Shift+Tab (prev app)\n"
+            "  ── one-shot ──\n"
             "  • Long fist (3s)      → open command palette\n"
-            "  • Open palm hold      → play/pause media\n"
             "  • Swipe ←/→           → prev/next window/tab\n"
             "  • Swipe ↑/↓           → page up / page down\n"
             "  • Wave (rapid L↔R)    → Esc (dismiss dialog)\n"
-            "  • Thumbs up / down    → volume up / down\n"
-            "  • Peace (V)           → screenshot snip\n"
-            "  • Pinch (closed)      → toggle mic mute\n"
-            "  • Three fingers up    → next track\n"
-            "  • OK sign             → open command palette\n"
+            "  • Thumbs up/down hold → volume tick up / down\n"
+            "  • Peace (V) hold      → screenshot snip\n"
+            "  • Three fingers hold  → next track\n"
             "  ── two-handed ──\n"
             "  • Both palms apart    → Ctrl++ zoom in\n"
             "  • Both palms together → Ctrl+- zoom out\n"
             "  • Clap                → bring AERIS to front\n"
-            "  ── advanced ──\n"
+            "  ── air strokes (point + draw) ──\n"
+            "  • Circle              → refresh page\n"
+            "  • X                   → close tab/window\n"
+            "  • Check               → Enter/confirm\n"
+            "  • Arrow right         → Right arrow\n"
             "  • 'cursor mode on'    → finger = mouse · pinch = click"
         )
     # Surface the actual reason — usually webcam access blocked / in-use.

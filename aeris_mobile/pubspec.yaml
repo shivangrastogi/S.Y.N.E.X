@@ -1,0 +1,44 @@
+name: aeris_mobile
+description: "A.E.R.I.S Mobile — an assistant that answers on the phone first, and reaches for the laptop only when it has to."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # AES-256-GCM, byte-compatible with core/cloud_bridge.py on the laptop.
+  # Same package + scheme aeris_remote already uses, so the two apps can
+  # share a pairing without the laptop caring which one is talking.
+  cryptography: ^2.7.0
+
+  # Voice. Same stack aeris_remote already proves on this user's phone:
+  # native STT (so Hinglish works without shipping a model) and native TTS.
+  # Neither plugin exists on Windows, so both sit behind an interface that
+  # reports itself unavailable rather than throwing MissingPluginException.
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.0
+
+  # Transcript persistence. Key-value rather than a file because the stored
+  # transcript is bounded and small, and this works on web too.
+  shared_preferences: ^2.3.2
+
+  # Laptop link. Pure Dart with no native code, so it adds nothing to the
+  # plugin-registration problem that already bites the other three.
+  web_socket_channel: ^3.0.1
+
+  # The pairing passphrase is a shared secret. shared_preferences is plain text
+  # on disk, so it goes to the Keystore instead. Same package aeris_remote uses.
+  flutter_secure_storage: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

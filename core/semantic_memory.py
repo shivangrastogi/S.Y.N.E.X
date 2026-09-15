@@ -139,7 +139,11 @@ class SemanticMemory:
             return []
         try:
             import numpy as np
-            q_emb = self._encoder.encode([query], normalize_embeddings=True)[0]
+            # Shared encoder — hold the global lock so this never overlaps
+            # a brain / chat-gate encode on the same model (heap-corrupts).
+            from core.encoder_lock import ENCODER_LOCK
+            with ENCODER_LOCK:
+                q_emb = self._encoder.encode([query], normalize_embeddings=True)[0]
         except Exception as e:
             log.warning("[semantic_mem] encode query failed: %s", e)
             return []
@@ -153,6 +157,13 @@ class SemanticMemory:
                     scored.append((score, rec))
         scored.sort(key=lambda t: -t[0])
         return scored[:k]
+
+    def recent(self, n: int = 40) -> list[tuple[float, "_Record"]]:
+        """The last ``n`` records, newest first, as ``(ts, record)`` pairs.
+        Used by the Memory Fabric's nightly consolidation (no query needed)."""
+        with self._lock:
+            tail = self._records[-max(n, 0):]
+        return [(r.ts, r) for r in reversed(tail)]
 
     def stats(self) -> dict:
         with self._lock:
@@ -190,8 +201,13 @@ class SemanticMemory:
                     return
                 continue
             try:
-                emb = self._encoder.encode([rec.text],
-                                           normalize_embeddings=True)[0]
+                # This runs on the embed BACKGROUND thread — the exact one
+                # that collided with the chat-gate encode and corrupted the
+                # heap. The global lock serializes both.
+                from core.encoder_lock import ENCODER_LOCK
+                with ENCODER_LOCK:
+                    emb = self._encoder.encode([rec.text],
+                                               normalize_embeddings=True)[0]
                 with self._lock:
                     rec.emb = emb
                     self._dim = len(emb)
@@ -199,10 +215,42 @@ class SemanticMemory:
             except Exception as e:
                 log.warning("[semantic_mem] encode raised: %s", e)
 
+    def set_encoder_provider(self, provider) -> None:
+        """Register ``provider() -> encoder | None`` — the supported way to
+        share the brain's encoder with this store.
+
+        Before this existed the only reuse path was walking
+        ``QApplication.topLevelWidgets()`` for a GUI whose ``_brain._engine``
+        held one. That works in exactly one configuration: the GUI process
+        with an in-process brain. Everywhere else — the split-brain CHILD, a
+        headless ``main.py --text`` run, the test suite — the lookup found
+        nothing and this store quietly loaded its OWN SentenceTransformer on
+        its background thread. A second ~450 MB encoder, in the very process
+        the split architecture exists to keep light, and one that lite boot
+        cannot defer because storing a turn is what triggers it.
+        """
+        self._encoder_provider = provider
+
     def _ensure_encoder(self) -> bool:
+        # Preferred: whoever owns the brain handed us a provider. Re-resolve
+        # EVERY time and never cache the result — caching would hold a strong
+        # reference to the brain's encoder, so the idle unloader's "drop the
+        # weights" would free nothing and the RAM would never come back. When
+        # the brain is currently cold this returns None and we simply wait;
+        # the embed queue drains once the brain warms up again.
+        provider = getattr(self, "_encoder_provider", None)
+        if provider is not None:
+            try:
+                self._encoder = provider()
+            except Exception as e:
+                log.debug("[semantic_mem] encoder provider failed: %s", e)
+                self._encoder = None
+            return self._encoder is not None
+
         if self._encoder is not None:
             return True
-        # Try to reuse the running brain's encoder — no second model load.
+        # Legacy GUI path — kept for the in-process GUI, which never
+        # registers a provider.
         try:
             from PyQt5.QtWidgets import QApplication
             app = QApplication.instance()

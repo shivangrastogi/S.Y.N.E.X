@@ -192,7 +192,7 @@ def forget_command(slots: dict) -> str:
     name="list_taught",
     description="Show every user-taught phrase",
     patterns=[
-        "list taught", "list commands", "show taught", "what commands",
+        "list taught", "show taught", "what commands",
         "taught commands", "commands list",
     ],
 )

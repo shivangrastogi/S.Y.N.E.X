@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --obsidian: #060d0c;
+  --vault: #0a1614;
+  --teal: #0ea5a4;
+  --mint: #5eead4;
+  --ink: #eafff8;
+  --muted: #8fb3ab;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--obsidian);
+  color: var(--ink);
+  font-family: 'Satoshi', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--mint);
+  color: #042521;
+}
+
+/* Distinctive display type */
+.font-display {
+  font-family: 'Clash Display', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ── Atmospheric background: gradient mesh + grain ───────────── */
+.bg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(60% 50% at 15% 0%, rgba(14, 165, 164, 0.25), transparent 60%),
+    radial-gradient(50% 50% at 85% 20%, rgba(94, 234, 212, 0.16), transparent 60%),
+    radial-gradient(70% 60% at 50% 100%, rgba(16, 185, 129, 0.14), transparent 65%),
+    var(--obsidian);
+}
+
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Glass surfaces ──────────────────────────────────────────── */
+.glass {
+  background: linear-gradient(
+    160deg,
+    rgba(234, 255, 248, 0.06),
+    rgba(234, 255, 248, 0.02)
+  );
+  border: 1px solid rgba(94, 234, 212, 0.14);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.glow-ring {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.2),
+    0 30px 80px -30px rgba(14, 165, 164, 0.5);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, #eafff8 10%, #5eead4 55%, #0ea5a4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Animated conic ring */
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-slow {
+  animation: spin-slow 18s linear infinite;
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.float-y {
+  animation: float-y 6s ease-in-out infinite;
+}
+
+/* Marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 26s linear infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--obsidian); }
+::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.3);
+  border-radius: 10px;
+}

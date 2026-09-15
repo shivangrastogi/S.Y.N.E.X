@@ -102,6 +102,98 @@ def git_branch(_slots: dict) -> str:
     return f"On '{branch}'{ahead_behind}{last}"
 
 
+@skill(
+    name="git_log",
+    description="Last 10 commits of the project repo (short hash + subject + relative date).",
+    patterns=[
+        "git log", "show git log", "recent commits", "last commits",
+        "git history", "commit history", "kya commits hue hain",
+        "show recent commits", "git ke commits dikhao", "git commits",
+    ],
+)
+def git_log(_slots: dict) -> str:
+    rc, out, err = _run([
+        "git", "log", "-10", "--pretty=format:%h  %ar  %s",
+    ])
+    if rc != 0:
+        return f"git log failed: {err.strip() or out.strip() or 'unknown'}"
+    if not out.strip():
+        return "Koi commits nahi mile."
+    return "Last 10 commits:\n" + out
+
+
+@skill(
+    name="git_diff",
+    description="Short stat of uncommitted changes (lines added/removed per file).",
+    patterns=[
+        "git diff", "show diff", "what changed", "kya change hua",
+        "git changes show karo", "uncommitted diff",
+        "show me changes", "current changes",
+    ],
+)
+def git_diff(_slots: dict) -> str:
+    rc, out, err = _run(["git", "diff", "--stat"])
+    if rc != 0:
+        return f"git diff failed: {err.strip() or 'unknown'}"
+    staged_rc, staged_out, _ = _run(["git", "diff", "--stat", "--cached"])
+    body = ""
+    if out.strip():
+        body += "Unstaged:\n" + out
+    if staged_rc == 0 and staged_out.strip():
+        body += ("\n" if body else "") + "Staged:\n" + staged_out
+    return body or "Koi changes nahi — working tree clean."
+
+
+@skill(
+    name="git_pull",
+    description="git pull --ff-only — fast-forward only, won't create merge commits.",
+    patterns=[
+        "git pull", "pull changes", "git pull karo", "fetch latest",
+        "sync from remote", "git update karo", "remote se pull",
+    ],
+)
+def git_pull(_slots: dict) -> str:
+    rc, out, err = _run(["git", "pull", "--ff-only"], timeout=15.0)
+    if rc != 0:
+        return f"git pull failed: {(err or out).strip()}"
+    return out.strip() or "Already up to date."
+
+
+@skill(
+    name="git_commit_quick",
+    description="Commit currently-staged changes with a message taken from the spoken text.",
+    patterns=[
+        "git commit", "commit changes", "git commit karo",
+        "commit with message", "commit ye changes",
+        "git commit message", "save commit",
+    ],
+)
+def git_commit_quick(slots: dict) -> str:
+    text = slots.get("raw_text") or slots.get("text") or ""
+    # Strip leading verb so what remains is the message.
+    msg = re.sub(
+        r"^(?:please\s+)?"
+        r"(?:git\s+)?(?:commit(?:\s+with\s+message)?|commit\s+karo|save\s+commit|"
+        r"commit\s+changes?|commit\s+ye(?:\s+changes?)?)\s*",
+        "",
+        text.strip(),
+        flags=re.IGNORECASE,
+    ).strip(" :,.\"'")
+    if not msg:
+        return "Commit message chahiye — e.g. 'git commit fix import error'."
+    # Only run if there's something staged.
+    rc_chk, out_chk, _ = _run(["git", "diff", "--cached", "--name-only"])
+    if rc_chk != 0:
+        return "Not a git repo here."
+    if not out_chk.strip():
+        return ("Kuch staged nahi hai. Pehle 'git add ...' karo, "
+                "phir commit karo.")
+    rc, out, err = _run(["git", "commit", "-m", msg], timeout=10.0)
+    if rc != 0:
+        return f"git commit failed: {(err or out).strip()[:200]}"
+    return (out or "").strip() or "Committed."
+
+
 # ── File Explorer ──────────────────────────────────────────────────── #
 
 @skill(

@@ -50,12 +50,17 @@ DOCK_ITEMS: list[Optional[_Item]] = [
     _Item("chat",     "Conversations", "chat",     "core"),
     _Item("auto",     "Automations",   "auto",     "core"),
     None,                                                       # divider
+    _Item("abilities",  "Abilities",    "abilities",  "mind"),
+    _Item("intel",      "Intelligence", "intel",      "mind"),
+    _Item("continuity", "Continuity",   "continuity", "mind"),
+    None,                                                       # divider
     _Item("brain",    "Brain",         "brain",    "intel"),
     _Item("memory",   "Memory",        "memory",   "intel"),
     _Item("vision",   "Vision",        "vision",   "intel"),
     _Item("workbook", "Workbook",      "workbook", "intel"),
     None,                                                       # divider
     _Item("system",   "System",        "system",   "system"),
+    _Item("trust",    "Trust",         "trust",    "system"),
     _Item("settings", "Settings",      "settings", "system"),
 ]
 
@@ -142,6 +147,17 @@ def _draw_icon(p: QPainter, name: str, color: QColor) -> None:
         p.drawEllipse(QPointF(8, 8), 0.9, 0.9)
         p.setBrush(Qt.NoBrush)
 
+    elif name == "trust":
+        # Shield with a check mark
+        path = QPainterPath()
+        path.moveTo(8, 2); path.lineTo(13.5, 4); path.lineTo(13.5, 8)
+        path.cubicTo(13.5, 11.5, 11.2, 13.4, 8, 14.5)
+        path.cubicTo(4.8, 13.4, 2.5, 11.5, 2.5, 8)
+        path.lineTo(2.5, 4); path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(QPointF(5.6, 8.2), QPointF(7.3, 10))
+        p.drawLine(QPointF(7.3, 10), QPointF(10.6, 6.2))
+
     elif name == "workbook":
         # Spreadsheet grid: outer rect + 2 horizontal + 2 vertical lines
         p.drawRoundedRect(2, 3, 12, 10, 1, 1)
@@ -149,6 +165,26 @@ def _draw_icon(p: QPainter, name: str, color: QColor) -> None:
         p.drawLine(QPointF(2, 10), QPointF(14, 10))
         p.drawLine(QPointF(6, 3),  QPointF(6, 13))
         p.drawLine(QPointF(10, 3), QPointF(10, 13))
+
+    elif name == "abilities":
+        # Constellation: 4 dots + connecting strokes (the living index)
+        for cx, cy in ((4, 4), (12, 5), (5, 12), (12, 11)):
+            p.drawEllipse(QPointF(cx, cy), 1.4, 1.4)
+        p.drawLine(QPointF(5.2, 4.8), QPointF(10.8, 5))
+        p.drawLine(QPointF(5.6, 11), QPointF(10.8, 10.6))
+        p.drawLine(QPointF(4.4, 5.4), QPointF(4.8, 10.6))
+
+    elif name == "intel":
+        # Health dial: open arc + needle dot
+        p.drawArc(QRectF(3, 3, 10, 10), 225 * 16, -270 * 16)
+        p.drawEllipse(QPointF(8, 8), 1.2, 1.2)
+        p.drawLine(QPointF(8, 8), QPointF(11, 5))
+
+    elif name == "continuity":
+        # Two bodies, one mind: laptop circle linked to phone circle
+        p.drawEllipse(QPointF(5, 6), 3, 3)
+        p.drawEllipse(QPointF(11.5, 11), 2.2, 2.2)
+        p.drawLine(QPointF(7, 8), QPointF(9.8, 9.8))
 
     else:
         p.drawEllipse(QPointF(8, 8), 4, 4)
@@ -326,10 +362,10 @@ class _BrandRow(QWidget):
         tl.setContentsMargins(0, 0, 0, 0); tl.setSpacing(0)
         n = QLabel("A.E.R.I.S")
         n.setFont(inter(12, 700))
-        n.setStyleSheet(f"color: {J.TEXT_PRI.name()}; letter-spacing: 1.5px;")
+        n.setStyleSheet(f"color: {J.TEXT_PRI.name()}; ")
         s = QLabel("JARVIS v3.0")
         s.setFont(inter(9, 500))
-        s.setStyleSheet(f"color: {J.TEXT_MUT.name()}; letter-spacing: 0.5px;")
+        s.setStyleSheet(f"color: {J.TEXT_MUT.name()}; ")
         tl.addWidget(n); tl.addWidget(s)
         self._text.adjustSize()
         self._text.move(_BRAND_X + 30 + _TEXT_GAP, 0)

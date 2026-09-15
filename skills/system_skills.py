@@ -185,7 +185,7 @@ def network_status(_slots: dict) -> str:
 @skill(
     name="ping",
     description="Ping a host and report round-trip time",
-    patterns=["ping", "ping google", "internet check karo", "is internet up"],
+    patterns=["ping", "ping google", "is internet up"],
 )
 def ping(slots: dict) -> str:
     host = (slots.get("content") or "8.8.8.8").strip().split()[0]

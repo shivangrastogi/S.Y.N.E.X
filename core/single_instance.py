@@ -202,6 +202,25 @@ class SingleInstance:
             return False
 
 
+def existing_is_responsive(timeout: float = 0.8, port: int = 8765) -> bool:
+    """True iff a running AERIS answers its local ``/health`` endpoint.
+
+    This is the tie-breaker for the single-instance guard: a lock held by a
+    LIVE app answers here (defer to it), while a lock held by a hung/dead
+    zombie — the classic "AERIS won't open" trap — times out and reads as
+    unresponsive (so the new launch can take over). Bound to loopback only,
+    so this never touches the network.
+    """
+    import urllib.request
+    url = f"http://127.0.0.1:{port}/health"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            status = getattr(r, "status", None) or r.getcode()
+            return 200 <= int(status) < 300
+    except Exception:
+        return False
+
+
 def _pid_alive(pid: int) -> bool:
     try:
         import psutil

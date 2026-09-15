@@ -1,0 +1,468 @@
+<style>
+  :root{
+    --void:#06080D; --panel:#0d131d; --line:#1b2536;
+    --arc:#37E0EA; --violet:#7C6CFF; --mint:#54F0C0;
+    --amber:#FFB454; --coral:#FF5A6E;
+    --text:#EAF2F7; --muted:#7C8AA0; --faint:#42506a;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Cascadia Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{
+    background:var(--void); color:var(--text); font-family:var(--mono);
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  .stage{position:fixed;inset:0;display:grid;place-items:center}
+
+  /* ambient chrome */
+  #core{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+  /* compact: raise the (mostly transparent) reactor canvas above the sheet so
+     the small core paints over the row while the sheet shows through elsewhere */
+  .stage[data-mode="compact"] #core{z-index:3}
+  .grid{position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:
+      linear-gradient(var(--line) 1px,transparent 1px) 0 0/44px 44px,
+      linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/44px 44px;
+    -webkit-mask:radial-gradient(120% 90% at 50% 50%,#000 0,transparent 72%);
+            mask:radial-gradient(120% 90% at 50% 50%,#000 0,transparent 72%);
+    opacity:.12}
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 80% at 50% 42%,transparent 40%,rgba(2,4,8,.85) 100%)}
+  .scan{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;
+    background:repeating-linear-gradient(0deg,rgba(55,224,234,.035) 0 1px,transparent 1px 3px)}
+  .sweep{position:absolute;left:0;right:0;height:22vh;pointer-events:none;
+    mix-blend-mode:screen;opacity:.5;
+    background:linear-gradient(180deg,transparent,rgba(55,224,234,.10),transparent);
+    animation:sweep 6.5s linear infinite}
+  @keyframes sweep{0%{top:-25vh}100%{top:100vh}}
+
+  /* corner HUD brackets — targeting frame */
+  .bracket{position:absolute;width:54px;height:54px;pointer-events:none;opacity:.62}
+  .bracket::before,.bracket::after{content:"";position:absolute;background:var(--arc)}
+  .bracket::before{width:100%;height:2px}.bracket::after{width:2px;height:100%}
+  .bracket.tl{top:22px;left:22px}
+  .bracket.tr{top:22px;right:22px}
+  .bracket.tr::before{right:0}.bracket.tr::after{right:0}
+  .bracket.bl{bottom:22px;left:22px}.bracket.bl::before{bottom:0}
+  .bracket.br{bottom:22px;right:22px}
+  .bracket.br::before{right:0;bottom:0}.bracket.br::after{right:0;bottom:0}
+  .tick{position:absolute;width:7px;height:7px;border:1.5px solid var(--amber);
+    transform:rotate(45deg);opacity:.7}
+  .tl .tick{top:-3px;left:-3px}.tr .tick{top:-3px;right:-3px}
+  .bl .tick{bottom:-3px;left:-3px}.br .tick{bottom:-3px;right:-3px}
+
+  /* telemetry bar */
+  .telem{position:absolute;top:0;left:0;right:0;display:flex;
+    justify-content:space-between;gap:12px;padding:26px 30px;
+    font-size:11px;letter-spacing:.22em;color:var(--muted);
+    text-transform:uppercase;pointer-events:none}
+  .telem b{color:var(--arc);font-weight:600}
+  .telem .amber{color:var(--amber)}
+  .telem-r{display:flex;gap:22px;font-variant-numeric:tabular-nums}
+  .dim{color:var(--faint)}
+
+  /* caption + call */
+  .console{position:absolute;left:0;right:0;bottom:8.5vh;display:grid;
+    justify-items:center;gap:22px;pointer-events:none}
+  .cap{min-height:18px;font-size:12.5px;letter-spacing:.14em;color:var(--muted)}
+  .cap .c{color:var(--arc)} .cap .cursor{color:var(--arc);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .status{display:none;align-items:center;gap:11px;font-size:12px;
+    letter-spacing:.3em;color:var(--mint);text-transform:uppercase}
+  .status.on{display:flex}
+  .status i{width:8px;height:8px;border-radius:50%;background:var(--mint);
+    box-shadow:0 0 12px var(--mint);animation:pulse 1.7s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.25)}}
+
+  .call{pointer-events:auto;position:relative;cursor:pointer;
+    font-family:var(--mono);font-size:12px;letter-spacing:.34em;font-weight:600;
+    text-transform:uppercase;color:var(--arc);background:rgba(55,224,234,.06);
+    border:1.5px solid rgba(55,224,234,.5);padding:15px 34px;
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+    transition:.25s ease;text-shadow:0 0 14px rgba(55,224,234,.5)}
+  .call:hover{background:rgba(55,224,234,.14);border-color:var(--arc);
+    box-shadow:0 0 34px rgba(55,224,234,.25),inset 0 0 24px rgba(55,224,234,.08)}
+  .call:focus-visible{outline:2px solid var(--amber);outline-offset:4px}
+  .call:active{transform:translateY(1px)}
+  .call.live{color:var(--mint);border-color:rgba(84,240,192,.55);
+    background:rgba(84,240,192,.07);text-shadow:0 0 14px rgba(84,240,192,.5)}
+  .hint{font-size:10px;letter-spacing:.28em;color:var(--faint);text-transform:uppercase}
+
+  /* mode toggle */
+  .mode{position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:6;
+    display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .mode button{background:transparent;color:var(--muted);border:0;cursor:pointer;
+    font-family:var(--mono);font-size:10px;letter-spacing:.2em;padding:9px 15px;
+    text-transform:uppercase;transition:.2s}
+  .mode button.on{background:rgba(55,224,234,.14);color:var(--arc)}
+
+  /* your screen — BLURRED behind the sheet (Google-Assistant style) */
+  .behind{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;gap:11px;
+    justify-content:flex-end;padding:0 20px 72vh;opacity:.5;filter:blur(4px)}
+  .behind .b{max-width:74%;padding:12px 16px;border:1px solid var(--line);
+    border-radius:15px;color:var(--muted);font-size:13.5px;line-height:1.35}
+  .behind .me{align-self:flex-end;border-color:rgba(55,224,234,.28);color:var(--text)}
+
+  /* everyday-wake FROSTED SHEET — grows with the chat, stays till "bye" */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:2;display:none;flex-direction:column;
+    max-height:66vh;background:rgba(11,16,25,.9);
+    -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
+    border-top:1.4px solid rgba(55,224,234,.5);border-radius:22px 22px 0 0;padding-top:10px}
+  .grab{width:38px;height:4px;background:var(--line);border-radius:2px;align-self:center;flex:none}
+  .chat{overflow-y:auto;padding:14px 16px 12px;display:flex;flex-direction:column;gap:8px}
+  .chat .b{max-width:76%;padding:11px 15px;border-radius:14px;font-size:14px;
+    line-height:1.3;animation:rise .3s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .chat .them{align-self:flex-start;background:rgba(25,29,39,.92);border:1px solid var(--line);color:var(--text)}
+  .chat .me{align-self:flex-end;background:rgba(55,224,234,.13);border:1px solid rgba(55,224,234,.34);color:var(--text)}
+  .srow{display:flex;align-items:center;gap:12px;flex:none;min-height:76px;
+    border-top:1px solid rgba(255,255,255,.05);
+    padding:8px 16px calc(14px + env(safe-area-inset-bottom)) 86px}
+  .srow .txt{flex:1;min-width:0}
+  .srow .st{font-size:11px;letter-spacing:.22em;color:var(--mint);text-transform:uppercase}
+  .srow .tr{margin-top:5px;color:var(--text);font-size:14.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow .x{width:44px;height:44px;flex:none;border-radius:50%;cursor:pointer;
+    display:grid;place-items:center;color:var(--coral);
+    border:1.5px solid rgba(255,90,110,.6);background:rgba(255,90,110,.12);font-size:15px}
+
+  .stage[data-mode="compact"] .behind,
+  .stage[data-mode="compact"] .sheet{display:flex}
+  .stage[data-mode="compact"] .telem,
+  .stage[data-mode="compact"] .console,
+  .stage[data-mode="compact"] .grid,
+  .stage[data-mode="compact"] .sweep,
+  .stage[data-mode="compact"] .vignette{opacity:0;pointer-events:none}
+
+  @media (max-width:560px){
+    .telem{font-size:9.5px;letter-spacing:.14em;padding:20px 18px}
+    .telem-r{gap:13px}.bracket{width:40px;height:40px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sweep,.status i{animation:none}
+  }
+</style>
+
+<div class="stage" id="stage">
+  <canvas id="core"></canvas>
+
+  <div class="grid"></div>
+  <div class="sweep"></div>
+  <div class="scan"></div>
+  <div class="vignette"></div>
+
+  <div class="mode">
+    <button id="mCine" class="on">Cinematic</button>
+    <button id="mComp">Compact</button>
+  </div>
+
+  <div class="behind">
+    <div class="b">yaha tumhari home screen / app blur hoti hai</div>
+    <div class="b me">torch on karo</div>
+    <div class="b">Torch on kar diya ✓</div>
+  </div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="chat" id="chat"></div>
+    <div class="srow">
+      <div class="txt">
+        <div class="st" id="cst">Sun raha hoon</div>
+        <div class="tr" id="ctr">…</div>
+      </div>
+      <div class="x" id="cstop" role="button" aria-label="Stop">■</div>
+    </div>
+  </div>
+
+  <div class="bracket tl"><span class="tick"></span></div>
+  <div class="bracket tr"><span class="tick"></span></div>
+  <div class="bracket bl"><span class="tick"></span></div>
+  <div class="bracket br"><span class="tick"></span></div>
+
+  <div class="telem">
+    <div>AERIS <span class="dim">▸</span> <b>MK-III</b> NEURAL CORE</div>
+    <div class="telem-r">
+      <span>CORE <b id="tCore">—</b></span>
+      <span>VOICE <b class="amber" id="tVoice">—</b></span>
+      <span class="dim" id="tClock">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="console">
+    <div class="cap" id="cap"></div>
+    <div class="status" id="status"><i></i><span>Sun raha hoon</span></div>
+    <button class="call" id="call" aria-label="Call AERIS">Call AERIS</button>
+    <div class="hint" id="hint">tap the core • press C</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('core');
+  const ctx = cv.getContext('2d');
+  const stage = document.getElementById('stage');
+  const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const COL = {arc:'#37E0EA', violet:'#7C6CFF', mint:'#54F0C0', amber:'#FFB454', white:'#EAF7FF'};
+
+  let W, H, DPR, cx, cy, R, compact=false;
+  function resize(){
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = stage.clientWidth; H = stage.clientHeight;
+    cv.width = W*DPR; cv.height = H*DPR; cv.style.width = W+'px'; cv.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    if(compact){ cx = 48; cy = H - 46; R = 18; }        // small orb inside the footer row
+    else { cx = W/2; cy = H*0.46; R = Math.min(W,H)*0.20; }
+  }
+  addEventListener('resize', resize); resize();
+
+  // ── ignition timeline ───────────────────────────────────────────
+  let t0 = performance.now();
+  let live = false;
+  function ignite(){ t0 = performance.now(); live = false; runBoot(); flash(); }
+
+  const easeOut = t => 1-Math.pow(1-t,3);
+  const clamp01 = t => t<0?0:t>1?1:t;
+  const seg = (e,a,b) => clamp01((e-a)/(b-a));
+
+  // one-shot white bloom on ignite
+  let flashA = 0;
+  function flash(){ flashA = compact ? 0 : 1; }
+
+  function draw(now){
+    const e = now - t0;           // ms since ignition
+    const T = now/1000;           // seconds, global
+    if(e > 2000) live = true;
+
+    // live "amplitude" — breathing + speech-like flutter (real mic later)
+    const amp = live
+      ? clamp01(0.30 + 0.22*Math.sin(T*1.7) + 0.12*Math.sin(T*5.1+1) + 0.06*Math.sin(T*11+2))
+      : easeOut(seg(e,900,1650)) * 0.6;
+
+    ctx.clearRect(0,0,W,H);
+    // compact: clip the reactor to a small footer box so its rings never bleed
+    // up into the chat — chats stay clear.
+    if(compact){ ctx.save(); ctx.beginPath(); ctx.rect(cx-32,cy-32,64,64); ctx.clip(); }
+    ctx.save(); ctx.translate(cx,cy);
+
+    // phase opacities
+    const oRings  = easeOut(seg(e,280,1100));
+    const oCore   = easeOut(seg(e,700,1150));
+    const oSpokes = easeOut(seg(e,900,1650));
+
+    // ── outer tick ring (assembles by rotating in) ──
+    ctx.globalAlpha = oRings;
+    const tickRot = T*0.12 + (1-oRings)*0.6;
+    for(let i=0;i<60;i++){
+      const a = (i/60)*Math.PI*2 + tickRot;
+      const long = i%5===0, accent = i%15===0;
+      const r1 = R*1.62*(long?0.955:0.975), r2 = R*1.62;
+      ctx.strokeStyle = accent?COL.amber:COL.arc;
+      ctx.globalAlpha = oRings*(accent?0.85:long?0.5:0.22);
+      ctx.lineWidth = accent?2:1;
+      line(Math.cos(a)*r1,Math.sin(a)*r1,Math.cos(a)*r2,Math.sin(a)*r2);
+    }
+    ctx.globalAlpha = 1;
+
+    // ── concentric arc rings (counter-rotating dashed segments) ──
+    arcRing(R*1.40, T*0.35,  [ .0,.20,  .34,.52,  .70,.88], COL.arc,   1.6, oRings*0.8);
+    arcRing(R*1.14,-T*0.55,  [ .05,.30, .55,.74],           COL.violet,1.4, oRings*0.7);
+    arcRing(R*0.92, T*0.9,   [ .1,.22, .5,.63, .8,.9],      COL.arc,   1,   oRings*0.5);
+
+    // ── scan-lock sweep (fast during ignite, ambient after) ──
+    const sweepA = live ? (T*0.6)%(Math.PI*2) : (e/2000)*Math.PI*2*1.4;
+    const sweepAlpha = live ? 0.35 : (1-seg(e,0,700))*0.9+0.25;
+    grad_arc(R*1.40, sweepA, 0.5, COL.arc, sweepAlpha);
+
+    // ── radial spokes (reactive) ──
+    ctx.globalAlpha = oSpokes;
+    const nS = 48;
+    for(let i=0;i<nS;i++){
+      const a = (i/nS)*Math.PI*2;
+      const wob = 0.5+0.5*Math.sin(T*2.2*(live?1:0)+i*0.7);
+      const len = R*(0.30 + amp*0.85*wob);
+      const r1 = R*0.66;
+      const amberSpoke = i%12===0;
+      ctx.strokeStyle = amberSpoke?COL.amber:COL.arc;
+      ctx.globalAlpha = oSpokes*(0.35+amp*0.55);
+      ctx.lineWidth = amberSpoke?2.4:2;
+      ctx.lineCap='round';
+      line(Math.cos(a)*r1,Math.sin(a)*r1,Math.cos(a)*(r1+len),Math.sin(a)*(r1+len));
+    }
+    ctx.globalAlpha=1;
+
+    // ── the core: layered bloom ──
+    const coreR = R*(0.52 + amp*0.14);
+    const g = ctx.createRadialGradient(0,0,0,0,0,coreR*2.4);
+    g.addColorStop(0, 'rgba(234,247,255,'+(0.9*oCore)+')');
+    g.addColorStop(0.18,'rgba(55,224,234,'+(0.85*oCore)+')');
+    g.addColorStop(0.5, 'rgba(124,108,255,'+(0.28*oCore)+')');
+    g.addColorStop(1,   'rgba(124,108,255,0)');
+    ctx.fillStyle=g; disc(coreR*2.4);
+    // hot center
+    ctx.fillStyle='rgba(234,247,255,'+(0.95*oCore)+')'; disc(coreR*0.34);
+    // iris rings
+    for(let k=1;k<=3;k++){
+      ctx.strokeStyle=COL.arc; ctx.globalAlpha=oCore*(0.5-k*0.1);
+      ctx.lineWidth=1; circle(coreR*(0.5+k*0.16));
+    }
+    ctx.globalAlpha=1;
+
+    // amber targeting reticle (bright on ignite, faint after)
+    const retA = live?0.16:easeOut(seg(e,650,1100))*0.9;
+    ctx.strokeStyle=COL.amber; ctx.globalAlpha=retA; ctx.lineWidth=1.2;
+    const rr=R*0.44, gap=R*0.13;
+    line(-rr,0,-gap,0); line(gap,0,rr,0); line(0,-rr,0,-gap); line(0,gap,0,rr);
+    circle(R*0.62); ctx.globalAlpha=1;
+
+    ctx.restore();               // translate
+    if(compact) ctx.restore();   // clip box
+
+    // ignite flash (full-screen)
+    if(flashA>0.001){
+      ctx.save();
+      const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*0.7);
+      fg.addColorStop(0,'rgba(120,220,255,'+(flashA*0.5)+')');
+      fg.addColorStop(1,'rgba(120,220,255,0)');
+      ctx.fillStyle=fg; ctx.fillRect(0,0,W,H); ctx.restore();
+      flashA *= 0.90;
+    }
+
+    // wordmark (canvas, glitch-in) — cinematic only
+    const oWord = compact ? 0 : easeOut(seg(e,1150,1750));
+    if(oWord>0){
+      ctx.save(); ctx.translate(cx,cy);
+      ctx.globalAlpha=oWord;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='800 '+Math.round(R*0.42)+'px '+getComputedStyle(document.body).fontFamily;
+      const jit = live?0:(1-oWord)*6;
+      ctx.fillStyle=COL.arc; ctx.globalAlpha=oWord*0.35;
+      ctx.fillText('AERIS', (Math.random()-0.5)*jit, R*1.02+(Math.random()-0.5)*jit);
+      ctx.globalAlpha=oWord;
+      ctx.fillStyle=COL.white;
+      // letter-spacing manual
+      spacedText('AERIS', 0, R*1.02, R*0.42, R*0.16);
+      ctx.restore();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // ── canvas helpers ──
+  function line(x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+  function circle(r){ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();}
+  function disc(r){ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();}
+  function arcRing(r,rot,segs,col,lw,alpha){
+    ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.globalAlpha=alpha;
+    for(let i=0;i<segs.length;i+=2){
+      ctx.beginPath();
+      ctx.arc(0,0,r,segs[i]*Math.PI*2+rot,segs[i+1]*Math.PI*2+rot);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+  function grad_arc(r,start,width,col,alpha){
+    const steps=26;
+    for(let i=0;i<steps;i++){
+      const a=start+(i/steps)*width;
+      ctx.strokeStyle=col; ctx.globalAlpha=alpha*(i/steps);
+      ctx.lineWidth=2.4; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(0,0,r,a,a+width/steps+0.01); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+  function spacedText(str,x,y,size,ls){
+    ctx.font='800 '+Math.round(size)+'px '+getComputedStyle(document.body).fontFamily;
+    const widths=[...str].map(c=>ctx.measureText(c).width+ls);
+    let total=widths.reduce((a,b)=>a+b,0)-ls, px=x-total/2;
+    for(let i=0;i<str.length;i++){ctx.fillText(str[i],px+widths[i]/2-ls/2,y);px+=widths[i];}
+  }
+
+  // ── boot caption typing ──
+  const capEl=document.getElementById('cap'), statusEl=document.getElementById('status');
+  const lines=['› booting neural core','› calibrating voice · en-IN','› AERIS online'];
+  let bootTimer;
+  function runBoot(){
+    clearTimeout(bootTimer); statusEl.classList.remove('on'); capEl.innerHTML='';
+    let li=0, ci=0;
+    (function step(){
+      if(li>=lines.length){
+        capEl.innerHTML='';
+        setTimeout(()=>statusEl.classList.add('on'),260);
+        return;
+      }
+      const full=lines[li];
+      capEl.innerHTML='<span class="c">'+full.slice(0,ci)+'</span><span class="cursor">▌</span>';
+      if(ci<full.length){ci++; bootTimer=setTimeout(step, reduce?4:34);}
+      else{li++; ci=0; bootTimer=setTimeout(step, li>=lines.length?300:420);}
+    })();
+  }
+
+  // ── telemetry ──
+  function tick(){
+    const d=new Date();
+    const p=n=>String(n).padStart(2,'0');
+    document.getElementById('tClock').textContent=p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+    document.getElementById('tCore').textContent=(96+Math.floor(Math.random()*4))+'%';
+    document.getElementById('tVoice').textContent=live?'LIVE':'STDBY';
+  }
+  setInterval(tick,1000); tick();
+
+  // ── interactions ──
+  const btn=document.getElementById('call');
+  function call(){
+    btn.classList.add('live'); btn.textContent='● Listening';
+    document.getElementById('hint').textContent='say "aeris sleep" to end';
+    ignite();
+    clearTimeout(call._r);
+    call._r=setTimeout(()=>{btn.classList.remove('live');btn.textContent='Call AERIS';},7000);
+  }
+  btn.addEventListener('click',call);
+  cv.addEventListener('click',call);
+  addEventListener('keydown',e=>{if(e.key.toLowerCase()==='c')call();});
+
+  // ── mode toggle: cinematic (app-open/power-button) ⇄ compact (wake) ──
+  const mCine=document.getElementById('mCine'), mComp=document.getElementById('mComp');
+  const cst=document.getElementById('cst'), ctr=document.getElementById('ctr'),
+        chat=document.getElementById('chat');
+  let cTo;
+  // a scripted conversation that GROWS the sheet, then idles till "bye"
+  const script=[
+    {me:1,t:'aaj ka mausam batao'},
+    {me:0,t:'Abhi 31°, saaf dhoop. Shaam ko halki hawa chalegi.'},
+    {me:1,t:'Rahul ko message bhejo main aa raha hoon'},
+    {me:0,t:'Rahul ko WhatsApp ready — send dabao ✓'},
+    {me:1,t:'6 baje ek reminder laga do'},
+    {me:0,t:'6:00 PM ka reminder set kar diya ✓'},
+  ];
+  function compactType(){
+    clearTimeout(cTo); chat.innerHTML=''; let i=0;
+    cst.textContent='Sun raha hoon'; cst.style.color='var(--mint)'; ctr.textContent='…';
+    const step=()=>{
+      if(i>=script.length){
+        cst.textContent='Sun raha hoon'; cst.style.color='var(--mint)';
+        ctr.textContent='“bye” bolo to band'; return;
+      }
+      const m=script[i];
+      const b=document.createElement('div');
+      b.className='b '+(m.me?'me':'them'); b.textContent=m.t;
+      chat.appendChild(b); chat.scrollTop=chat.scrollHeight;
+      cst.textContent=m.me?'Sun raha hoon':'Bol raha hoon';
+      cst.style.color=m.me?'var(--mint)':'var(--arc)';
+      ctr.textContent=m.me?m.t:'…';
+      i++; cTo=setTimeout(step, m.me?1500:1900);
+    };
+    cTo=setTimeout(step,600);
+  }
+  function setMode(c){
+    compact=c; stage.dataset.mode=c?'compact':'cine';
+    mCine.classList.toggle('on',!c); mComp.classList.toggle('on',c);
+    resize(); ignite(); if(c) compactType(); else clearTimeout(cTo);
+  }
+  mCine.onclick=()=>setMode(false);
+  mComp.onclick=()=>setMode(true);
+  document.getElementById('cstop').onclick=()=>setMode(false);
+
+  runBoot();
+  if(reduce){ t0=-9999; live=true; draw(performance.now()); }
+  else requestAnimationFrame(draw);
+})();
+</script>

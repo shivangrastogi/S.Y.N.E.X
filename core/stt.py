@@ -27,11 +27,23 @@ class STT:
             except:
                 pass
 
-    def listen(self):
+    def listen(self, prefer_offline: bool = False):
         """
         Listens and returns transcribed text.
-        Tries Google SR (en-IN) first for Hinglish support, 
+        Tries Google SR (en-IN) first for Hinglish support,
         falls back to Vosk if offline.
+
+        ``prefer_offline=True`` flips that order and transcribes locally
+        first. The voice service passes it while AERIS is SLEEPING: the mic
+        is still open, but the room's audio should not be shipped to Google
+        merely to check whether anyone said "wake up".
+
+        It is a *preference*, not a guarantee — if Vosk returns nothing we
+        still fall through to Google, exactly as
+        ``ContinuousVoiceEngine._transcribe`` has always done, so a wake word
+        isn't lost when the offline model under-recognises. That trade is the
+        tuned voice stack's, and this mirrors it rather than inventing a
+        stricter rule.
         """
         with self.microphone as source:
             print("Listening...")
@@ -40,7 +52,13 @@ class STT:
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 # 2. Listen for audio
                 audio_data = self.recognizer.listen(source, timeout=5, phrase_time_limit=8)
-                
+
+                # 2b. Asleep: try the local model first (see docstring).
+                if prefer_offline and self.vosk_model:
+                    local = self._transcribe_offline(audio_data)
+                    if local:
+                        return local
+
                 # 3. Try Online Transcription (Hinglish)
                 try:
                     text = self.recognizer.recognize_google(audio_data, language="en-IN").lower()
@@ -110,28 +128,25 @@ class STT:
         )
         stream.start_stream()
 
-        last_partial = ""
-        silence_counter = 0
+        # Endpointing policy lives in core.vad_stream so it's unit-tested and
+        # shared with the voice engine's streaming path.
+        from core.vad_stream import Endpointer
+        ep = Endpointer(max_silence_chunks=max_silence_chunks)
         final_text = ""
         try:
             while True:
                 data = stream.read(4000, exception_on_overflow=False)
                 if rec.AcceptWaveform(data):
-                    final_text = json.loads(rec.Result()).get("text", "").lower().strip()
-                    if final_text:
-                        break
+                    res = json.loads(rec.Result()).get("text", "")
+                    dec = ep.update(res, is_final=True)
                 else:
-                    partial = json.loads(rec.PartialResult()).get("partial", "").lower().strip()
-                    if partial and partial != last_partial:
-                        last_partial = partial
-                        silence_counter = 0
-                        if on_partial:
-                            on_partial(partial)
-                    else:
-                        silence_counter += 1
-                        if last_partial and silence_counter >= max_silence_chunks:
-                            final_text = last_partial
-                            break
+                    res = json.loads(rec.PartialResult()).get("partial", "")
+                    dec = ep.update(res)
+                    if dec.changed and on_partial:
+                        on_partial(dec.text)
+                if dec.finalize:
+                    final_text = dec.text
+                    break
         finally:
             stream.stop_stream()
             stream.close()

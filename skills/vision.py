@@ -70,21 +70,13 @@ def read_screen(_slots: dict) -> str:
     prompts={"query": "Kis text pe click karna hai?"},
 )
 def click_text(slots: dict) -> str:
-    if not (_AVAILABLE and _PYAUTOGUI):
-        return "Vision + pyautogui dono chahiye is feature ke liye."
-    target = (slots.get("query") or "").strip().lower()
-    if not target:
-        return "Kis text pe click karna hai? Batao."
-
-    img = _grab_screen()
-    if img is None:
-        return "Screen capture fail."
-
-    data = pytesseract.image_to_data(img, lang="eng+hin", output_type=pytesseract.Output.DICT)
-    for i, word in enumerate(data["text"]):
-        if word and target in word.lower():
-            x = data["left"][i] + data["width"][i] // 2
-            y = data["top"][i] + data["height"][i] // 2
-            pyautogui.click(x, y)
-            return f"'{word}' pe click kiya."
-    return f"'{target}' screen pe nahi mila."
+    # Delegates to core.screen_actions.click_target — multi-word fuzzy
+    # matching over line phrases + correct multi-monitor coordinates
+    # (the old single-word exact match missed "Sign In", "Add to cart",
+    # etc. and clicked the wrong spot on secondary monitors).
+    target = (slots.get("query") or slots.get("raw_text") or "").strip()
+    try:
+        from core.screen_actions import click_target
+        return click_target(target)
+    except Exception as e:
+        return f"Click fail: {e}"

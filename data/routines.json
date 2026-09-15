@@ -6,18 +6,52 @@
       "description": "Open work apps, restore the daily setup, say good morning.",
       "trigger": {
         "kind": "time",
-        "params": { "cron": "0 8 * * 1-5" }
+        "params": {
+          "cron": "0 8 * * 1-5"
+        }
       },
       "actions": [
-        { "kind": "notify",    "params": { "title": "Good morning, Shivang", "body": "Booting your workspace..." } },
-        { "kind": "open_app",  "params": { "value": "code" } },
-        { "kind": "delay",     "params": { "seconds": 2 } },
-        { "kind": "open_url",  "params": { "value": "https://mail.google.com" } },
-        { "kind": "open_url",  "params": { "value": "https://github.com" } },
-        { "kind": "run_skill", "params": { "name": "system_stats", "slots": {} } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Good morning, Shivang",
+            "body": "Booting your workspace..."
+          }
+        },
+        {
+          "kind": "open_app",
+          "params": {
+            "value": "code"
+          }
+        },
+        {
+          "kind": "delay",
+          "params": {
+            "seconds": 2
+          }
+        },
+        {
+          "kind": "open_url",
+          "params": {
+            "value": "https://mail.google.com"
+          }
+        },
+        {
+          "kind": "open_url",
+          "params": {
+            "value": "https://github.com"
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "system_stats",
+            "slots": {}
+          }
+        }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
     {
@@ -26,17 +60,46 @@
       "description": "Daily 7 PM coding setup — open IDE, focus mode, continue yesterday's work.",
       "trigger": {
         "kind": "time",
-        "params": { "cron": "0 19 * * *" }
+        "params": {
+          "cron": "0 19 * * *"
+        }
       },
       "actions": [
-        { "kind": "notify",    "params": { "title": "Coding Mode", "body": "Setting up your environment..." } },
-        { "kind": "open_app",  "params": { "value": "code" } },
-        { "kind": "delay",     "params": { "seconds": 1 } },
-        { "kind": "run_skill", "params": { "name": "focus_deep_on", "slots": {} } },
-        { "kind": "ai_prompt", "params": { "value": "Continue yesterday's work — summarise what I was doing last on AERIS and propose the next step." } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Coding Mode",
+            "body": "Setting up your environment..."
+          }
+        },
+        {
+          "kind": "open_app",
+          "params": {
+            "value": "code"
+          }
+        },
+        {
+          "kind": "delay",
+          "params": {
+            "seconds": 1
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "focus_deep_on",
+            "slots": {}
+          }
+        },
+        {
+          "kind": "ai_prompt",
+          "params": {
+            "value": "Continue yesterday's work — summarise what I was doing last on AERIS and propose the next step."
+          }
+        }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
     {
@@ -45,16 +108,40 @@
       "description": "Auto-dim screen + lower volume when battery drops below 20%.",
       "trigger": {
         "kind": "battery_below",
-        "params": { "percent": 20 }
+        "params": {
+          "percent": 20
+        }
       },
       "actions": [
-        { "kind": "notify",    "params": { "title": "Battery low", "body": "Dimming screen + lowering volume." } },
-        { "kind": "run_skill", "params": { "name": "brightness_set", "slots": { "content": "30" } } },
-        { "kind": "run_skill", "params": { "name": "volume_set",     "slots": { "content": "30" } } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Battery low",
+            "body": "Dimming screen + lowering volume."
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "brightness_set",
+            "slots": {
+              "content": "30"
+            }
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "volume_set",
+            "slots": {
+              "content": "30"
+            }
+          }
+        }
       ],
       "enabled": true,
-      "last_fired_ts": 0,
-      "fire_count": 0
+      "last_fired_ts": 1783313951.5183616,
+      "fire_count": 1
     },
     {
       "id": "meeting_mode_auto",
@@ -62,14 +149,30 @@
       "description": "When Zoom/Teams/Meet opens, quiet background music.",
       "trigger": {
         "kind": "workspace_enter",
-        "params": { "profile": "MEETING" }
+        "params": {
+          "profile": "MEETING"
+        }
       },
       "actions": [
-        { "kind": "notify",    "params": { "title": "Meeting detected", "body": "Quieting background." } },
-        { "kind": "run_skill", "params": { "name": "volume_set", "slots": { "content": "15" } } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Meeting detected",
+            "body": "Quieting background."
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "volume_set",
+            "slots": {
+              "content": "15"
+            }
+          }
+        }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
     {
@@ -78,13 +181,21 @@
       "description": "Demo: three-fingers-up gesture fires a toast (proof of gesture trigger).",
       "trigger": {
         "kind": "gesture",
-        "params": { "name": "three_up" }
+        "params": {
+          "name": "three_up"
+        }
       },
       "actions": [
-        { "kind": "notify", "params": { "title": "Three up!", "body": "Gesture-trigger demo routine fired." } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Three up!",
+            "body": "Gesture-trigger demo routine fired."
+          }
+        }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
     {
@@ -93,116 +204,301 @@
       "description": "10:30 PM — ask AERIS to summarise today's activity from logs + feedback DB.",
       "trigger": {
         "kind": "time",
-        "params": { "cron": "30 22 * * *" }
+        "params": {
+          "cron": "30 22 * * *"
+        }
       },
       "actions": [
-        { "kind": "notify",    "params": { "title": "Nightly summary", "body": "Generating today's recap..." } },
-        { "kind": "ai_prompt", "params": { "value": "Summarise today: which skills did I use most, any errors logged, any intent classifications below 60% confidence. Keep it to 5 bullets." } }
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Nightly summary",
+            "body": "Generating today's recap..."
+          }
+        },
+        {
+          "kind": "ai_prompt",
+          "params": {
+            "value": "Summarise today: which skills did I use most, any errors logged, any intent classifications below 60% confidence. Keep it to 5 bullets."
+          }
+        }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
-
     {
       "id": "smart_morning",
       "name": "Smart Morning (battery-aware)",
       "description": "8 AM — if battery > 40%, full workspace boot. If lower, lightweight mode + lower brightness.",
       "trigger": {
         "kind": "time",
-        "params": { "cron": "0 8 * * *" }
+        "params": {
+          "cron": "0 8 * * *"
+        }
       },
       "actions": [
         {
           "kind": "if",
           "params": {
-            "condition": { "type": "battery_above", "percent": 40 },
+            "condition": {
+              "type": "battery_above",
+              "percent": 40
+            },
             "then": [
-              { "kind": "notify",   "params": { "title": "Good morning", "body": "Battery healthy — full boot." } },
-              { "kind": "open_app", "params": { "value": "code" } },
-              { "kind": "delay",    "params": { "seconds": 2 } },
-              { "kind": "open_url", "params": { "value": "https://mail.google.com" } },
-              { "kind": "open_url", "params": { "value": "https://github.com" } }
+              {
+                "kind": "notify",
+                "params": {
+                  "title": "Good morning",
+                  "body": "Battery healthy — full boot."
+                }
+              },
+              {
+                "kind": "open_app",
+                "params": {
+                  "value": "code"
+                }
+              },
+              {
+                "kind": "delay",
+                "params": {
+                  "seconds": 2
+                }
+              },
+              {
+                "kind": "open_url",
+                "params": {
+                  "value": "https://mail.google.com"
+                }
+              },
+              {
+                "kind": "open_url",
+                "params": {
+                  "value": "https://github.com"
+                }
+              }
             ],
             "else": [
-              { "kind": "notify",     "params": { "title": "Good morning (battery saver)", "body": "Low battery — minimal boot." } },
-              { "kind": "run_skill",  "params": { "name": "brightness_set", "slots": { "content": "40" } } },
-              { "kind": "open_app",   "params": { "value": "code" } }
+              {
+                "kind": "notify",
+                "params": {
+                  "title": "Good morning (battery saver)",
+                  "body": "Low battery — minimal boot."
+                }
+              },
+              {
+                "kind": "run_skill",
+                "params": {
+                  "name": "brightness_set",
+                  "slots": {
+                    "content": "40"
+                  }
+                }
+              },
+              {
+                "kind": "open_app",
+                "params": {
+                  "value": "code"
+                }
+              }
             ]
           }
         }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
-
     {
       "id": "pomodoro",
       "name": "Pomodoro (4 × 25/5)",
       "description": "Manual trigger — runs 4 pomodoro cycles with focus + break toasts.",
-      "trigger": { "kind": "manual", "params": {} },
+      "trigger": {
+        "kind": "manual",
+        "params": {}
+      },
       "actions": [
-        { "kind": "notify",       "params": { "title": "Pomodoro start", "body": "4 cycles of 25/5." } },
-        { "kind": "run_skill",    "params": { "name": "focus_deep_on", "slots": {} } },
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Pomodoro start",
+            "body": "4 cycles of 25/5."
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "focus_deep_on",
+            "slots": {}
+          }
+        },
         {
           "kind": "repeat",
           "params": {
             "times": 4,
             "actions": [
-              { "kind": "notify", "params": { "title": "Focus {i}/4", "body": "25 minutes of deep work." } },
-              { "kind": "delay",  "params": { "seconds": 1500 } },
-              { "kind": "notify", "params": { "title": "Break {i}/4", "body": "5 minutes — stand up, stretch." } },
-              { "kind": "delay",  "params": { "seconds": 300 } }
+              {
+                "kind": "notify",
+                "params": {
+                  "title": "Focus {i}/4",
+                  "body": "25 minutes of deep work."
+                }
+              },
+              {
+                "kind": "delay",
+                "params": {
+                  "seconds": 1500
+                }
+              },
+              {
+                "kind": "notify",
+                "params": {
+                  "title": "Break {i}/4",
+                  "body": "5 minutes — stand up, stretch."
+                }
+              },
+              {
+                "kind": "delay",
+                "params": {
+                  "seconds": 300
+                }
+              }
             ]
           }
         },
-        { "kind": "run_skill", "params": { "name": "focus_deep_off", "slots": {} } },
-        { "kind": "notify",    "params": { "title": "Pomodoro done", "body": "4 cycles complete. Nice work." } }
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "focus_deep_off",
+            "slots": {}
+          }
+        },
+        {
+          "kind": "notify",
+          "params": {
+            "title": "Pomodoro done",
+            "body": "4 cycles complete. Nice work."
+          }
+        }
       ],
       "enabled": true,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
-
     {
       "id": "daily_summary_pipeline",
       "name": "Daily Summary Pipeline",
       "description": "Multi-step AI pipeline — get system stats, ask AERIS to interpret them.",
-      "trigger": { "kind": "manual", "params": {} },
+      "trigger": {
+        "kind": "manual",
+        "params": {}
+      },
       "actions": [
-        { "kind": "run_skill", "params": { "name": "system_stats", "slots": {} } },
-        { "kind": "set_var",   "params": { "name": "stats", "value": "{prev}" } },
-        { "kind": "ai_prompt", "params": { "value": "Here are my current system stats: {var.stats}. In one sentence, tell me if anything looks unhealthy and what I should do about it." } }
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "system_stats",
+            "slots": {}
+          }
+        },
+        {
+          "kind": "set_var",
+          "params": {
+            "name": "stats",
+            "value": "{prev}"
+          }
+        },
+        {
+          "kind": "ai_prompt",
+          "params": {
+            "value": "Here are my current system stats: {var.stats}. In one sentence, tell me if anything looks unhealthy and what I should do about it."
+          }
+        }
       ],
       "enabled": true,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     },
-
     {
       "id": "evening_wind_down",
       "name": "Evening Wind-Down",
       "description": "After 10 PM — if user is idle > 10 min, lower brightness + suggest break.",
       "trigger": {
         "kind": "time",
-        "params": { "cron": "0 22 * * *" }
+        "params": {
+          "cron": "0 22 * * *"
+        }
       },
       "actions": [
         {
           "kind": "if",
           "params": {
-            "condition": { "type": "idle_more_than", "seconds": 600 },
+            "condition": {
+              "type": "idle_more_than",
+              "seconds": 600
+            },
             "then": [
-              { "kind": "notify",    "params": { "title": "Wind down", "body": "Idle for a while — soft lighting." } },
-              { "kind": "run_skill", "params": { "name": "brightness_set", "slots": { "content": "25" } } },
-              { "kind": "run_skill", "params": { "name": "volume_set",     "slots": { "content": "20" } } }
+              {
+                "kind": "notify",
+                "params": {
+                  "title": "Wind down",
+                  "body": "Idle for a while — soft lighting."
+                }
+              },
+              {
+                "kind": "run_skill",
+                "params": {
+                  "name": "brightness_set",
+                  "slots": {
+                    "content": "25"
+                  }
+                }
+              },
+              {
+                "kind": "run_skill",
+                "params": {
+                  "name": "volume_set",
+                  "slots": {
+                    "content": "20"
+                  }
+                }
+              }
             ]
           }
         }
       ],
       "enabled": false,
-      "last_fired_ts": 0,
+      "last_fired_ts": 0.0,
+      "fire_count": 0
+    },
+    {
+      "id": "evening_wrap_up",
+      "name": "Evening Wrap-up",
+      "description": "Daily 21:30 — speak the day summary (screen time, spend, activity).",
+      "trigger": {
+        "kind": "time",
+        "params": {
+          "cron": "30 21 * * *"
+        }
+      },
+      "actions": [
+        {
+          "kind": "notify",
+          "params": {
+            "title": "AERIS",
+            "body": "Aaj ka wrap-up ready hai."
+          }
+        },
+        {
+          "kind": "run_skill",
+          "params": {
+            "name": "day_summary",
+            "slots": {}
+          }
+        }
+      ],
+      "enabled": false,
+      "last_fired_ts": 0.0,
       "fire_count": 0
     }
   ]

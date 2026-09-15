@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>A.E.R.I.S — JARVIS v3.2 · AI OS + Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
+  #root { width: 100%; height: 100%; }
+
+  /* Animations */
+  @keyframes j-spin      { from { transform: rotate(0deg);    } to { transform: rotate(360deg);   } }
+  @keyframes j-spin-rev  { from { transform: rotate(0deg);    } to { transform: rotate(-360deg);  } }
+  @keyframes j-pulse     { 0%,100%{opacity:1;transform:scale(1);}   50%{opacity:0.6;transform:scale(0.92);} }
+  @keyframes j-ripple    { 0%{transform:scale(0.72);opacity:0.85;}  100%{transform:scale(2.5);opacity:0;} }
+  @keyframes j-blink     { 0%,100%{opacity:1;} 50%{opacity:0.1;} }
+  @keyframes j-cursor    { 0%,100%{opacity:1;} 50%{opacity:0;} }
+  @keyframes j-wave      { 0%,100%{transform:scaleY(0.25);} 50%{transform:scaleY(1);} }
+  @keyframes j-fadein    { from{opacity:0;transform:translateY(7px);} to{opacity:1;transform:translateY(0);} }
+  @keyframes j-scan      { 0%{transform:translateY(-4px);} 100%{transform:translateY(904px);} }
+  @keyframes j-glow-green{ 0%,100%{box-shadow:0 0 8px rgba(16,185,129,0.4);} 50%{box-shadow:0 0 22px rgba(16,185,129,0.95),0 0 40px rgba(16,185,129,0.3);} }
+  @keyframes wire-flow   { from{stroke-dashoffset:100;} to{stroke-dashoffset:0;} }
+
+  @keyframes j-float-0 { 0%,100%{transform:translate(0,0);} 33%{transform:translate(11px,-17px);} 66%{transform:translate(-8px,9px);} }
+  @keyframes j-float-1 { 0%,100%{transform:translate(0,0);} 33%{transform:translate(-14px,9px);} 66%{transform:translate(9px,-13px);} }
+  @keyframes j-float-2 { 0%,100%{transform:translate(0,0);} 33%{transform:translate(7px,15px);} 66%{transform:translate(-11px,-7px);} }
+  @keyframes j-float-3 { 0%,100%{transform:translate(0,0);} 33%{transform:translate(-5px,-19px);} 66%{transform:translate(13px,5px);} }
+
+  ::-webkit-scrollbar       { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.18); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.3); }
+
+  input { font-family: 'JetBrains Mono', monospace; }
+  input::placeholder { color: rgb(100,116,139); }
+  input:disabled::placeholder { color: rgb(50,65,80); }
+  button { font-family: 'Inter', sans-serif; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Foundation -->
+<script type="text/babel" src="jv3-tokens.jsx"></script>
+<script type="text/babel" src="jv3-boot.jsx"></script>
+<script type="text/babel" src="jv3-dock.jsx"></script>
+<script type="text/babel" src="jv3-reactor.jsx"></script>
+<script type="text/babel" src="jv3-wiring.jsx"></script>
+
+<!-- v4 — Living AI OS -->
+<script type="text/babel" src="jv4-living.jsx"></script>
+<script type="text/babel" src="jv4-chat.jsx"></script>
+
+<!-- v5 — Settings -->
+<script type="text/babel" src="jv5-settings-atoms.jsx"></script>
+<script type="text/babel" src="jv5-settings-sections.jsx"></script>
+<script type="text/babel" src="jv5-settings-view.jsx"></script>
+
+<!-- v5 — Pages -->
+<script type="text/babel" src="jv5-page-shell.jsx"></script>
+<script type="text/babel" src="jv5-page-home.jsx"></script>
+<script type="text/babel" src="jv5-page-automations.jsx"></script>
+<script type="text/babel" src="jv5-page-brain.jsx"></script>
+<script type="text/babel" src="jv5-page-memory.jsx"></script>
+<script type="text/babel" src="jv5-page-system.jsx"></script>
+
+<!-- v5 — App with router wired in -->
+<script type="text/babel" src="jv5-app.jsx"></script>
+</body>
+</html>

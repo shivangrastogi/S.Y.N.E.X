@@ -120,9 +120,8 @@ def _reminders_line() -> str:
     name="daily_briefing",
     description="Speak a quick personalized briefing: greeting, weather, tasks, expenses, system status.",
     patterns=[
-        "good morning", "daily briefing", "morning briefing",
+        "daily briefing",
         "briefing do", "aaj ka briefing", "mujhe briefing do",
-        "good morning aeris", "good morning jarvis",
         "morning update", "start of day report",
         "mera daily briefing batao",
     ],

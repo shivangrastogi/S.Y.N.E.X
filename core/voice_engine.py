@@ -29,35 +29,23 @@ Wake triggers:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
+import time
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
-# ── Keyword tables ────────────────────────────────────────────────────
-SLEEP_TRIGGERS: list[str] = [
-    "jarvis sleep",
-    "go to sleep",
-    "sleep mode",
-    "sleep now",
-    "jarvis go to sleep",
-    "stand by",
-    "standby",
-]
-WAKE_TRIGGERS: list[str] = [
-    "jarvis wake up",
-    "wake up jarvis",
-    "wake up",
-    "ok jarvis",
-    "hey jarvis",
-    "jarvis wake",
-    "activate",
-    "jarvis activate",
-]
+# ── Keyword tables + mode policy ──────────────────────────────────────
+# Single source of truth is `core/voice_modes.py`, which is Qt-free so the
+# same wake/sleep decision can run in the voice SERVICE child process
+# (§6.25). Re-exported here under the original names so existing importers
+# and this module's own `_loop` keep working unchanged.
+log = logging.getLogger(__name__)
 
-STOPPED  = "STOPPED"
-ACTIVE   = "ACTIVE"
-SLEEPING = "SLEEPING"
+from core.voice_modes import (           # noqa: E402  (kept next to its users)
+    ACTIVE, SLEEPING, STOPPED, SLEEP_TRIGGERS, WAKE_TRIGGERS,
+)
 
 _VOSK_REL = os.path.join("data", "models", "vosk-model")
 
@@ -164,18 +152,30 @@ class ContinuousVoiceEngine(QObject):
         import speech_recognition as sr
         rec = self._rec
 
+        consec_errors = 0
         while not self._stop_evt.is_set():
             try:
                 with self._mic as source:
                     try:
                         audio = rec.listen(source, timeout=1.0, phrase_time_limit=8)
                     except sr.WaitTimeoutError:
+                        consec_errors = 0
                         continue
             except Exception as e:
-                if not self._stop_evt.is_set():
-                    self.error.emit(f"Capture error: {e}")
-                break
+                if self._stop_evt.is_set():
+                    break
+                # Transient PyAudio / device errors should NOT silently
+                # kill the listener — that's what stranded the wake-word
+                # detector in SLEEPING. Surface the error, back off, then
+                # retry. Only give up after several consecutive failures.
+                self.error.emit(f"Capture error: {e}")
+                consec_errors += 1
+                if consec_errors >= 5:
+                    break
+                time.sleep(0.5)
+                continue
 
+            consec_errors = 0
             if self._stop_evt.is_set():
                 break
 
@@ -209,7 +209,11 @@ class ContinuousVoiceEngine(QObject):
 
     def _transcribe(self, audio, prefer_offline: bool = False) -> str:
         if prefer_offline and self._vosk is not None:
-            return self._transcribe_vosk(audio)
+            out = self._transcribe_vosk(audio)
+            if out:
+                return out
+            # Vosk gave nothing — fall through to Google so wake-words
+            # aren't lost when the offline model under-recognises.
         import speech_recognition as sr
         try:
             return self._rec.recognize_google(audio, language="en-IN").lower()
@@ -230,3 +234,27 @@ class ContinuousVoiceEngine(QObject):
             return res.get("text", "").lower()
         except Exception:
             return ""
+
+
+# ── split-mode factory (§6.31) ────────────────────────────────────────
+def make_voice_engine(parent=None):
+    """Build the voice engine this process should use.
+
+    Returns `ContinuousVoiceEngine` normally, or a `RemoteVoiceEngine` — the
+    same six signals and three slots, backed by the audio child process — when
+    ``AERIS_SPLIT_VOICE=1``.
+
+    Exists so the GUI's `VoiceWorker.initialize()` is a one-line change that is
+    provably behaviour-preserving with the flag off: same class, same object.
+    A broken split falls back rather than costing the user their microphone.
+    """
+    try:
+        from core.remote_voice_engine import (
+            RemoteVoiceEngine, split_voice_enabled,
+        )
+        if split_voice_enabled():
+            log.info("[voice] split mode — mic and speaker in a child process")
+            return RemoteVoiceEngine(parent)
+    except Exception as e:
+        log.warning("[voice] split mode unavailable (%s) — in-process", e)
+    return ContinuousVoiceEngine(parent)

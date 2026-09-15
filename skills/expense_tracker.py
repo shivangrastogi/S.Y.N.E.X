@@ -616,6 +616,33 @@ def month_summary(slots: dict) -> str:
             f"Breakdown: {breakdown}.")
 
 
+_TASK_LEAD = (
+    "add to my todo list", "task list mein add karo",
+    "important kaam add karo", "task add karo", "todo add karo",
+    "kaam add karo", "note this task", "schedule task", "remind me to",
+    "add task", "todo", "task",
+)
+_TASK_TAIL = ("add kar do", "add karo", "note karo", "add")
+
+
+def _task_text(slots: dict) -> str:
+    """Recover the task text from the phrase (leading trigger, else trailing
+    'add karo') when the extractor didn't fill `task_text` — keeps the task
+    verbatim so words like 'schedule' inside the task aren't stripped."""
+    t = (slots.get("task_text") or "").strip()
+    if t:
+        return t
+    raw = (slots.get("raw_text") or slots.get("text") or "").strip()
+    lo = raw.lower()
+    for p in sorted(_TASK_LEAD, key=len, reverse=True):
+        if lo.startswith(p):
+            return raw[len(p):].strip(" :,-")
+    for p in sorted(_TASK_TAIL, key=len, reverse=True):
+        if lo.endswith(p):
+            return raw[:len(raw) - len(p)].strip(" :,-")
+    return raw
+
+
 @skill(
     name="add_task",
     description="Add a personal task to the Tasks tab with priority + due date.",
@@ -626,17 +653,19 @@ def month_summary(slots: dict) -> str:
         "task list mein add karo", "schedule task",
         "add to my todo list", "note this task",
     ],
-    required_entities=["task_text"],
-    prompts={"task_text": "Kya task add karna hai?"},
+    # No hard gate: the task text follows the trigger — gating on a `task_text`
+    # slot the extractor doesn't fill dead-ends at "kya task?" even when given.
+    required_entities=[],
+    prompts={},
 )
 def add_task(slots: dict) -> str:
+    task_text = _task_text(slots)
+    if not task_text:
+        return "Kya task add karna hai? Content batao."
+
     wb, err = _ensure_or_message()
     if err:
         return err
-
-    task_text = (slots.get("task_text") or "").strip()
-    if not task_text:
-        return "Task content nahi mila — kya likhna hai batao."
 
     due = _parse_due_date(task_text)
     priority = "High" if any(k in task_text.lower()

@@ -76,7 +76,21 @@ class StateManager:
         intent_config = self.intents_data.get(intent_name)
 
         if not intent_config:
-            return f"Intent '{intent_name}' ki configuration missing hai."
+            # Fallback: any name registered via @skill is a valid intent
+            # even if it has no data/intents.json block. Build a synthetic
+            # config from the registry so the executor's plugin path runs.
+            try:
+                from core.skill_registry import get_skill
+                sk = get_skill(intent_name)
+            except Exception:
+                sk = None
+            if sk is not None:
+                intent_config = {
+                    "required_entities": list(getattr(sk, "required_entities", []) or []),
+                    "prompts": dict(getattr(sk, "prompts", {}) or {}),
+                }
+            else:
+                return f"Intent '{intent_name}' ki configuration missing hai."
 
         self.current_state["intent"] = intent_name
         self.current_state["slots"].update(extracted_entities)

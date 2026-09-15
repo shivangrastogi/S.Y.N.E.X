@@ -20,9 +20,15 @@ from datetime import datetime
 from typing import Optional
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.neighbors import NearestNeighbors
 
+# NOTE — `sentence_transformers` (and the torch runtime behind it) plus
+# `sklearn.neighbors` are imported LAZILY, inside the functions that first
+# need them (see `_ensure_encoder` / `_nearest_neighbors`). Importing them
+# here cost ~15 s and several hundred MB of RSS at *module import* time —
+# i.e. every caller paid the whole torch tax just to `from core.brain import
+# JarvisBrain`, even with `lazy=True` and even for utterances that resolve on
+# the exact-match tier and never touch an embedding.
+# Keep it that way: no module-level torch/sentence-transformers/sklearn here.
 from core.intent_loader import load_all_intents, intents_hash
 from core.normalizer import HinglishNormalizer
 
@@ -63,6 +69,11 @@ class IntentClassifier:
 
         self.normalizer = HinglishNormalizer()
         self.encoder: Optional[SentenceTransformer] = None
+        # Exact-pattern fast path: {normalized pattern → intent name}.
+        # Built/refreshed any time the index is built or loaded so a
+        # verbatim "open notepad" never gets re-routed by an embedding
+        # model that fixates on the wrong cue word ("note").
+        self._exact_lookup: dict[str, str] = {}
         self.nn: Optional[NearestNeighbors] = None
         self.labels: list[str] = []
         self.embeddings: Optional[np.ndarray] = None
@@ -100,13 +111,45 @@ class IntentClassifier:
             log.info("[IntentClassifier] Loading cached index.")
             try:
                 self._load_cache()
+                self._build_exact_lookup()
                 return
             except Exception as e:
                 log.warning(f"[IntentClassifier] Cache load failed ({e}); rebuilding.")
 
         log.info("[IntentClassifier] Rebuilding index from intents.json...")
         self._build_index()
+        self._build_exact_lookup()
         self._save_cache(current_hash)
+
+    def load_exact_only(self) -> None:
+        """Tier-0 boot — build ONLY the verbatim pattern table.
+
+        Pure JSON + dict work: no encoder, no torch, no pickled index. This is
+        what lite boot calls so the exact-match fast path is live while the
+        k-NN index (and the sentence encoder behind it) stay unloaded until an
+        utterance actually misses every cheap tier. Idempotent.
+        """
+        self._build_exact_lookup()
+
+    def _build_exact_lookup(self) -> None:
+        """Index every pattern by its normalised form so verbatim user input
+        can bypass the heavy classifiers. Cheap — just JSON + dict-build.
+        """
+        intents = self._load_intents()
+        lookup: dict[str, str] = {}
+        for intent_name, cfg in intents.items():
+            for pattern in cfg.get("patterns", []):
+                key = self.normalizer.clean(pattern)
+                if key:
+                    lookup.setdefault(key, intent_name)
+        self._exact_lookup = lookup
+
+    def exact_match(self, text: str) -> Optional[str]:
+        """Return the intent for a verbatim pattern match, or None."""
+        if not self._exact_lookup or not text:
+            return None
+        key = self.normalizer.clean(text)
+        return self._exact_lookup.get(key)
 
     # ------------------------------------------------------------------ #
     #  Hashing & caching                                                  #
@@ -162,17 +205,53 @@ class IntentClassifier:
         self.labels = list(blob["labels"])
         self._ensure_encoder()
         n_neighbors = min(TOP_K, len(self.labels))
-        self.nn = NearestNeighbors(n_neighbors=n_neighbors, metric="cosine")
+        self.nn = self._nearest_neighbors(n_neighbors=n_neighbors, metric="cosine")
         self.nn.fit(self.embeddings)
 
     # ------------------------------------------------------------------ #
     #  Index build                                                        #
     # ------------------------------------------------------------------ #
 
+    @staticmethod
+    def _nearest_neighbors(**kwargs):
+        """Lazy sklearn handle — see the import note at the top of the file."""
+        from sklearn.neighbors import NearestNeighbors
+        return NearestNeighbors(**kwargs)
+
     def _ensure_encoder(self) -> None:
         if self.encoder is None:
+            # Lazy import: this line is where the torch tax is actually paid.
+            from sentence_transformers import SentenceTransformer
+
+            # torch may have just come into existence — pin it to one compute
+            # thread before any tensor op runs (see core/torch_setup.py).
+            from core.torch_setup import pin_torch_threads
+            pin_torch_threads()
+
             log.info(f"[IntentClassifier] Loading encoder: {ENCODER_NAME}")
-            self.encoder = SentenceTransformer(ENCODER_NAME)
+            try:
+                self.encoder = SentenceTransformer(ENCODER_NAME)
+            except Exception as e:
+                # Common offline cause: huggingface_hub can't reach hf.co
+                # (getaddrinfo failed / connection refused). The model is
+                # almost always already in the local cache, so retry with
+                # local_files_only=True before giving up — this keeps the
+                # GUI splash from hanging when the machine is offline.
+                msg = repr(e).lower()
+                offline_signals = (
+                    "getaddrinfo", "name or service not known",
+                    "connection", "timeout", "11001", "max retries",
+                )
+                if any(s in msg for s in offline_signals):
+                    log.warning(
+                        "[IntentClassifier] Network unreachable while loading "
+                        "encoder — retrying from local HuggingFace cache."
+                    )
+                    self.encoder = SentenceTransformer(
+                        ENCODER_NAME, local_files_only=True
+                    )
+                else:
+                    raise
 
     def _load_intents(self) -> dict:
         return load_all_intents(self.intents_path)
@@ -195,12 +274,14 @@ class IntentClassifier:
             f"[IntentClassifier] Embedding {len(patterns)} patterns "
             f"across {len(set(labels))} intents..."
         )
-        embeddings = self.encoder.encode(
-            patterns, show_progress_bar=False, normalize_embeddings=True
-        )
+        from core.encoder_lock import ENCODER_LOCK
+        with ENCODER_LOCK:
+            embeddings = self.encoder.encode(
+                patterns, show_progress_bar=False, normalize_embeddings=True
+            )
 
         n_neighbors = min(TOP_K, len(patterns))
-        nn = NearestNeighbors(n_neighbors=n_neighbors, metric="cosine")
+        nn = self._nearest_neighbors(n_neighbors=n_neighbors, metric="cosine")
         nn.fit(embeddings)
 
         self.embeddings = np.asarray(embeddings, dtype=np.float32)
@@ -232,7 +313,11 @@ class IntentClassifier:
                               raw_text=text or "", normalized_text="")
 
         normalized = self.normalizer.clean(text)
-        emb = self.encoder.encode([normalized], normalize_embeddings=True)
+        # Shared encoder — serialize against the semantic-memory embed
+        # thread + chat gate (concurrent torch forwards corrupt the heap).
+        from core.encoder_lock import ENCODER_LOCK
+        with ENCODER_LOCK:
+            emb = self.encoder.encode([normalized], normalize_embeddings=True)
         n_neighbors = min(TOP_K, len(self.labels))
         distances, indices = self.nn.kneighbors(emb, n_neighbors=n_neighbors)
 

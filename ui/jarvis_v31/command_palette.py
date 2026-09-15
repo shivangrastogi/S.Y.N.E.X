@@ -153,7 +153,7 @@ class CommandPalette(QWidget):
 
         hint = QLabel("Quick command")
         hint.setFont(mono(8, 700))
-        hint.setStyleSheet(f"color:{J.CYAN.name()};letter-spacing:2px;")
+        hint.setStyleSheet(f"color:{J.CYAN.name()};")
         body.addWidget(hint)
 
         self._input = QLineEdit()

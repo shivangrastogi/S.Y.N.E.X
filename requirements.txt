@@ -28,6 +28,8 @@ keyboard
 pyautogui
 opencv-python              # gesture (utils/gesture.py)
 mediapipe                  # gesture (utils/gesture.py)
+pycaw                      # absolute-volume control for pinch-spread volume gesture
+comtypes                   # COM bindings used by pycaw
 
 # ── Plugin skill optional dependencies ───────────────────────────────
 # Each is loaded lazily by its skill module — not installing it just

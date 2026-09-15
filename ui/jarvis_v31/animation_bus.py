@@ -33,6 +33,9 @@ import time
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
+from ui.jarvis_v31.anim_policy import FrameRatePolicy, should_be_idle  # noqa: F401
+
+
 class AnimationBus(QObject):
     """One QTimer driving every animated widget in the app."""
 
@@ -40,10 +43,16 @@ class AnimationBus(QObject):
     tick_slow = pyqtSignal()   # ~15 FPS  (every other fast tick)
 
     # Master interval — the only place this should ever be tuned.
-    # 33 ms = 30 FPS at AC, raised to 66 ms (15 FPS) on battery / when
-    # the user is idle. set_interval() runtime-tunable.
+    # 33 ms = 30 FPS at AC, 66 ms (15 FPS) on battery, 125 ms (8 FPS) once
+    # the user has stopped interacting. set_interval() runtime-tunable.
     _INTERVAL_MS_AC = 33
     _INTERVAL_MS_BATTERY = 66
+    # Idle profile — the reactor/particles are ambient decoration; at 8 FPS
+    # they still read as "alive" while costing a quarter of the paint work of
+    # the AC profile. AERIS sits open and untouched for hours, which is
+    # exactly when it should be cheapest to leave running.
+    _INTERVAL_MS_IDLE = 125
+    _IDLE_AFTER_S = 45.0
 
     def __init__(self):
         super().__init__()
@@ -51,6 +60,14 @@ class AnimationBus(QObject):
         self.now_ms: float = 0.0      # ms since bus init — read this in paintEvent
         self._frame = 0
         self._interval_ms = self._INTERVAL_MS_AC
+        # Power profile + idleness live in a Qt-free policy object so they can
+        # be tested without a QApplication (see ui/jarvis_v31/anim_policy.py).
+        self._policy = FrameRatePolicy(
+            ac_ms=self._INTERVAL_MS_AC,
+            battery_ms=self._INTERVAL_MS_BATTERY,
+            idle_ms=self._INTERVAL_MS_IDLE,
+            idle_after_s=self._IDLE_AFTER_S,
+        )
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._on_tick)
         self._timer.start(self._interval_ms)
@@ -64,10 +81,34 @@ class AnimationBus(QObject):
             self._timer.start(ms)
 
     def use_battery_profile(self) -> None:
-        self.set_interval(self._INTERVAL_MS_BATTERY)
+        self.set_interval(self._policy.use_battery())
 
     def use_ac_profile(self) -> None:
-        self.set_interval(self._INTERVAL_MS_AC)
+        self.set_interval(self._policy.use_ac())
+
+    # ------------------------------------------------------------------ #
+    #  Idle profile                                                       #
+    # ------------------------------------------------------------------ #
+    #  The power profile answers "how expensive may we be?"; the idle
+    #  profile answers "is anyone watching?". They compose: idle wins while
+    #  it lasts, and on the next interaction we drop back to whichever power
+    #  profile is in force rather than always jumping to 30 FPS.
+
+    def note_activity(self) -> None:
+        """Call on any user interaction. Restores the power profile at once."""
+        self.set_interval(self._policy.note_activity())
+
+    def check_idle(self, now: float | None = None) -> bool:
+        """Re-evaluate idleness; returns True if the bus is now idle.
+
+        Driven by a timer in the app; called directly in tests.
+        """
+        self.set_interval(self._policy.check_idle(now))
+        return self._policy.is_idle
+
+    @property
+    def is_idle(self) -> bool:
+        return self._policy.is_idle
 
     def _on_tick(self) -> None:
         # Single time.monotonic() shared by every animated widget this frame.

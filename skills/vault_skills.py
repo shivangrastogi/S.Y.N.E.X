@@ -51,6 +51,25 @@ def vault_store(slots: dict) -> str:
     return "Store fail ho gaya."
 
 
+# Command/filler words peeled from the raw phrase to recover the secret NAME when
+# the extractor didn't fill `content` ("vault se github_token nikalo" → "github_token").
+# NOT "token"/"key"/"password" — those are often part of the name itself.
+_VAULT_STOP = {
+    "vault", "get", "secret", "retrieve", "credential", "creds", "karo", "kar",
+    "kardo", "do", "se", "me", "mein", "from", "nikalo", "nikaal", "batao",
+    "dedo", "dikhao", "please", "zara", "ka", "ki", "ko", "the", "my", "mera",
+}
+
+
+def _vault_name(slots: dict) -> str:
+    n = (slots.get("content") or "").strip()
+    if n:
+        return n
+    raw = (slots.get("raw_text") or slots.get("text") or "").strip()
+    kept = [w for w in raw.split() if w.lower().strip(":,-") not in _VAULT_STOP]
+    return " ".join(kept).strip()
+
+
 @skill(
     name="vault_get",
     description="Decrypt a vault secret and copy it to the clipboard (never to chat log)",
@@ -58,13 +77,17 @@ def vault_store(slots: dict) -> str:
         "vault get", "get secret", "retrieve secret",
         "vault retrieve", "credential get", "secret get karo",
     ],
-    required_entities=["content"],
-    prompts={"content": "Kaunsa secret name retrieve karna hai?"},
+    # No hard gate: the secret NAME follows the trigger ("vault se github_token
+    # nikalo"), not a `content` slot the extractor fills — gating dead-ends at
+    # "kaunsa secret?" even when named. _vault_name recovers it; a wrong guess is
+    # safe (handler returns length only + "not found", never the secret value).
+    required_entities=[],
+    prompts={},
 )
 def vault_get(slots: dict) -> str:
     if not _vault.available():
         return "Vault sirf Windows pe."
-    name = (slots.get("content") or "").strip()
+    name = _vault_name(slots)
     if not name:
         return "Secret name batao."
     val = _vault.get(name)

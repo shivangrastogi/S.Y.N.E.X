@@ -13,10 +13,12 @@ import pytest
 @pytest.mark.parametrize("text,expected_intent", [
     ("chrome kholo",                    "open_app"),
     ("notepad band karo",               "close_app"),
-    ("weather batao",                   "get_weather"),
+    # Ownership moved in the 2026-07-04 pattern unification: modern
+    # skills now own these phrases (see tests/test_pattern_collisions.py).
+    ("weather batao",                   "weather_local"),
     ("volume badhao",                   "volume_up"),
     ("volume kam karo",                 "volume_down"),
-    ("screenshot lo",                   "take_screenshot"),
+    ("screenshot lo",                   "screenshot_full"),
     ("calculator open karo",            "open_app"),
     ("youtube pe arijit ka gaana chala do", "play_youtube"),
     ("screen lock karo",                "lock_screen"),

@@ -34,6 +34,36 @@ def _find_file(query: str) -> str | None:
     return None
 
 
+# Trigger/filler words peeled from the raw phrase to recover the file/folder name
+# when the extractor didn't fill `query` ("create folder ProjectX" → "ProjectX",
+# "resume kholo" → "resume"). Either-end word-filter; a wrong guess is safe (open
+# reports "not found", create makes a harmless folder).
+_OPEN_STOP = {
+    "file", "files", "kholo", "khol", "open", "karo", "kar", "do", "document",
+    "documents", "find", "and", "the", "a", "ko", "please", "zara", "abhi",
+}
+_FOLDER_STOP = {
+    "naya", "new", "folder", "directory", "dir", "banao", "bana", "banana",
+    "create", "make", "a", "in", "mein", "me", "documents", "downloads",
+    "desktop", "karo", "do", "ka", "ke", "please", "zara",
+}
+
+
+def _strip_words(raw: str, stop: set) -> str:
+    return " ".join(w for w in (raw or "").split()
+                    if w.lower().strip(":,-") not in stop).strip()
+
+
+def _open_query(slots: dict) -> str:
+    q = (slots.get("query") or "").strip()
+    return q or _strip_words(slots.get("raw_text") or slots.get("text") or "", _OPEN_STOP)
+
+
+def _folder_name(slots: dict) -> str:
+    q = (slots.get("query") or "").strip()
+    return q or _strip_words(slots.get("raw_text") or slots.get("text") or "", _FOLDER_STOP)
+
+
 @skill(
     name="open_file",
     description="Search Documents/Downloads/Desktop/Pictures for a file by name and open it",
@@ -44,11 +74,13 @@ def _find_file(query: str) -> str | None:
         "find and open X",
         "file kholo X",
     ],
-    required_entities=["query"],
-    prompts={"query": "Kaunsi file kholni hai?"},
+    # No hard gate: the filename is in the phrase — gating on a `query` slot the
+    # extractor doesn't fill dead-ends at "kaunsi file?" even when named.
+    required_entities=[],
+    prompts={},
 )
 def open_file(slots: dict) -> str:
-    query = (slots.get("query") or "").strip()
+    query = _open_query(slots)
     if not query:
         return "Kaunsi file kholni hai? Naam batao."
     path = _find_file(query)
@@ -70,11 +102,13 @@ def open_file(slots: dict) -> str:
         "X folder banao Documents mein",
         "make a new directory X",
     ],
-    required_entities=["query"],
-    prompts={"query": "Folder ka naam kya rakhna hai?"},
+    # No hard gate: the folder name is in the phrase — gating on a `query` slot the
+    # extractor doesn't fill dead-ends at "folder ka naam?" even when named.
+    required_entities=[],
+    prompts={},
 )
 def create_folder(slots: dict) -> str:
-    name = (slots.get("query") or "").strip()
+    name = _folder_name(slots)
     if not name:
         return "Folder ka naam batao."
     target = Path(name) if Path(name).is_absolute() else _HOME / "Documents" / name

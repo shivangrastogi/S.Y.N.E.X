@@ -152,8 +152,6 @@ def _resolve_target(target: str, *, prefer_search: bool) -> tuple[str, bool]:
         "brave mein youtube kholo", "edge me github open karo",
         "chrome me whatsapp open karo",
         "open chatgpt in chrome",
-        "search ai in brave", "brave mein ai search karo",
-        "google ai in edge", "edge me ai dhundo",
         "open my work profile chrome and go to gmail",
         "open instagram in brave profile shivang",
     ],

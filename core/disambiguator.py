@@ -67,6 +67,14 @@ class Disambiguator:
         if len(pred.top3) < 2:
             return False
         # top3 entries are (intent_name, vote_share)
+        top1, top2 = pred.top3[0][0], pred.top3[1][0]
+        # Never disambiguate between identical options — the k-NN can return the
+        # same intent (or two intents with the same display name) twice, which
+        # produced a nonsensical "Aap 'greeting' ya 'greeting'?" that then
+        # swallowed the NEXT turn as a failed answer. If they're the same,
+        # there's nothing to choose — accept top-1.
+        if top1 == top2 or self.pretty_name(top1) == self.pretty_name(top2):
+            return False
         top1_share = pred.top3[0][1]
         top2_share = pred.top3[1][1]
         if pred.confidence >= HIGH_CONFIDENCE_FLOOR:

@@ -20,11 +20,18 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 INTENTS_PATH = os.path.join(_ROOT, "data", "intents.json")
 USER_PATTERNS_PATH = os.path.join(_ROOT, "data", "user_patterns.json")
+LEARNED_PATTERNS_PATH = os.path.join(_ROOT, "data", "learned_patterns.json")
 
 
 def load_all_intents(intents_path: str = INTENTS_PATH) -> dict:
     """Read intents.json and merge in every registered skill plugin's patterns
-    PLUS any user-defined patterns from ``data/user_patterns.json``.
+    PLUS harvested learned patterns (``data/learned_patterns.json``) PLUS any
+    user-defined patterns from ``data/user_patterns.json``.
+
+    Learned patterns come from the continual-learning loop
+    (``core/learning_loop.py``) — real accepted/corrected utterances mined
+    from the feedback DB. Merging them here means k-NN, exact-match AND the
+    neural trainer all see them through this one canonical path.
 
     User patterns let the assistant grow new utterances at runtime via the
     ``teach_command`` skill without retraining the neural model — the k-NN
@@ -36,8 +43,10 @@ def load_all_intents(intents_path: str = INTENTS_PATH) -> dict:
     with open(intents_path, "r", encoding="utf-8") as f:
         intents = json.load(f)
     try:
-        from core.skill_registry import discover_skills, patterns_as_intent_dict
+        from core.skill_registry import (discover_skills, patterns_as_intent_dict,
+                                          apply_declared_timeouts)
         discover_skills("skills")
+        apply_declared_timeouts()   # LLM skills need >5s breaker budget
         for name, cfg in patterns_as_intent_dict().items():
             if name in intents:
                 existing = intents[name].get("patterns", [])
@@ -46,6 +55,17 @@ def load_all_intents(intents_path: str = INTENTS_PATH) -> dict:
                 intents[name] = cfg
     except Exception:
         pass
+
+    # Learned (harvested-from-usage) patterns, deduped against what's
+    # already present so a phrase promoted into intents.json later doesn't
+    # double up and shift the hash twice.
+    for intent_name, phrases in _load_learned_patterns().items():
+        if intent_name in intents:
+            existing = intents[intent_name].setdefault("patterns", [])
+            existing.extend(p for p in phrases if p not in existing)
+        else:
+            intents[intent_name] = {"patterns": list(phrases),
+                                    "required_entities": [], "prompts": {}}
 
     # User-taught patterns last so they always win (highest precedence).
     user = _load_user_patterns()
@@ -60,6 +80,27 @@ def load_all_intents(intents_path: str = INTENTS_PATH) -> dict:
             intents[intent_name] = {"patterns": list(phrases),
                                     "required_entities": [], "prompts": {}}
     return intents
+
+
+def _load_learned_patterns() -> dict[str, list[str]]:
+    """Trainable samples from the continual-learning store, {intent: [text]}.
+
+    Reads the JSON directly (not via ``LearningStore``) so this stays a
+    zero-dependency fast path — the loader runs inside boot-critical code.
+    """
+    if not os.path.exists(LEARNED_PATTERNS_PATH):
+        return {}
+    try:
+        with open(LEARNED_PATTERNS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        out: dict[str, list[str]] = {}
+        for s in (data or {}).get("samples", []):
+            if (isinstance(s, dict) and s.get("status") == "auto"
+                    and s.get("intent") and s.get("text")):
+                out.setdefault(str(s["intent"]), []).append(str(s["text"]))
+        return out
+    except Exception:
+        return {}
 
 
 def _load_user_patterns() -> dict[str, list[str]]:
