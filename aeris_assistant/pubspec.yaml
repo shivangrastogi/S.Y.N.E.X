@@ -1,0 +1,83 @@
+name: aeris_assistant
+description: "AERIS — voice-first personal assistant for Android."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Motion: panel/entry choreography. Reactor + waveforms are CustomPainter.
+  flutter_animate: ^4.5.2
+
+  # Voice in: Android SpeechRecognizer (Google, en-IN) — the user's tested
+  # Hinglish stack. Do not swap for another engine.
+  speech_to_text: ^7.0.0
+  # Plays the on-device JARVIS voice's WAV output.
+  audioplayers: ^6.1.0
+  path_provider: ^2.1.5
+
+  # Local persistence (activity, memory, protocols, settings).
+  shared_preferences: ^2.3.2
+
+  # Phone actions.
+  android_intent_plus: ^5.3.1
+  url_launcher: ^6.3.2
+  battery_plus: ^6.2.3
+  torch_light: ^1.1.0
+  flutter_contacts: ^1.1.9+2
+  permission_handler: ^11.4.0
+
+  # Own speech stack (no Google/Microsoft on the default path): sherpa-onnx
+  # runs the Hinglish recognizer, the VAD and the JARVIS voice (Supertonic) on-device;
+  # `record` gives AERIS the raw mic (no system beep).
+  sherpa_onnx: ^1.13.4
+  record: ^6.0.0
+
+  # On-device brain: llama.cpp (GGUF) in a native worker. Pinned — 0.10.0 is
+  # the version aeris_remote's runtime (prefix KV reuse, state files) was built on.
+  llamadart: 0.10.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# llamadart: bundle only the llama.cpp runtime (GGUF), not LiteRT-LM.
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]
+
+flutter:
+  uses-material-design: true
+  assets:
+    # The 37 tools the brain is trained on (synced from aeris_brain by
+    # `py -3.10 -m scripts.sync_app`; test/brain_contract_test.dart pins it)
+    - assets/brain/
+    # Large — not in git (see .gitignore + tool/model_export/README.md)
+    - assets/models/asr/
+    - assets/models/vad/
+    - assets/models/tts/
+    # 24 recorded commands for Settings → Diagnostics → Run self-test
+    - assets/selftest/
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Sora-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Sora-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Sora-SemiBold.ttf
+          weight: 600
+    - family: Oxanium
+      fonts:
+        - asset: assets/fonts/Oxanium-Variable.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf

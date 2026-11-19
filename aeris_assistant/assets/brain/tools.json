@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "notes": [
+    "Single source of truth for the AERIS on-device brain (docs/AERIS_MOBILE_BRAIN_PLAN.md).",
+    "String args are SPANS: copied from what the user said ('shaam 6 baje', 'Ravi'); app code normalises them (time/duration/contact parsers already exist in aeris_remote).",
+    "Enum args are normalised values. 'implemented' = the phone app can run it today; unimplemented tools are still trained so the model learns them before the app catches up.",
+    "one_of: at least one of these args must be present. confirm: the app asks the user before executing."
+  ],
+  "tools": [
+    {"name": "flashlight", "description": "Turn the phone flashlight/torch on or off.", "implemented": true,
+     "params": {"state": {"type": "enum", "values": ["on", "off"], "description": "on or off"}},
+     "required": ["state"]},
+
+    {"name": "volume", "description": "Change the phone's media volume.", "implemented": true,
+     "params": {"action": {"type": "enum", "values": ["up", "down", "mute", "unmute", "max", "set"], "description": "what to do"},
+                "level": {"type": "integer", "min": 0, "max": 100, "description": "target percent, only with action=set"}},
+     "required": ["action"]},
+
+    {"name": "brightness", "description": "Change screen brightness.", "implemented": false,
+     "params": {"action": {"type": "enum", "values": ["up", "down", "max", "min", "set", "auto"], "description": "what to do"},
+                "level": {"type": "integer", "min": 0, "max": 100, "description": "target percent, only with action=set"}},
+     "required": ["action"]},
+
+    {"name": "toggle_setting", "description": "Turn a quick setting on/off (wifi, bluetooth, airplane mode, location, hotspot, do not disturb, mobile data, auto rotate, battery saver).", "implemented": true,
+     "params": {"setting": {"type": "enum", "values": ["wifi", "bluetooth", "airplane_mode", "location", "hotspot", "dnd", "mobile_data", "auto_rotate", "battery_saver"], "description": "which setting"},
+                "state": {"type": "enum", "values": ["on", "off", "toggle"], "description": "on, off or toggle"}},
+     "required": ["setting", "state"]},
+
+    {"name": "open_settings", "description": "Open a page of the phone's Settings app.", "implemented": true,
+     "params": {"page": {"type": "enum", "values": ["main", "wifi", "bluetooth", "display", "sound", "battery", "apps", "storage", "location", "notifications", "security", "accessibility", "language", "date_time", "about"], "description": "settings page"}},
+     "required": ["page"]},
+
+    {"name": "battery_status", "description": "Tell the battery level and whether it is charging.", "implemented": true,
+     "params": {}, "required": []},
+
+    {"name": "date_time", "description": "Tell the current time, date or day of the week (here, now).", "implemented": true,
+     "params": {"what": {"type": "enum", "values": ["time", "date", "day"], "description": "what to tell"}},
+     "required": ["what"]},
+
+    {"name": "calculate", "description": "Do arithmetic: percentages, plus, minus, times, divide, squares.", "implemented": true,
+     "params": {"expression": {"type": "string", "description": "the maths as the user said it"}},
+     "required": ["expression"]},
+
+    {"name": "set_alarm", "description": "Set an alarm.", "implemented": true,
+     "params": {"time": {"type": "string", "description": "alarm time as said, e.g. '7 am', 'subah 6 baje'"},
+                "days": {"type": "string", "description": "when/repeat as said, e.g. 'tomorrow', 'every weekday', 'roz'"},
+                "label": {"type": "string", "description": "what the alarm is for"}},
+     "required": ["time"]},
+
+    {"name": "set_timer", "description": "Start a countdown timer.", "implemented": true,
+     "params": {"duration": {"type": "string", "description": "duration as said, e.g. '5 minutes', 'aadha ghanta'"},
+                "label": {"type": "string", "description": "what the timer is for"}},
+     "required": ["duration"]},
+
+    {"name": "set_reminder", "description": "Remind the user about something at a time.", "implemented": false,
+     "params": {"text": {"type": "string", "description": "what to remind about"},
+                "when": {"type": "string", "description": "when, as said"}},
+     "required": ["text"]},
+
+    {"name": "create_calendar_event", "description": "Add an event/meeting to the calendar.", "implemented": false,
+     "params": {"title": {"type": "string", "description": "event title"},
+                "when": {"type": "string", "description": "date/time as said"},
+                "location": {"type": "string", "description": "where"}},
+     "required": ["title"]},
+
+    {"name": "call", "description": "Phone call (or WhatsApp call) a contact or a number.", "implemented": true, "confirm": false,
+     "params": {"contact": {"type": "string", "description": "contact name or relation as said"},
+                "number": {"type": "string", "description": "phone number as said"},
+                "app": {"type": "enum", "values": ["phone", "whatsapp"], "description": "only if the user named it"},
+                "video": {"type": "boolean", "description": "true for a video call"}},
+     "required": [], "one_of": ["contact", "number"]},
+
+    {"name": "send_message", "description": "Send a text message to a contact or number (WhatsApp, SMS or Telegram).", "implemented": true, "confirm": true,
+     "params": {"contact": {"type": "string", "description": "contact name or relation as said"},
+                "number": {"type": "string", "description": "phone number as said"},
+                "message": {"type": "string", "description": "the message text, exactly as dictated"},
+                "app": {"type": "enum", "values": ["whatsapp", "sms", "telegram"], "description": "only if the user named it"}},
+     "required": ["message"], "one_of": ["contact", "number"]},
+
+    {"name": "open_chat", "description": "Open a contact's chat without sending anything.", "implemented": true,
+     "params": {"contact": {"type": "string", "description": "contact name as said"},
+                "number": {"type": "string", "description": "phone number as said"},
+                "app": {"type": "enum", "values": ["whatsapp", "sms", "telegram"], "description": "only if the user named it"}},
+     "required": [], "one_of": ["contact", "number"]},
+
+    {"name": "send_email", "description": "Write and send an email.", "implemented": false, "confirm": true,
+     "params": {"to": {"type": "string", "description": "recipient name or address as said"},
+                "subject": {"type": "string", "description": "subject"},
+                "body": {"type": "string", "description": "email text"}},
+     "required": ["to"]},
+
+    {"name": "open_app", "description": "Open an installed app.", "implemented": true,
+     "params": {"app": {"type": "string", "description": "app name as said"}},
+     "required": ["app"]},
+
+    {"name": "web_search", "description": "Search Google or YouTube and show the results.", "implemented": true,
+     "params": {"query": {"type": "string", "description": "what to search"},
+                "engine": {"type": "enum", "values": ["google", "youtube"], "description": "where to search"}},
+     "required": ["query", "engine"]},
+
+    {"name": "play_music", "description": "Play music: a song, artist, genre or playlist.", "implemented": true,
+     "params": {"query": {"type": "string", "description": "song / artist / genre as said; omit for 'play some music'"},
+                "app": {"type": "enum", "values": ["youtube", "youtube_music", "spotify", "default"], "description": "only if the user named it"}},
+     "required": []},
+
+    {"name": "media_control", "description": "Control what is playing: play, pause, next, previous, stop.", "implemented": true,
+     "params": {"action": {"type": "enum", "values": ["play", "pause", "toggle", "next", "previous", "stop"], "description": "what to do"}},
+     "required": ["action"]},
+
+    {"name": "take_screenshot", "description": "Take a screenshot.", "implemented": true, "params": {}, "required": []},
+
+    {"name": "navigate_phone", "description": "System navigation: back, home, recent apps, notifications, quick settings, lock screen.", "implemented": true,
+     "params": {"action": {"type": "enum", "values": ["back", "home", "recents", "notifications", "quick_settings", "lock_screen"], "description": "where to go"}},
+     "required": ["action"]},
+
+    {"name": "scroll", "description": "Scroll the current screen.", "implemented": true,
+     "params": {"direction": {"type": "enum", "values": ["up", "down"], "description": "direction"}},
+     "required": ["direction"]},
+
+    {"name": "read_screen", "description": "Read out the text on the current screen.", "implemented": true, "params": {}, "required": []},
+
+    {"name": "summarize_screen", "description": "Summarise / explain what is on the current screen.", "implemented": true, "params": {}, "required": []},
+
+    {"name": "tap_on", "description": "Tap a button or element on the current screen by its text.", "implemented": true,
+     "params": {"target": {"type": "string", "description": "the button/element text as said"}},
+     "required": ["target"]},
+
+    {"name": "camera", "description": "Open the camera.", "implemented": true,
+     "params": {"mode": {"type": "enum", "values": ["photo", "video", "selfie", "scan"], "description": "camera mode"}},
+     "required": []},
+
+    {"name": "navigate_to", "description": "Directions / navigation to a place in maps, or show a place on the map.", "implemented": false,
+     "params": {"destination": {"type": "string", "description": "place as said"},
+                "mode": {"type": "enum", "values": ["driving", "walking", "transit", "two_wheeler"], "description": "only if the user said how"}},
+     "required": ["destination"]},
+
+    {"name": "remember", "description": "Save a personal fact the user wants AERIS to remember.", "implemented": false,
+     "params": {"fact": {"type": "string", "description": "the fact, as said"}},
+     "required": ["fact"]},
+
+    {"name": "recall", "description": "Look up something the user asked AERIS to remember earlier.", "implemented": false,
+     "params": {"query": {"type": "string", "description": "what to look up"}},
+     "required": ["query"]},
+
+    {"name": "forget", "description": "Delete a remembered fact.", "implemented": false, "confirm": true,
+     "params": {"query": {"type": "string", "description": "which fact"}},
+     "required": ["query"]},
+
+    {"name": "translate", "description": "Translate text into another language.", "implemented": false,
+     "params": {"text": {"type": "string", "description": "text to translate"},
+                "target_language": {"type": "string", "description": "language to translate into"}},
+     "required": ["text", "target_language"]},
+
+    {"name": "laptop_command", "description": "Run a command on the user's linked laptop (anything said with 'on the laptop / laptop pe / PC pe').", "implemented": true,
+     "params": {"command": {"type": "string", "description": "the command for the laptop, without the 'on the laptop' part"}},
+     "required": ["command"]},
+
+    {"name": "set_language", "description": "Switch AERIS's conversation language.", "implemented": false,
+     "params": {"mode": {"type": "enum", "values": ["hinglish", "english_in", "english_us"], "description": "language mode"}},
+     "required": ["mode"]},
+
+    {"name": "end_conversation", "description": "End the voice conversation (bye) or put AERIS to sleep (also stops the wake word).", "implemented": true,
+     "params": {"mode": {"type": "enum", "values": ["bye", "sleep"], "description": "bye = close the session; sleep = also stop listening for the wake word"}},
+     "required": ["mode"]},
+
+    {"name": "cancel_task", "description": "Stop the task AERIS is currently doing.", "implemented": true, "params": {}, "required": []},
+
+    {"name": "create_note", "description": "Save a quick note.", "implemented": false,
+     "params": {"text": {"type": "string", "description": "the note"}},
+     "required": ["text"]}
+  ]
+}

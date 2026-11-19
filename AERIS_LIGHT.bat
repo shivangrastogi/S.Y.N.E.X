@@ -16,11 +16,15 @@ REM against ~15-20s and ~810 MB for the default eager single-process boot.
 REM
 REM The trade: the FIRST utterance that misses every cheap tier pays the
 REM encoder load in one go (~10s). Ordinary command sessions never do.
+REM AERIS_PREWARM=0 keeps it that way: without it, lite boot now warms the
+REM models in the background (AERIS.bat's fast profile), which is quicker
+REM but not light.
 REM
 REM Debug console:  AERIS_LIGHT.bat debug
 set KMP_DUPLICATE_LIB_OK=TRUE
 set AERIS_SPLIT_BRAIN=1
 set AERIS_LITE_ML=1
+set AERIS_PREWARM=0
 cd /d "%~dp0"
 call "%~dp0_python.bat"
 if /i "%1"=="debug" (

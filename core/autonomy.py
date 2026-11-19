@@ -72,6 +72,10 @@ HARD_CAP: dict[str, int] = {
 def classify(action: str) -> str:
     """Map a skill/action name to its autonomy class."""
     a = (action or "").lower()
+    # Power actions stay "system" even though shutdown_pc / restart_pc are now
+    # also confirm-gated: their budget and hard cap are the system class's.
+    if re.search(r"shutdown|restart|reboot|sleep_pc|lock_screen|logout", a):
+        return "system"
     try:
         from core.confirm_gate import DESTRUCTIVE_SKILLS
         if a in DESTRUCTIVE_SKILLS:

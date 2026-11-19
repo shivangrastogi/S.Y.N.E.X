@@ -230,6 +230,18 @@ class IntentClassifier:
 
             log.info(f"[IntentClassifier] Loading encoder: {ENCODER_NAME}")
             try:
+                # Local cache first. A default load asks hf.co whether the
+                # model changed: measured 6.6 s online vs 2.2 s offline here.
+                # run_gui.py sidesteps that with HF_HUB_OFFLINE, but main.py
+                # and run_split.py didn't. Only a cache miss (the first run
+                # on a machine) goes on to the network below.
+                self.encoder = SentenceTransformer(ENCODER_NAME,
+                                                   local_files_only=True)
+                return
+            except Exception as e:
+                log.info("[IntentClassifier] encoder not in local cache (%s); "
+                         "downloading", e)
+            try:
                 self.encoder = SentenceTransformer(ENCODER_NAME)
             except Exception as e:
                 # Common offline cause: huggingface_hub can't reach hf.co
@@ -320,17 +332,52 @@ class IntentClassifier:
             emb = self.encoder.encode([normalized], normalize_embeddings=True)
         n_neighbors = min(TOP_K, len(self.labels))
         distances, indices = self.nn.kneighbors(emb, n_neighbors=n_neighbors)
+        return self._vote(text, normalized, distances[0], indices[0], threshold)
 
+    def predict_many(self, texts: list[str],
+                     threshold: float = 0.5) -> list[Prediction]:
+        """``[predict(t) for t in texts]`` with one encoder forward for the lot.
+
+        The subspan scanner asks about up to six variants of one utterance.
+        Encoding them as one batch took 78 ms against 270 ms one at a time on
+        this laptop's CPU (torch pinned to one thread). Each row is voted
+        exactly as ``predict`` votes it.
+        """
+        out: list[Optional[Prediction]] = [None] * len(texts)
+        live: list[int] = []
+        norms: list[str] = []
+        for i, text in enumerate(texts):
+            if not text or not text.strip():
+                out[i] = Prediction(intent=None, confidence=0.0,
+                                    raw_text=text or "", normalized_text="")
+            else:
+                live.append(i)
+                norms.append(self.normalizer.clean(text))
+        if live:
+            from core.encoder_lock import ENCODER_LOCK
+            with ENCODER_LOCK:
+                emb = self.encoder.encode(norms, normalize_embeddings=True,
+                                          show_progress_bar=False)
+            n_neighbors = min(TOP_K, len(self.labels))
+            distances, indices = self.nn.kneighbors(emb, n_neighbors=n_neighbors)
+            for row, i in enumerate(live):
+                out[i] = self._vote(texts[i], norms[row], distances[row],
+                                    indices[row], threshold)
+        return out
+
+    def _vote(self, text: str, normalized: str, distances, indices,
+              threshold: float) -> Prediction:
+        """Turn one row of k-NN neighbours into a Prediction (see ``predict``)."""
         # Exp-weighted vote: closer neighbours dominate sharply (temperature=10).
         # An exact match (similarity 1.0) gets weight ~e^10; a moderate match
         # (similarity 0.7) gets ~e^7. So a single perfect neighbour outweighs
         # several mediocre ones from a competing intent — this stops k-NN being
         # fooled when the encoder's lexical bias picks up sibling intents.
-        similarities = np.maximum(0.0, 1.0 - distances[0])
+        similarities = np.maximum(0.0, 1.0 - distances)
         weights = np.exp(10.0 * similarities)
 
         scores: dict[str, float] = {}
-        for w, idx in zip(weights, indices[0]):
+        for w, idx in zip(weights, indices):
             label = self.labels[int(idx)]
             scores[label] = scores.get(label, 0.0) + float(w)
 

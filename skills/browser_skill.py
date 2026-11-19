@@ -58,6 +58,17 @@ _SHORTCUT_URLS = {
     "notion":    "https://www.notion.so/",
     "instagram": "https://www.instagram.com/",
     "facebook":  "https://www.facebook.com/",
+    "amazon":    "https://www.amazon.in/",
+    "flipkart":  "https://www.flipkart.com/",
+    "netflix":   "https://www.netflix.com/",
+    "myntra":    "https://www.myntra.com/",
+    "swiggy":    "https://www.swiggy.com/",
+    "zomato":    "https://www.zomato.com/",
+    "leetcode":  "https://leetcode.com/",
+    "spotify web": "https://open.spotify.com/",
+    "whatsapp web": "https://web.whatsapp.com/",
+    "stackoverflow":  "https://stackoverflow.com/",
+    "stack overflow": "https://stackoverflow.com/",
 }
 
 
@@ -107,7 +118,8 @@ _SEARCH_VERBS_RE = re.compile(
     re.IGNORECASE,
 )
 _FILLER_RE = re.compile(
-    r"\b(in|me|mein|pe|par|the|a|an|do|please|sir|jarvis|aeris|ko|aur|and)\b",
+    r"\b(in|me|mein|pe|par|the|a|an|do|please|sir|jarvis|aeris|ko|aur|and|"
+    r"karo|kar|ki|ka|my|site|website)\b",
     re.IGNORECASE,
 )
 
@@ -157,9 +169,20 @@ def _resolve_target(target: str, *, prefer_search: bool) -> tuple[str, bool]:
     ],
     required_entities=[],
 )
+def _raw_request(slots: dict) -> str:
+    """The user's words. Prefer raw_text: joining every slot value also pulled
+    in the engine's ``raw_intent`` ("open_in_browser"), which no filler regex
+    strips, so "netflix kholo" resolved to the target "netflix open_in_browser"."""
+    if not slots:
+        return ""
+    if slots.get("raw_text"):
+        return str(slots["raw_text"]).strip()
+    return " ".join(str(v) for k, v in slots.items()
+                    if v and k != "raw_intent").strip()
+
+
 def open_in_browser(slots: dict) -> str:
-    raw = " ".join(str(v) for v in slots.values() if v).strip() if slots else ""
-    return _do_browser_open(raw, prefer_search=False)
+    return _do_browser_open(_raw_request(slots), prefer_search=False)
 
 
 @skill(
@@ -174,8 +197,7 @@ def open_in_browser(slots: dict) -> str:
     required_entities=[],
 )
 def search_in_browser(slots: dict) -> str:
-    raw = " ".join(str(v) for v in slots.values() if v).strip() if slots else ""
-    return _do_browser_open(raw, prefer_search=True)
+    return _do_browser_open(_raw_request(slots), prefer_search=True)
 
 
 def _do_browser_open(raw: str, *, prefer_search: bool) -> str:

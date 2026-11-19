@@ -3363,6 +3363,127 @@ classification, the audit trail and utterance log not being purgeable, the four
 path cross-checks, four on the encrypted flag being state-not-capability
 (including that **only** `secrets` claims encryption), and snapshot behaviour.
 
+## 6.41 Fast by default (2026-09-15)
+
+The user's ask changed: *"i dont want a slow system i want a fast system"*.
+Everything up to §6.40 optimised resting memory; this pass optimises the time
+from launch to answer, and the time per command, without giving back the
+load-free work. Measured first, on this laptop (i5-1145G7, 4 cores, no dGPU,
+torch pinned to one thread), through `JarvisMainEngine.route()` so no skill ran.
+
+### Where the time was
+
+| Cost | Measured |
+|---|---|
+| Eager boot, HF offline (the GUI's env) | 13.9 s (22 s online) |
+| …of which importing torch + sentence-transformers | ~7 s |
+| Encoder load, offline vs online | 2.2 s vs 6.6 s |
+| Lite boot, then first heavy utterance | 1.75 s, then **14 s** |
+| One uncached heavy utterance, warm | 130–470 ms |
+| Local Qwen: load / 60-token reply | 3.6 s / 7.2 s |
+
+The per-utterance number had one cause. The subspan scanner (§ `utterance_parser`)
+tries up to six trimmed variants and called `brain.predict` on each, so an
+utterance that missed the cheap tiers cost six encoder forwards, and with a
+trained neural head six more. Measured on six spans: k-NN 270 ms one at a time
+vs 78 ms batched; neural head 1.28 s vs 95 ms (it padded every single call to
+`max_len`). The neural head is currently inactive (its intents hash drifted),
+so today's cost was the k-NN half; after the next retrain it would have been
+~1.5 s per command.
+
+An early read blamed the "Loading neural intent model" stage for 17 s. That
+was the benchmark's own bug: `setup_iter` yields a label *before* its chunk
+runs, so timing between yields charges each chunk to the next label. The 17 s
+was the encoder stage, online.
+
+### What changed
+
+- **Batched heavy tier.** `JarvisBrain.predict_fast` is the cheap tiers alone
+  (never loads weights); `predict_many` runs them per text and sends every miss
+  through `_predict_heavy` as one batch, backed by new
+  `IntentClassifier.predict_many` and `NeuralIntentClassifier.predict_many`
+  (which share each class's existing scoring code). `_predict_spans` keeps the
+  scanner's stop at the first certain span, so "notepad kholo" still loads
+  nothing. Single-text `predict` is unchanged. Routing on the 528 curated
+  phrasings is identical: 504 accepted, 408 strict.
+- **Background warm-up after lite boot** (`AERIS_PREWARM`, default on, acts only
+  with `AERIS_LITE_ML`). `start_background_warmup` waits 1.5 s for first paint,
+  then `brain.warm_up()` goes through the same `_ensure_loaded` a cold predict
+  uses, so the spaCy / chat-gate hooks fire unchanged and a heavy command
+  arriving mid-warm waits on the single in-flight load. It restarts the idle
+  clock so a quiet session isn't unloaded on the next tick.
+- **No boot throttle in lite mode.** BrainWorker slept 90 ms per `setup_iter`
+  chunk; lite chunks are milliseconds of JSON work, so the default is 0 there.
+- **Encoder from the local cache first** (`local_files_only=True`), network only
+  on a cache miss. `run_gui.py` already forced HF offline; `main.py` and
+  `run_split.py` did not.
+- **Launchers.** `AERIS.bat` is now the fast profile: lite boot + warm-up,
+  `AERIS_IDLE_UNLOAD_S=1800` (a reload after idle costs ~4 s on the next
+  command) and `AERIS_LLM_IDLE_UNLOAD_S=300` (the 1 GB gguf reloads in 3.6 s).
+  `AERIS_LIGHT.bat` sets `AERIS_PREWARM=0` and keeps its §6.7 profile.
+
+### After (same machine, two runs)
+
+| | Before | After |
+|---|---|---|
+| Launch to accepting commands (`AERIS.bat` profile) | ~13.9 s | **1.8 s** |
+| Cheap command while models load | — | 6 ms |
+| Models warm, counted from "ready" | at boot | 13.5 s, in the background |
+| Uncached heavy utterance | 130–470 ms | **55–155 ms** |
+| RSS once warm | ~880 MB | ~800 MB |
+
+CPU frequency scaling moves the per-utterance numbers between runs (55–95 ms in
+one, 94–153 ms in the other), so read the range, not a single figure.
+
+### Then it was launched, and the benchmark turned out to be flattering
+
+`AERIS.bat debug`, real GUI, 2026-09-16. The window appeared in **4.9 s** and
+cheap commands worked immediately — a typed "hi" mid-boot was answered, and
+`open_app` dispatched in 0.1 ms. Two things the harness could not see:
+
+- **The phone bridge was on the boot path.** `setup_iter`'s last stage called
+  `CloudBridge.start()` inline, which opens a live Firestore connection: 15 s
+  of the 36 s to "brain ready", for something no local command needs. It is now
+  started on its own thread, and `start()` got a lock, because the bridge
+  subsystem's boot/retry can now race it and the `_started` flag alone was not
+  enough to stop two Firestore listeners being installed. Measured after:
+  setup done 4.6 s, bridge connected 8.7 s, a cheap command answered in 30 ms
+  while it was still connecting. Every benchmark here sets
+  `AERIS_DISABLE_BRIDGE=1`, which is exactly why this hid — when a harness is
+  quieter than production, the difference is where the bugs live.
+- **The background warm-up takes 70 s inside the GUI process**, against 13.5 s
+  standalone; 58 s of that is `import sentence_transformers` alone. Nothing is
+  wrong with the thread — it is competing with Qt for the GIL (and
+  `run_gui.py` deliberately halves `setswitchinterval` to keep animations
+  smooth, which taxes exactly this). So in-process warm-up removes the stall
+  only for a user who waits a minute before their first heavy command.
+  The fix already exists: `AERIS_SPLIT_BRAIN=1` puts the load in a child
+  process with no Qt in it, where it costs the standalone 13.5 s. Making that
+  the `AERIS.bat` default is P0 in §3, still pending the user's shakedown, so
+  it stays opt-in (`AERIS_LIGHT.bat`) rather than being switched on quietly.
+
+Also fixed while reading that log: `_ensure_loaded` announced every load as
+"cold predict — reloading encoder", including the background warm-up, which
+sends you hunting for a command that never happened. It takes a `reason` now.
+
+### Deliberately not done
+
+- **More torch threads.** 1 → 4 threads saved only 78 → 55 ms on a batch, and
+  this environment carries two `libiomp5md.dll` (torch and ctranslate2), the
+  0xC0000374 crash class. The pin stays.
+- **LLM chat latency.** Now the slowest thing a user feels (~7 s for a short
+  reply). Streaming the first sentence to TTS, or a smaller reply budget, changes
+  how AERIS talks, so it is a user decision.
+
+### Tests
+
+`tests/test_fast_path.py` (fast lane): `predict_many` against one-at-a-time
+`predict` for the k-NN classifier and a padding-invariant fake neural head;
+`JarvisBrain.predict_many` batching only cheap-tier misses; the batched scanner
+picking what the old loop picked and never sending spans past a certain one to
+the heavy tier; warm-up start/skip/one-thread; `AERIS_PREWARM` parsing;
+`warm_up` restarting the idle clock. `tests/conftest.py` sets `AERIS_PREWARM=0`.
+
 ---
 
 ## 7. Appendix — mapping to the current code

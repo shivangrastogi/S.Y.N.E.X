@@ -41,6 +41,11 @@ DESTRUCTIVE_SKILLS: dict[str, str] = {
     "doc_clear":                "document index wipe",
     "speaker_forget":           "enrolled voice delete",
     "empty_recycle_bin":        "recycle bin permanently khali",
+    # Not data loss, but a misheard "band karo" must not end the session and
+    # every unsaved file with it. Routing anchors send clear shutdown/restart
+    # phrasings here, so the question is the safety margin.
+    "shutdown_pc":              "computer shutdown",
+    "restart_pc":               "computer restart",
 }
 
 _YES_RE = re.compile(

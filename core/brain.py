@@ -137,12 +137,16 @@ _BUILTIN_ANCHORS = [
                  r"alarm|timer|set|reminder|meeting|schedule)\b", _re.I),
      "get_time"),
     (_re.compile(r"\b(google\s+(kar|kro|karo|it)|search\s+(kar|kro|karo|the\s+web|for)|"
-                 r"web\s+pe|internet\s+pe|dhoond|dhund|khoj|look\s+up)\b", _re.I),
+                 r"web\s+pe|internet\s+pe|dhoond\w*|dhund\w*|khoj\w*|look\s+up)\b", _re.I),
      _re.compile(r"\b(file|files|setting|youtube|tab\b|weather|mausam)\b", _re.I),
      "search_web"),
-    # word definition ("matlab batao X", "meaning of X", "X ka matlab", "define X")
-    (_re.compile(r"\b(matlab|meaning|define|definition|arth|shabd\s+ka|word\s+meaning)\b", _re.I),
-     _re.compile(r"\b(life\s+ka\s+matlab|zindagi|is\s+baat\s+ka|meeting|explain\s+(this|code|the\s+process))\b", _re.I),
+    # word definition ("matlab batao X", "meaning of X", "X ka matlab", "define X",
+    # "what does X mean", "explain the word X"). The last two used to reach
+    # nothing at all, and tell_riddle.
+    (_re.compile(r"\b(matlab|meaning|define|definition|arth|shabd\s+ka|word\s+meaning)\b|"
+                 r"\bwhat\s+does\s+\w+\s+mean\b|\bexplain\s+the\s+word\b", _re.I),
+     _re.compile(r"\b(life\s+ka\s+matlab|zindagi|is\s+baat\s+ka|meeting|explain\s+(this|code|the\s+process))\b|"
+                 r"\bwhat\s+does\s+(this|that|it)\b", _re.I),
      "define_word"),
     # gcd/lcm/hcf → gcd_lcm (was mis-routing to set_timer and CREATING a timer!)
     (_re.compile(r"\b(gcd|lcm|hcf)\b", _re.I),
@@ -239,6 +243,85 @@ _BUILTIN_ANCHORS = [
                  r"lights?|music|sound|noise|mood|vibe|engine|pain|deal|beat|"
                  r"buzz|power|joy|game|shot|two\s+birds|process$)\b", _re.I),
      "kill_process"),
+    # ── 2026-09-15 routing pass (validate_command_routing.py, 74.8% before) ──
+    # Grammar correction → fix_grammar. Was scattering to tab_switch, volume_up
+    # and day_of_week ("meri english theek karo" answered with the weekday).
+    (_re.compile(r"\bgrammar\s+(theek|thik|fix|check|sahi|sudhar|correct)|"
+                 r"\b(fix|check|correct)\s+(the\s+|my\s+|this\s+)?grammar\b|"
+                 r"\b(iski|meri|is\s+line\s+ki)\s+grammar\b|"
+                 r"\bgrammar\b.{0,25}\b(theek|thik|fix|sahi|sudhar|correct)|"
+                 r"\bgrammatically\s+correct|\bpolish\s+(this|the|my)\s+(sentence|text|line)\b|"
+                 r"\bproof\s*read|\bspell(ing)?\s+(check|theek|sahi|fix)\b|"
+                 r"\bgalti(yan|yaan|yon)?\s+(theek|thik|sahi|sudhar)|"
+                 r"\b(english|angrezi|sentence|vakya)\s+(ko\s+)?(theek|thik|sahi|correct|sudhar)|"
+                 r"\bsahi\s+(angrezi|english)\b|\bgalat\s+likha\b", _re.I),
+     _re.compile(r"(?!x)x", _re.I),
+     "fix_grammar"),
+    # Lock the workstation. Was reaching volume_mute, append_note and
+    # open_settings_panel. Any number or delay word means a SCHEDULED lock
+    # (lock_after), and "unlock"/"caps lock"/a file or vault lock is something else.
+    (_re.compile(r"\b(screen|pc|laptop|computer|system)\s+(ko\s+)?lock\b|"
+                 r"\block\s+(the\s+)?(screen|pc|laptop|computer)\b|"
+                 r"\block\s+(kar|karo|kr|kardo|krdo|ho\s+ja\w*)\b", _re.I),
+     _re.compile(r"\d|\b(minute|minutes|min|mins|ghante|hour|baad|after|unlock|caps|"
+                 r"file|folder|vault|door|phone|mobile|app)\b", _re.I),
+     "lock_screen"),
+    # Shutdown / restart. Was landing on cancel_shutdown (the OPPOSITE),
+    # factorial_power ("power off") and laptop_screen_share ("band kar do
+    # laptop"). Both targets are in confirm_gate.DESTRUCTIVE_SKILLS, so a
+    # misheard phrase costs one "pakka?" question, never a surprise shutdown.
+    (_re.compile(r"\b(shut\s*down|power\s+off)\b|"
+                 r"\b(pc|laptop|computer)\s+(ko\s+)?band\s+kar|"
+                 r"\bband\s+kar\s+do\s+(pc|laptop|computer)\b", _re.I),
+     _re.compile(r"\d|\b(cancel|abort|ruk|rok|mat|don'?t|not|nahi|timer|schedule|"
+                 r"baad|after|minute|ghante|hour)\b", _re.I),
+     "shutdown_pc"),
+    (_re.compile(r"\b(restart|reboot)\b", _re.I),
+     _re.compile(r"\d|\b(cancel|abort|mat|don'?t|nahi|app|chrome|browser|service|"
+                 r"explorer|router|phone|mobile|wifi|music|song|gaana|video|game|"
+                 r"bridge|brain|aeris|server|conversation|chat)\b", _re.I),
+     "restart_pc"),
+    # Hinglish sleep ("pc ko sula do"). English "sleep mode" is already an exact
+    # pattern; this one was reaching pomodoro_status.
+    (_re.compile(r"\b(pc|laptop|computer|system)\s+(ko\s+)?(sula\s+do|sulao|"
+                 r"sleep\s+(kar|karo|mode))\b", _re.I),
+     _re.compile(r"\d|\b(baad|after|minute|minutes|timer)\b", _re.I),
+     "sleep_pc"),
+    # "<site> kholo" → open_in_browser, which resolves bare site names through
+    # its shortcut table. The executor's open_website needs a literal URL, so
+    # "netflix kholo" there only answered "URL batao". Was reaching tab_switch,
+    # youtube_jump, open_app and clipboard_open_url. An explicit app, browser
+    # or search word means a different skill owns it.
+    (_re.compile(r"\b(gmail|amazon|flipkart|netflix|reddit|twitter|instagram|linkedin|"
+                 r"github|stack\s*overflow|facebook|chatgpt|myntra|swiggy|zomato|"
+                 r"leetcode|whatsapp\s+web|spotify\s+web)"
+                 r"(\s+(ki\s+)?(site|website))?\s+(khol\w*|open\s+kar\w*)\b|"
+                 r"\bopen\s+(my\s+)?(gmail|amazon|flipkart|netflix|reddit|twitter|"
+                 r"instagram|linkedin|github|stack\s*overflow|facebook|chatgpt|leetcode|"
+                 r"whatsapp\s+web|spotify\s+web)\b", _re.I),
+     _re.compile(r"\b(app|brave|chrome|edge|firefox|profile|search|dhund\w*|"
+                 r"gaana|song|video|play|order|cart)\b", _re.I),
+     "open_in_browser"),
+    # Square roots → quick_calc; factorial / square / cube → factorial_power.
+    # The arithmetic pre-router needs two numbers, so these single-operand
+    # forms were drifting ("5 factorial kya hai" → focus_deep_status,
+    # "root 81 kya hai" → synonyms_antonyms).
+    (_re.compile(r"\b(square\s+root|sq\s*root|sqrt|root)\s+(of\s+)?\d", _re.I),
+     _re.compile(r"(?!x)x", _re.I),
+     "quick_calc"),
+    (_re.compile(r"\b\d+\s*(ka\s+)?factorial\b|\bfactorial\s+(of\s+)?\d|"
+                 r"\b(square|cube)\s+of\s+-?\d|\b\d+\s+(ka|ki)\s+(square|cube)\b", _re.I),
+     _re.compile(r"\b(root|feet|foot|metre|meter|km|area)\b", _re.I),
+     "factorial_power"),
+    # YouTube playback → play_youtube, placed BEFORE the motivate/music anchors
+    # ("youtube pe motivational video" is a video request, not a pep talk; "youtube
+    # pe song laga do" was starting Spotify via play_music).
+    (_re.compile(r"\byoutube\s+(pe|par|on|me|mein)\b.*\b(songs?|gaana|gana|gaane|videos?|"
+                 r"music|laga\w*|chala\w*|play|baja\w*)\b|"
+                 r"\byoutube\s+khol\w*\s+(aur|ke|and)\b.*\b(gaana|gana|song|music|video|"
+                 r"chala\w*|laga\w*|play|baja\w*)\b", _re.I),
+     _re.compile(r"\b(ideas?|channel|subscribe|upload|brainstorm|comment|history)\b", _re.I),
+     "play_youtube"),
     # Entertainment / conversational intents — a clear keyword must reach the
     # (already LLM-backed) skill, not scatter to play_music(!), current_time,
     # keep_awake_on, create_note or system_stats. These EXPECTED targets are the
@@ -246,6 +329,8 @@ _BUILTIN_ANCHORS = [
     # tell_joke, tell_story, motivate_me so "motivational story" → tell_story
     # (story wins over the motivate cue) and "funny joke" → tell_joke.
     (_re.compile(r"\b(joke|jokes|chutkula|chutkule|chutkla|pun)\b|"
+                 r"\bh(a|aa)n?s(a|aa)(o|ne|na|do|de)\b|"
+                 r"\bmake\s+me\s+laugh\b|\bfunny\s+(baat|kuch|something)\b|"
                  r"\bpj\s+(suna|sunao|bol|bolo)\b", _re.I),
      _re.compile(r"\bpractical\s+joke\b", _re.I),
      "tell_joke"),
@@ -255,8 +340,12 @@ _BUILTIN_ANCHORS = [
      "tell_story"),
     (_re.compile(r"\bmotivat|\bpep\s+talk|\bmood\s+(theek|thik|acha|better|sahi)\b|"
                  r"\bcheer\s+me\s+up|\bmann\s+nahi\s+lag|\bhaar\s+(maan|man)|"
-                 r"\buplift", _re.I),
-     _re.compile(r"(?!x)x", _re.I),
+                 r"\buplift|\bdemotivat|\binspire\s+me\b|\bencourage\s+(me|karo)\b|"
+                 r"\bmujhe\s+encourage|\bhausla|\bhimmat\s+(do|de|badha)|"
+                 r"\bgive\s+me\s+a\s+boost\b|\benergy\s+(do|de\s+do|chahiye)\b|"
+                 r"\bpositive\s+(kuch|baat|bolo|words)", _re.I),
+     # "energy" also means a physics calculation (energy_calc).
+     _re.compile(r"\d|\b(calc\w*|joule|joules|kwh|drink)\b", _re.I),
      "motivate_me"),
     # Volume + music core actions — clear keyword, but the WORST kind of mis-route:
     # opposite direction ("volume tez"→volume_mute, "awaaz dheemi"→volume_up) or
@@ -618,21 +707,26 @@ class JarvisBrain:
             stop.set()
         self._unloader_thread = None
 
-    def _ensure_loaded(self) -> None:
-        """Reload encoder + neural model if a previous idle-unload dropped them."""
+    def _ensure_loaded(self, reason: str = "cold predict") -> None:
+        """Reload encoder + neural model if a previous idle-unload dropped them.
+
+        ``reason`` only labels the log line. A background warm-up is not a
+        "cold predict", and reading that in a boot log sends you looking for
+        a command that never happened.
+        """
         # Same lock order as try_unload_idle: ENCODER_LOCK (outer) so a reload
         # that swaps in fresh encoder objects can't overlap a concurrent encode.
         from core.encoder_lock import ENCODER_LOCK
         warmed = False
         with ENCODER_LOCK, self._unload_lock:
             if not self._encoder_loaded:
-                log.info("[Brain] cold predict — reloading encoder")
+                log.info("[Brain] %s — loading encoder", reason)
                 self.classifier.load_encoder()
                 self.classifier.build_or_load_index()
                 self._encoder_loaded = True
                 warmed = True
             if not self._neural_loaded and self.neural.is_trained():
-                log.info("[Brain] cold predict — reloading neural model")
+                log.info("[Brain] %s — loading neural model", reason)
                 if self.neural.load():
                     self._neural_loaded = True
                     self._neural_active = True
@@ -663,6 +757,18 @@ class JarvisBrain:
             merge neural's top-1 into the surfaced top3 as a second
             opinion for the disambiguator.
         """
+        fast = self.predict_fast(text, threshold)
+        if fast is not None:
+            return fast
+        return self._predict_heavy([text], threshold)[0]
+
+    def predict_fast(self, text: str,
+                     threshold: float = 0.5) -> Optional[Prediction]:
+        """The cheap router tiers alone: LRU cache, exact pattern, arithmetic,
+        anchors. Returns None when the utterance needs the heavy tier, and
+        never loads weights. The subspan scanner uses it to find where a
+        certain answer ends the scan before batching the rest through
+        ``predict_many``."""
         # TIERED ROUTER (docs/AERIS_LOADFREE_ARCHITECTURE_AND_ROADMAP.md §3.3).
         # Tiers 0-2 below (LRU cache → exact pattern → arithmetic → anchors)
         # are pure string/regex work. They run FIRST, before `_ensure_loaded`,
@@ -732,7 +838,24 @@ class JarvisBrain:
                 )
                 self._cache_put(cache_key, pred)
                 return pred
+        return None
 
+    def predict_many(self, texts: list[str],
+                     threshold: float = 0.5) -> list[Prediction]:
+        """``[predict(t) for t in texts]`` with ONE heavy-tier pass: every
+        text that misses the cheap tiers is encoded (and run through the
+        neural head) as a single batch. See
+        ``utterance_parser._predict_spans`` for the measured saving."""
+        results = [self.predict_fast(t, threshold) for t in texts]
+        heavy = [i for i, p in enumerate(results) if p is None]
+        if heavy:
+            batch = self._predict_heavy([texts[i] for i in heavy], threshold)
+            for i, pred in zip(heavy, batch):
+                results[i] = pred
+        return results
+
+    def _predict_heavy(self, texts: list[str],
+                       threshold: float) -> list[Prediction]:
         # ── Heavy tier ──────────────────────────────────────────────────
         # Every cheap tier missed, so we genuinely need embeddings. THIS is
         # where the encoder (and neural head) get loaded — on demand, once.
@@ -749,22 +872,45 @@ class JarvisBrain:
         from core.encoder_lock import ENCODER_LOCK
         with ENCODER_LOCK:
             self._ensure_loaded()
+            # One text keeps each classifier's own single predict (the neural
+            # head pads to max_len there); several go through one batch.
+            if len(texts) == 1:
+                knn = [self.classifier.predict(texts[0], threshold=threshold)]
+                neural = ([self.neural.predict(texts[0], threshold=threshold)]
+                          if self._neural_active else None)
+            else:
+                knn = self.classifier.predict_many(texts, threshold=threshold)
+                neural = (self.neural.predict_many(texts, threshold=threshold)
+                          if self._neural_active else None)
 
-            if not self._neural_active:
-                pred = self.classifier.predict(text, threshold=threshold)
-                self._cache_put(cache_key, pred)
-                return pred
+        out: list[Prediction] = []
+        for i, text in enumerate(texts):
+            if neural is None:
+                pred = knn[i]
+            elif neural[i].confidence >= _NEURAL_LOW_CONF and neural[i].intent:
+                pred = _with_merged_top3(neural[i], knn[i])
+            else:
+                # Neural unsure — k-NN drives.
+                pred = _with_merged_top3(knn[i], neural[i])
+            normalized = self.classifier.normalizer.clean(text) if text else ""
+            self._cache_put((normalized, threshold), pred)
+            out.append(pred)
+        return out
 
-            neural_pred = self.neural.predict(text, threshold=threshold)
-            knn_pred = self.classifier.predict(text, threshold=threshold)
+    def warm_up(self) -> bool:
+        """Load the heavy tier now instead of on the first utterance that
+        needs it: the engine's background warm-up after a lite boot.
 
-        if neural_pred.confidence >= _NEURAL_LOW_CONF and neural_pred.intent:
-            pred = _with_merged_top3(neural_pred, knn_pred)
-        else:
-            # Neural unsure — k-NN drives.
-            pred = _with_merged_top3(knn_pred, neural_pred)
-        self._cache_put(cache_key, pred)
-        return pred
+        Goes through the same ``_ensure_loaded`` a cold predict uses, so the
+        ml-loaded hooks (spaCy, chat gate) fire exactly as they would, and a
+        predict arriving mid-warm waits on the one load in flight. The idle
+        clock restarts afterwards so weights loaded for a quiet session are
+        not dropped on the next unloader tick. True if anything loaded.
+        """
+        was_loaded = self._encoder_loaded
+        self._ensure_loaded(reason="background warm-up")
+        self._last_predict_ts = time.monotonic()
+        return (not was_loaded) and self._encoder_loaded
 
     def _cache_put(self, key: tuple, pred: Prediction) -> None:
         with self._pred_cache_lock:

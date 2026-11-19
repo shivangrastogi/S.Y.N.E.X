@@ -1,7 +1,11 @@
 package com.aeris.aeris_remote
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
 import android.graphics.Rect
+import android.os.Build
+import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -121,7 +125,131 @@ class AerisAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /** back | home | recents | notifications | quick_settings | screenshot */
+    // ── Phase 10: phone agent ──────────────────────────────────────────
+    // The agent (lib/phone_agent.dart) sees the screen as a numbered list of
+    // elements and acts by number. `uiNodes` holds the nodes from the most
+    // recent dumpUi(); ids index into it until the next dump.
+    private val uiNodes = ArrayList<AccessibilityNodeInfo>()
+
+    /** Numbered list of the foreground screen's visible, labelled or
+     *  actionable elements, e.g. `[7] Button "Send" tap`. First line = app. */
+    fun dumpUi(): String {
+        uiNodes.clear()
+        val root = rootInActiveWindow ?: return ""
+        val sb = StringBuilder()
+        sb.append("app: ").append(root.packageName ?: "?").append('\n')
+        walkUi(root, sb)
+        return sb.toString().trim()
+    }
+
+    private fun walkUi(node: AccessibilityNodeInfo?, sb: StringBuilder) {
+        if (node == null || sb.length > 7000 || uiNodes.size >= 160) return
+        if (!node.isVisibleToUser) return
+        val label = labelOf(node)
+        val acts = ArrayList<String>()
+        if (node.isClickable) acts.add("tap")
+        if (node.isLongClickable) acts.add("long_press")
+        if (node.isEditable) acts.add("type")
+        if (node.isScrollable) acts.add("scroll")
+        if (node.isCheckable) acts.add(if (node.isChecked) "checked" else "unchecked")
+        if (label.isNotEmpty() || acts.isNotEmpty()) {
+            val id = uiNodes.size
+            uiNodes.add(node)
+            val cls = node.className?.toString()?.substringAfterLast('.') ?: "View"
+            sb.append('[').append(id).append("] ").append(cls)
+            if (label.isNotEmpty()) sb.append(" \"").append(label).append('"')
+            if (acts.isNotEmpty()) sb.append(' ').append(acts.joinToString(","))
+            sb.append('\n')
+        }
+        for (i in 0 until node.childCount) walkUi(node.getChild(i), sb)
+    }
+
+    /** text → description → hint → view-id, trimmed to one short line. */
+    private fun labelOf(n: AccessibilityNodeInfo): String {
+        var raw: CharSequence? = n.text ?: n.contentDescription
+        if (raw == null && Build.VERSION.SDK_INT >= 26) raw = n.hintText
+        var s = raw?.toString()?.replace('\n', ' ')?.trim() ?: ""
+        if (s.isEmpty()) {
+            val vid = n.viewIdResourceName?.substringAfterLast('/') ?: ""
+            if (vid.isNotEmpty()) s = "id:$vid"
+        }
+        return if (s.length > 80) s.substring(0, 80) + "…" else s
+    }
+
+    private fun uiNode(id: Int): AccessibilityNodeInfo? =
+        uiNodes.getOrNull(id)?.also { it.refresh() }
+
+    /** Tap element [id]: nearest clickable ancestor, else a real touch. */
+    fun clickId(id: Int): Boolean {
+        val node = uiNode(id) ?: return false
+        var n: AccessibilityNodeInfo? = node
+        while (n != null) {
+            if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            n = n.parent
+        }
+        return gestureOn(node, 60)
+    }
+
+    fun longClickId(id: Int): Boolean {
+        val node = uiNode(id) ?: return false
+        var n: AccessibilityNodeInfo? = node
+        while (n != null) {
+            if (n.isLongClickable &&
+                n.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)) return true
+            n = n.parent
+        }
+        return gestureOn(node, 700)
+    }
+
+    /** Replace the text of field [id] (or the focused input if [id] < 0). */
+    fun typeId(id: Int, text: String): Boolean {
+        var node = if (id >= 0) uiNode(id) else null
+        if (node == null || !node.isEditable) {
+            node = (if (node != null) findEditable(node) else null)
+                ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                ?: findEditable(rootInActiveWindow)
+                ?: return false
+        }
+        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val args = Bundle()
+        args.putCharSequence(
+            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
+    private fun findEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isEditable) return node
+        for (i in 0 until node.childCount) {
+            val hit = findEditable(node.getChild(i))
+            if (hit != null) return hit
+        }
+        return null
+    }
+
+    /** Keyboard "enter"/search on the focused input (Android 11+). */
+    fun pressEnter(): Boolean {
+        if (Build.VERSION.SDK_INT < 30) return false
+        val f = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: return false
+        return f.performAction(
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+    }
+
+    /** A real touch at the node's centre — for custom views that ignore
+     *  ACTION_CLICK (Compose canvases, image tiles). */
+    private fun gestureOn(node: AccessibilityNodeInfo, ms: Long): Boolean {
+        val r = Rect()
+        node.getBoundsInScreen(r)
+        if (r.isEmpty) return false
+        val p = Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }
+        val g = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(p, 0, ms))
+            .build()
+        return dispatchGesture(g, null, null)
+    }
+
+    /** back | home | recents | notifications | quick_settings | screenshot | lock_screen */
     fun global(which: String): Boolean {
         val action = when (which) {
             "back" -> GLOBAL_ACTION_BACK
@@ -130,6 +258,7 @@ class AerisAccessibilityService : AccessibilityService() {
             "notifications" -> GLOBAL_ACTION_NOTIFICATIONS
             "quick_settings" -> GLOBAL_ACTION_QUICK_SETTINGS
             "screenshot" -> GLOBAL_ACTION_TAKE_SCREENSHOT // API 28+
+            "lock_screen" -> GLOBAL_ACTION_LOCK_SCREEN // API 28+
             else -> return false
         }
         return performGlobalAction(action)

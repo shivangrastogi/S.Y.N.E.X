@@ -1,6 +1,7 @@
 package com.aeris.aeris_remote
 
 import android.app.Activity
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -16,6 +17,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.DisplayMetrics
@@ -171,6 +173,16 @@ class MainActivity : FlutterActivity() {
                         mediaKey(call.argument<String>("key") ?: "")
                         result.success(true)
                     }
+                    // Phase 10: the phone agent's numbered-element interface.
+                    "dumpUi" -> result.success(svc?.dumpUi() ?: "")
+                    "clickId" -> result.success(
+                        svc?.clickId(call.argument<Int>("id") ?: -1) ?: false)
+                    "longClickId" -> result.success(
+                        svc?.longClickId(call.argument<Int>("id") ?: -1) ?: false)
+                    "typeId" -> result.success(
+                        svc?.typeId(call.argument<Int>("id") ?: -1,
+                            call.argument<String>("text") ?: "") ?: false)
+                    "pressEnter" -> result.success(svc?.pressEnter() ?: false)
                     else -> result.notImplemented()
                 }
             }
@@ -179,8 +191,23 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APPS_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "launch" -> result.success(
-                        launchByLabel(call.argument<String>("query") ?: ""))
+                    // Label lookups touch every installed app (slow on a full
+                    // phone) — off the main thread, or the UI freezes (ANR).
+                    "launch" -> {
+                        val q = call.argument<String>("query") ?: ""
+                        Thread {
+                            val pkg = findPackageByLabel(q)
+                            runOnUiThread {
+                                result.success(pkg != null && launchPackage(pkg))
+                            }
+                        }.start()
+                    }
+                    "list" -> Thread {
+                        val labels = appLabels().keys.sorted()
+                        runOnUiThread { result.success(labels) }
+                    }.start()
+                    "whatsappLatestImage" -> result.success(
+                        whatsappLatestImage(call.argument<String>("phone") ?: ""))
                     else -> result.notImplemented()
                 }
             }
@@ -210,18 +237,35 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
-    // Match a spoken app name to an installed launcher app and open it.
-    private fun launchByLabel(query: String): Boolean {
-        val q = query.lowercase().trim()
-        if (q.isEmpty()) return false
-        val pm = packageManager
+    // label → package for every launcher app. loadLabel() is slow (it reads
+    // each app's resources), so the map is cached for 10 minutes and only
+    // ever built on a background thread.
+    @Volatile private var labelCache: Map<String, String>? = null
+    @Volatile private var labelCacheAt = 0L
+
+    private fun appLabels(): Map<String, String> {
+        val now = System.currentTimeMillis()
+        labelCache?.let { if (now - labelCacheAt < 10 * 60_000) return it }
         val main = Intent(Intent.ACTION_MAIN, null)
             .addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps = pm.queryIntentActivities(main, 0)
+        val map = HashMap<String, String>()
+        for (ri in packageManager.queryIntentActivities(main, 0)) {
+            map[ri.loadLabel(packageManager).toString()] =
+                ri.activityInfo.packageName
+        }
+        labelCache = map
+        labelCacheAt = now
+        return map
+    }
+
+    // Match a spoken app name to an installed launcher app's package.
+    private fun findPackageByLabel(query: String): String? {
+        val q = query.lowercase().trim()
+        if (q.isEmpty()) return null
         var bestPkg: String? = null
         var bestScore = -1
-        for (ri in apps) {
-            val label = ri.loadLabel(pm).toString().lowercase()
+        for ((rawLabel, pkg) in appLabels()) {
+            val label = rawLabel.lowercase()
             val score = when {
                 label == q -> 100
                 label.startsWith(q) -> 80
@@ -231,14 +275,58 @@ class MainActivity : FlutterActivity() {
             }
             if (score > bestScore) {
                 bestScore = score
-                bestPkg = ri.activityInfo.packageName
+                bestPkg = pkg
             }
         }
-        if (bestPkg == null || bestScore < 45) return false
-        val launch = pm.getLaunchIntentForPackage(bestPkg!!) ?: return false
+        return if (bestScore >= 45) bestPkg else null
+    }
+
+    private fun launchPackage(pkg: String): Boolean {
+        val launch = packageManager.getLaunchIntentForPackage(pkg) ?: return false
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(launch)
         return true
+    }
+
+    // Phase 10: open the WhatsApp chat for [phone] (digits, with country code)
+    // with the newest gallery image (last 15 min) attached — WhatsApp's
+    // preview screen then only needs "Send". Returns an error string or "".
+    private fun whatsappLatestImage(phone: String): String {
+        val digits = phone.filter { it.isDigit() }
+        if (digits.isEmpty()) return "no phone number"
+        val since = System.currentTimeMillis() / 1000 - 15 * 60
+        val uri = try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Images.Media._ID),
+                "${MediaStore.Images.Media.DATE_ADDED} >= ?",
+                arrayOf(since.toString()),
+                "${MediaStore.Images.Media.DATE_ADDED} DESC"
+            )?.use { c ->
+                if (c.moveToFirst()) ContentUris.withAppendedId(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI, c.getLong(0))
+                else null
+            }
+        } catch (e: SecurityException) {
+            return "no photo permission"
+        } ?: return "no image saved in the last 15 minutes"
+        val pkg = listOf("com.whatsapp", "com.whatsapp.w4b").firstOrNull {
+            packageManager.getLaunchIntentForPackage(it) != null
+        } ?: return "WhatsApp not installed"
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            setPackage(pkg)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra("jid", "$digits@s.whatsapp.net")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            startActivity(send)
+            ""
+        } catch (e: Exception) {
+            e.message ?: "could not open WhatsApp"
+        }
     }
 
     private fun mediaKey(key: String) {

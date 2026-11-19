@@ -29,7 +29,7 @@ catch the ABI break coming back (§6.35).
 | --- | --- |
 | `python run_aeris_v6.py` | `ui/aeris_v6` — the newest GUI |
 | `python run_gui.py` | `ui/jarvis_v31` — the older GUI, still fully supported |
-| `AERIS.bat` / `AERIS.bat debug` | `run_gui.py` via `pythonw` (no console) / with console |
+| `AERIS.bat` / `AERIS.bat debug` | `run_gui.py` via `pythonw` (no console) / with console. The **fast profile**: lite boot + background warm-up, brain models kept 30 min between uses |
 | `python main.py` | terminal: voice. `--text`, `--wake`, `--verbose`, `--vault` |
 | `python run_split.py` | text driver with the brain in a supervised child process; this process imports no ML |
 | `python run_bridge.py` | phone bridge alone — no torch, no encoder |
@@ -37,6 +37,8 @@ catch the ABI break coming back (§6.35).
 | `python check_split.py` | **start here for split mode.** Preflight: checks the libraries, the service bus, and each service child, then names which `AERIS_SPLIT_*` flags are safe to enable. Touches no camera or mic, so it is safe to run any time. Exit 0 = nothing failed (§6.35) |
 | `python run_vision_split.py` | gestures with the camera + MediaPipe in a CHILD process; this process imports no cv2/mediapipe. The live check before the vision cutover (§6.23) |
 | `python run_voice_split.py` | mic + speaker in a CHILD process; this process imports no PyAudio/vosk/pygame/PyQt5. Speaks, shows the mic stayed shut, then listens. `--say-only` proves speech needs no mic. The live check before the voice cutover (§6.25) |
+| `python tools/validate_command_routing.py` | routing accuracy on the 528 curated phrasings in `data/command_examples.json`, measured through `JarvisMainEngine.route()`. Loads the engine; changes nothing |
+| `python tools/analyze_corpus_overlap.py` | which intents claim near-identical training patterns — evidence for a corpus trim. Changes nothing (§6.40) |
 
 Note the two GUI generations coexist, and `AERIS.bat` still points at the
 older `run_gui.py`. Ask before changing which surface a launcher opens.
@@ -78,6 +80,50 @@ Windows-specific, and easy to break by moving imports:
   `core/torch_setup.pin_torch_threads()`, called from every lazy load site —
   call it from any new one.
 
+## How a turn flows
+
+`process_text` → `_process_text_inner`, which walks `_TURN_STEPS` in order.
+Each `_step_*` method returns a reply (the turn ends) or `_PASS` — not `None`,
+which is a legitimate reply. Pending state resolves first (anticipation offer,
+slot-fill, disambiguation, destructive confirm, proactive offer), then things
+to *remember* rather than do (memory, goals, preferences, routines, temporal
+recall), then `_run_commands` splits the utterance and runs `_process_segment`
+per command. `tests/test_turn_steps.py` pins the order; a new pre-routing
+behaviour is one step method plus one tuple entry.
+
+Before splitting, `_run_commands` offers the text to **`core/chain_planner.py`**
+(`_try_chain`). It claims only two shapes, with no LLM call: data flow, where a
+command's reply feeds a sink (note / file / clipboard / phone / translate /
+summarize — "weather batao aur phone pe bhejo", or "isko note kar lo" on the
+last answer), and numeric conditions ("agar battery 30 se kam hai to …
+warna …"). Every command step still goes through `_process_segment`, so routing
+guards and the confirm gate apply per step; a step that asks the user something
+pauses the chain. Everything else returns `None` and flows on unchanged —
+plain "X aur Y" to the splitter, open-ended goals to the LLM agent. Pure tests:
+`tests/test_chain_planner.py`; engine tests: `tests/test_chain_engine.py` (slow).
+
+Inside a segment, **`route(text)`** picks the intent with no side effects:
+repair alias → exact pattern → subspan scan (up to 6 trimmed variants: cheap tiers per span via
+`brain.predict_fast` — LRU → exact → arithmetic → `_BUILTIN_ANCHORS` — stopping
+at the first certain span, then every miss in ONE batched k-NN/neural pass via
+`brain.predict_many`; keep new classifier work batch-capable) → app gazetteer
+(`entity_extractor.intent_hint`) → `_guard_dangerous_route`. The validator
+measures `route()` itself, so its number is what a real turn gets
+(2026-09-15: 95.5% accepted, 77.3% strict).
+
+Fixing a mis-route without a retrain (retraining is the user's to run):
+- a clear signal for one intent → an anchor in `core/brain._BUILTIN_ANCHORS`
+  (or, without code, `data/routing_anchors.json`)
+- a request that landed in the wrong *family* → a rule in
+  `_guard_dangerous_route`, which must stay two-sided: rescue the broken route,
+  leave correct neighbours alone
+
+Add the phrase **and its over-catch traps** to `tests/test_routing_anchors.py` or
+`tests/test_dangerous_route_guard.py`. The gazetteer runs after the anchors and
+overrides them when the text names an app ("music chalu karo" → open_app).
+Anything that can shut down, delete or wipe belongs in
+`confirm_gate.DESTRUCTIVE_SKILLS` before a routing rule points at it.
+
 ## What leaves the machine
 
 **`docs/PRIVACY.md`** lists every network-capable module, what it sends, and
@@ -106,6 +152,7 @@ combined:
 | --- | --- |
 | `AERIS_SPLIT_BRAIN=1` | brain runs in a supervised child process; the GUI imports no ML (fixes the 0xC0000374 crash class) |
 | `AERIS_LITE_ML=1` | boot loads **no** model weights; the tiered router pulls the encoder / neural head / spaCy / chat gate in on the first utterance that needs them |
+| `AERIS_PREWARM` | **on by default, acts only with lite boot**: right after boot the engine loads those same models on a background thread (`start_background_warmup` → `brain.warm_up`), so boot stays fast and the first heavy command doesn't stall. A command arriving mid-warm waits on the single in-flight load; cheap-tier commands never wait. `0` restores fully lazy lite boot (`AERIS_LIGHT.bat` sets it). `tests/conftest.py` sets `0` for the suite |
 | `AERIS_IDLE_UNLOAD_S=<n>` | idle window before model weights are dropped (default 300, `0` = never). The ticker starts from `setup_iter`, so it covers the in-process engine *and* the split child, and sweeps the encoder, the neural head, spaCy and the local LLM |
 | `AERIS_LLM_IDLE_UNLOAD_S=<n>` | idle window for the local Qwen gguf alone — it is ~1 GB and by far the most expensive thing to reload, so you may want it held longer than the encoder. Falls back to `AERIS_IDLE_UNLOAD_S`, then 300 |
 | `AERIS_SPLIT_VOICE=1` | `make_voice_engine()` returns a `RemoteVoiceEngine` — mic and speaker run in a child process behind the same six Qt signals `VoiceWorker` already consumes, so both GUIs are unchanged apart from one line each. Falls back to in-process if the split breaks. **Run `python run_voice_split.py` first.** See §6.31 |
@@ -174,11 +221,12 @@ in before editing:
 | --- | --- | --- |
 | `aeris_remote/` | Flutter | The mature companion: pairing, LAN + Firebase bridge, wake word, WebRTC screen mirror, file transfer, on-device skills |
 | `aeris_mobile/` | Flutter | Newer, started 2026-08-08. A tiered assistant: on-device skills first, then laptop, then cloud, with the answering tier shown in the UI |
+| `aeris_assistant/` | Flutter + Kotlin | Newest, started 2026-11-16. Assistant-first app with a decluttered sci-fi HUD. v0.1 built (voice loop, Hinglish router, approvals, log/memory/protocols/settings); wake word next. Design rules in `aeris_assistant/docs/DESIGN.md`, plan in `docs/BUILD_GUIDE.md` |
 | `mobile/android/` | Kotlin | Native app (Room DAOs for tasks/expenses) |
 | `mobile/aeris_expense/` | Flutter | Standalone expense tracker |
 
 `aeris_mobile/lib/transport/crypto.dart` is deliberately byte-compatible with
-`core/cloud_bridge.py` and with `aeris_remote/lib/crypto.dart` — AES-256-GCM,
+`core/cloud_bridge.py` and with `aeris_remote/lib/laptop/crypto.dart` — AES-256-GCM,
 12-byte nonce, `{"n": b64(nonce), "ct": b64(ciphertext||tag)}`. If you change
 the envelope on either side, change all three or pairing breaks silently.
 
@@ -192,7 +240,17 @@ via `start ms-settings:developers`. Web builds and `flutter test` work without i
 
 ## Repo hygiene
 
-41 `.pyc` files under `__pycache__/` are still tracked despite being in
-`.gitignore` — they were committed before the ignore rule, so they show up as
-modified in nearly every `git status`. `git rm -r --cached` on them would clean
-this up, but it rewrites what's tracked, so leave it alone unless asked.
+**The GitHub repo (`shivangrastogi/S.Y.N.E.X`) is public.** `.gitignore` has a
+PERSONAL DATA block for what AERIS learns about the user — face embeddings,
+memory, notes, journals, the ledger, the expense workbook, snippets — plus
+runtime state, logs and build output. The files exist locally and are created
+on first use, so a fresh clone runs without them. Before committing anything
+new under `data/`, decide which kind it is: shipped defaults (intents, corpora,
+models, `settings.json`, `routines.json`, `macros.json`, `modes.json`) stay
+tracked; anything that records the user goes in that block.
+`data/user_memory.json` and one crash log are still in history pushed before
+2026-09-15.
+
+Dev-only diagnostics live in `tools/`. The root keeps the entry points and the
+doc generators (`gen_*.py`), which tests and `skills/help_catalog.py` reference
+by path.

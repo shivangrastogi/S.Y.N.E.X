@@ -109,6 +109,10 @@ DESCRIPTIONS: Dict[str, tuple] = {
     "AERIS_LITE_ML": (
         "Boot with no model weights; the tiered router pulls each in on the "
         "first utterance that needs it.", "off", "Load"),
+    "AERIS_PREWARM": (
+        "After a lite boot, load the encoder, neural head, spaCy and chat gate "
+        "on a background thread so the first heavy command doesn't stall. "
+        "`0` keeps lite boot fully lazy.", "on (only acts with AERIS_LITE_ML)", "Load"),
     "AERIS_IDLE_UNLOAD_S": (
         "Drop model weights after N seconds idle (encoder, neural head, "
         "spaCy, local LLM). `0` never unloads.", "300", "Load"),

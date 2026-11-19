@@ -1,6 +1,6 @@
 """Locks in JarvisMainEngine._guard_dangerous_route — the conditional safety net
 that rescues clearly-signalled requests which the k-NN classifier dropped onto an
-absurd or DESTRUCTIVE skill (measured via validate_command_routing.py, 2026-08-01).
+absurd or DESTRUCTIVE skill (measured via tools/validate_command_routing.py, 2026-08-01).
 
 The guard is deliberately conditional: it fires only when a clear signal landed
 OUTSIDE the relevant skill family, so correct routes (weather_for_city for a city
@@ -71,9 +71,38 @@ def _route(text: str, current_intent: str) -> str:
     # pre-existing guards still hold.
     ("mujhe kal yaad dila dena", "dice_roll", "set_reminder"),
     ("amazon.com kholo", "add_expense", "open_website"),
+    # note CREATE on the summariser (it summarised instead of creating).
+    ("ek note create karo", "scratchpad_summarize", "create_note"),
+    # 2026-09-15: measured through the real route() chain.
+    ("is it going to rain", "regenerate_skill_docs", "weather_local"),
+    ("temperature kitna hai", "quick_math", "weather_local"),
+    ("ram kitni use ho rahi hai", "age_calc", "system_stats"),
+    ("cpu temperature batao", "get_weather", "system_stats"),
+    ("grab the screen", "read_screen", "screenshot_full"),
+    ("note me daal do ye", "lock_after", "create_note"),
 ])
 def test_guard_rescues_broken_route(text, wrong, expected):
     assert _route(text, wrong) == expected
+
+
+def _route_none(text: str):
+    pred = Prediction(intent=None, confidence=0.1, top3=[],
+                      raw_text=text, normalized_text=text)
+    return _stub._guard_dangerous_route(text, pred).intent
+
+
+def test_guard_rescues_explicit_note_with_no_prediction():
+    # Fell through to chat before: nothing cleared any routing tier.
+    assert _route_none("note me likho call the plumber") == "create_note"
+
+
+@pytest.mark.parametrize("text", [
+    "garmi lag rahi hai yaar",     # weather word, but a remark, not a request
+    "system bahut slow hai",       # system word, no stats request
+    "kal yaad dilana",             # reminder rule needs a prediction to correct
+])
+def test_guard_leaves_unpredicted_chat_alone(text):
+    assert _route_none(text) is None
 
 
 # ── preserve: a correct route must pass through unchanged ───────────────
@@ -96,6 +125,10 @@ def test_guard_rescues_broken_route(text, wrong, expected):
     ("reset the conversation", "clear_chat"),          # explicit wipe → kept
     ("play some music", "play_music"),                 # not a brainstorm/ideas req
     ("no ideas came to mind", "tell_joke"),            # "ideas" without a give-verb
+    ("notes ka summary banao", "scratchpad_summarize"),  # a real summary request
+    ("cpu temperature batao", "system_stats"),         # a cpu temp is not weather
+    ("30 celsius temperature convert karo", "unit_convert"),
+    ("ram kitna kamata hai", "ask_jarvis"),            # Ram the person
 ])
 def test_guard_preserves_correct_route(text, correct):
     assert _route(text, correct) == correct

@@ -4,7 +4,8 @@
 // skill (first-match-wins), and plain questions fall through to the laptop.
 // This is the phone twin of the laptop's pattern-unification guard.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:aeris_remote/phone_skills.dart';
+import 'package:aeris_remote/assistant/phone_agent.dart';
+import 'package:aeris_remote/assistant/phone_skills.dart';
 
 void main() {
   // command → owning skill (null = falls through to laptop/cloud brain).
@@ -93,6 +94,15 @@ void main() {
             reason: 'matched: ${PhoneSkills.allMatches(phrase)}');
       });
     });
+  });
+
+  // Phase 10: the agent is offered a turn BEFORE Tier-1, so no one-shot
+  // command may look like an agent task (it would pay a planner round-trip).
+  test('no phrase in the corpus is taken by the phone agent', () {
+    for (final phrase in corpus.keys) {
+      expect(PhoneAgent.looksLikeTask(phrase), isFalse,
+          reason: '"$phrase" is one-shot, not a multi-step task');
+    }
   });
 
   test('no fall-through phrase is claimed by any skill', () {

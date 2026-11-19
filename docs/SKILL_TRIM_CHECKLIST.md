@@ -57,7 +57,7 @@ neural head, which is currently **stale (on k-NN fallback)** — that's why
 semantically-near-but-wrong neighbours win. After any trims:
 ```
 python -m core.retrain
-python validate_command_routing.py    # target: 50% → 90%+
+python tools/validate_command_routing.py    # target: 50% → 90%+
 ```
 
 ## How to approve

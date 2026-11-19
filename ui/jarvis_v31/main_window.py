@@ -150,25 +150,30 @@ class BrainWorker(QObject):
                 self._initialize_split()
                 return
 
-            # Gentle-boot throttle: a short sleep between phases releases
-            # the GIL + CPU so animations stay smooth on iGPU-less laptops.
-            # Boot may take longer overall — that's fine, the app is
-            # already open and responsive. Tunable via env.
-            try:
-                throttle_ms = int(os.environ.get("AERIS_BOOT_THROTTLE_MS", "90"))
-            except ValueError:
-                throttle_ms = 90
-
-            def _breathe():
-                if throttle_ms > 0:
-                    QThread.msleep(throttle_ms)
-
             # AERIS_LITE_ML: the whole point is that no ML lands in RAM until
             # an utterance needs it — so skip the pre-import parade (and the
             # torch thread-pinning that would import torch to do it). The
             # engine's tiered router pins torch on its own first load.
             from core.lite_ml import lite_ml_enabled
             _lite = lite_ml_enabled()
+
+            # Gentle-boot throttle: a short sleep between phases releases
+            # the GIL + CPU so animations stay smooth on iGPU-less laptops.
+            # Boot may take longer overall — that's fine, the app is
+            # already open and responsive. Tunable via env. Lite boot's
+            # chunks are milliseconds of JSON/dict work with nothing to
+            # smooth over, so it defaults to no sleep: ~16 x 90 ms was most
+            # of a lite boot.
+            _default_throttle = 0 if _lite else 90
+            try:
+                throttle_ms = int(os.environ.get("AERIS_BOOT_THROTTLE_MS",
+                                                 str(_default_throttle)))
+            except ValueError:
+                throttle_ms = _default_throttle
+
+            def _breathe():
+                if throttle_ms > 0:
+                    QThread.msleep(throttle_ms)
 
             if _lite:
                 self.load_progress.emit(

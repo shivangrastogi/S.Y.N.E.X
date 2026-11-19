@@ -196,6 +196,12 @@ class CloudBridge:
         self._presence_stop = threading.Event()
         self._presence_thread: Optional[threading.Thread] = None
         self._started = False
+        # start() has several callers — the engine's boot (now on its own
+        # thread), the bridge subsystem's boot and retry, `rearm` after a key
+        # rotation. The `_started` flag alone let two concurrent callers both
+        # pass the check and install two Firestore listeners; this serialises
+        # them so "idempotent" holds across threads too.
+        self._start_lock = threading.Lock()
         self._seen_ids: set = set()
         # Phase 7: continuous two-way clipboard mirror. A poller watches the
         # laptop clipboard; _clip_last holds the last value we sent OR received,
@@ -259,6 +265,11 @@ class CloudBridge:
               ) -> tuple[bool, str]:
         """Begin listening for phone messages. Idempotent.
         ``process_fn=None`` falls back to the engine hook."""
+        with self._start_lock:
+            return self._start_locked(process_fn)
+
+    def _start_locked(self, process_fn: Optional[Callable[[str], str]] = None
+                      ) -> tuple[bool, str]:
         if self._started:
             return True, "already running"
         if bridge_disabled():

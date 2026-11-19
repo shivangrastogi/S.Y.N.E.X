@@ -374,6 +374,11 @@ class EntityExtractor:
         # AND bypass the destructive-action confirmation.
         if re.search(r"\b(?:kill|terminate)\b", text, re.IGNORECASE):
             return None
+        # "whatsapp web kholo" / "spotify ki website kholo" names the SITE: the
+        # app gazetteer matching "whatsapp" must not force open_app over it.
+        if re.search(r"\b(?:web|website|site)\b|\.(?:com|in|org|net|io)\b",
+                     text, re.IGNORECASE):
+            return None
         if self._extract_app(text) is None:
             return None
         toks = {t.lower() for t in re.findall(r"[a-zA-Z]+", text)}

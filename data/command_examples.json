@@ -1,6 +1,19 @@
 {
   "_comment": "Hand-curated natural example phrases per command, consumed by gen_commands_readme.py (leads the Examples list ahead of raw router patterns). Add batches over time; regenerate docs/COMMANDS.md after editing.",
 
+  "_also_ok": {
+    "_why": "Skills that give the same result as the core command an example is labelled with. The labels predate them and still name core stubs (get_weather is a hardcoded '25 degrees'). tools/validate_command_routing.py reports strict and accepted accuracy separately, so this list can't hide a real mis-route.",
+    "take_screenshot": ["screenshot_full"],
+    "get_weather": ["weather_local", "weather_for_city", "real_weather"],
+    "get_time": ["current_time"],
+    "system_info": ["system_stats", "memory_stats", "disk_space", "cpu_info"],
+    "shutdown_system": ["shutdown_pc", "restart_pc", "sleep_pc"],
+    "open_website": ["open_in_browser"],
+    "calculate": ["quick_calc", "factorial_power", "number_stats", "tip_calc", "compound_interest"],
+    "search_web": ["web_search"],
+    "create_note": ["append_note"]
+  },
+
   "open_app": [
     "chrome kholo", "open notepad", "spotify launch karo", "calculator open kar do",
     "vs code kholo", "open file explorer", "settings kholo", "task manager open karo",

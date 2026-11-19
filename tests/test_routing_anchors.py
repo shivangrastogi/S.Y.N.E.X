@@ -121,6 +121,41 @@ def test_plain_arithmetic_does_not_fire(text):
     ("system commands kya hain", "help_catalog"),
     ("math commands", "help_catalog"),
     ("voice commands", "help_catalog"),
+    # 2026-09-15 pass: each row was a measured mis-route.
+    ("meri english theek karo", "fix_grammar"),          # was day_of_week
+    ("sentence sahi kar do", "fix_grammar"),             # was volume_up
+    ("proofread this sentence", "fix_grammar"),
+    ("galtiyan theek karo is text ki", "fix_grammar"),
+    ("zara lock kar do", "lock_screen"),                 # was volume_mute
+    ("AERIS screen lock karo", "lock_screen"),           # was open_settings_panel
+    ("lock ho jao", "lock_screen"),                      # was append_note
+    ("shutdown karo", "shutdown_pc"),                    # was cancel_shutdown
+    ("power off karo", "shutdown_pc"),                   # was factorial_power
+    ("band kar do laptop", "shutdown_pc"),               # was laptop_screen_share
+    ("restart karo pc", "restart_pc"),
+    ("netflix kholo", "open_in_browser"),                # was youtube_jump
+    ("reddit kholo", "open_in_browser"),                 # was tab_switch
+    ("flipkart ki site kholo", "open_in_browser"),
+    ("open linkedin", "open_in_browser"),                # was clipboard_open_url
+    ("root 81 kya hai", "quick_calc"),                   # was synonyms_antonyms
+    ("square root of 256", "quick_calc"),
+    ("5 factorial kya hai", "factorial_power"),          # was focus_deep_status
+    ("square of 17", "factorial_power"),
+    ("youtube pe song laga do", "play_youtube"),         # was play_music
+    ("youtube pe motivational video", "play_youtube"),   # was motivate_me
+    ("youtube kholo aur music chalao", "play_youtube"),
+    ("dhundo ipl schedule", "search_web"),               # was volume_down
+    ("grammar mistake fix karo", "fix_grammar"),         # was shorten_text
+    ("make this grammatically correct", "fix_grammar"),  # was translate_to
+    ("make me laugh", "tell_joke"),                      # was i_am_master
+    ("kuch hasane wala bolo", "tell_joke"),
+    ("inspire me please", "motivate_me"),                # was uuid_generate
+    ("give me a boost", "motivate_me"),                  # was uuid_generate
+    ("kuch hausla badhane wala bolo", "motivate_me"),    # was calculate
+    ("demotivated feel kar raha hoon", "motivate_me"),
+    ("pc ko sula do", "sleep_pc"),                       # was pomodoro_status
+    ("leetcode kholo", "open_in_browser"),               # was open_app
+    ("open whatsapp web", "open_in_browser"),            # was open_app
 ])
 def test_anchor_fires(text, intent):
     assert _anchor_intent(text) == intent
@@ -157,6 +192,20 @@ def test_anchor_fires(text, intent):
     "gaana rok do",                    # play_music exclude (rok = stop)
     "help me open chrome",             # help_catalog exclude ("help me <do X>")
     "help me write an email",          # help_catalog exclude
+    "lock after 5 minutes",            # lock_screen: scheduled → lock_after
+    "unlock karo",                     # lock_screen exclude
+    "caps lock band karo",             # lock_screen exclude
+    "shutdown cancel karo",            # shutdown_pc exclude (the opposite!)
+    "shutdown mat karo",               # shutdown_pc exclude
+    "shutdown 30 minute baad",         # shutdown_pc: a schedule, not now
+    "chrome restart karo",             # restart_pc: an app, not the PC
+    "aeris restart karo",              # restart_pc: the assistant, not the PC
+    "instagram app kholo",             # open_in_browser: explicit app
+    "chrome me gmail kholo",           # open_in_browser anchor stays out; skill patterns own it
+    "youtube channel ke ideas do",     # play_youtube exclude → brainstorm guard
+    "mujhe grammar school yaad hai",   # fix_grammar needs a fix verb, not the bare word
+    "energy calculate karo 5 kwh",     # motivate_me exclude (energy_calc)
+    "pc sleep after 10 minutes",       # sleep_pc: scheduled, not now
 ])
 def test_anchor_does_not_overcatch(text):
     got = _anchor_intent(text)

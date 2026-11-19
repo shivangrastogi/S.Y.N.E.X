@@ -120,7 +120,7 @@ You can't tune what you can't see.
   `[webrtc-stats] fps=57 br=6.2Mbps rtt=18ms loss=0.2%`.
 - Expose latest stats dict via `get_stats()` for the GUI/skills.
 
-**Phone** (`aeris_remote/lib/webrtc_client.dart` + `chat_screen.dart`):
+**Phone** (`aeris_remote/lib/laptop/webrtc_client.dart` + `chat_screen.dart`):
 - `Timer.periodic(2s)` → `_pc.getStats()`; keep `framesPerSecond`,
   `bytesReceived` delta, `currentRoundTripTime` (from candidate-pair).
 - Render into the existing live-overlay transport badge:
@@ -282,7 +282,7 @@ killed mid-session.
 
 ### Phase 3 — Phone capture quality (phone→laptop 60fps)
 
-**`aeris_remote/lib/phone_screen_sender.dart`**:
+**`aeris_remote/lib/laptop/phone_screen_sender.dart`**:
 ```dart
 _stream = await navigator.mediaDevices.getDisplayMedia({
   'video': {
@@ -335,7 +335,7 @@ stalls every queued mouse-move behind it (TCP-like lag on flaky links).
 - Keep "control" (existing) reliable channel for: click, down/up, scroll,
   key, type, hotkey, clipboard. ONLY `{'t':'move'}` rides "mouse".
 
-**Phone `aeris_remote/lib/webrtc_client.dart`**:
+**Phone `aeris_remote/lib/laptop/webrtc_client.dart`**:
 - In `onDataChannel`, keep references by `channel.label` (`control` / `mouse`).
 - `sendMouse(ev)`: if `ev['t'] == 'move'` and mouse channel open → mouse channel;
   else control channel. If mouse channel not open yet → drop moves (never queue).
@@ -455,9 +455,9 @@ Once Phases 1-6 are verified on-device:
 | `core/webrtc_stream.py` | 0,1,2,4,6 |
 | `core/cloud_bridge.py` | 2 |
 | `ui/jarvis_v31/main_window.py` | 2 |
-| `aeris_remote/lib/webrtc_client.dart` | 0,4 |
-| `aeris_remote/lib/phone_screen_sender.dart` | 3 |
-| `aeris_remote/lib/chat_screen.dart` | 0 (badge) |
+| `aeris_remote/lib/laptop/webrtc_client.dart` | 0,4 |
+| `aeris_remote/lib/laptop/phone_screen_sender.dart` | 3 |
+| `aeris_remote/lib/home/chat_screen.dart` | 0 (badge) |
 | `data/secrets/turn.json` | 5 (user creates) |
 | `docs/MIRRORING_BASELINE.md` (NEW) | 0 |
 

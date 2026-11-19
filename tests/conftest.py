@@ -69,6 +69,11 @@ except Exception:
 # Set before any test module imports, so no engine can beat it to the punch.
 os.environ.setdefault("AERIS_DISABLE_BRIDGE", "1")
 
+# No background model warm-up either. A lite-booted engine otherwise starts a
+# thread that loads torch + the encoder while other tests run — slow, and the
+# same concurrent-torch shape as above. Tests that need warm-up opt in.
+os.environ.setdefault("AERIS_PREWARM", "0")
+
 
 # Skip legacy hardware-touching scripts.
 collect_ignore = [
@@ -146,7 +151,7 @@ _SLOW_MODULES = {
     "test_iter9_voice_perms",
     "test_tier1_phase1", "test_tier1_phase2", "test_tier2", "test_tier3",
     "test_tier4", "test_tier5", "test_tier5b", "test_tier6", "test_tier7",
-    "test_tier8",
+    "test_tier8", "test_chain_engine",
     # Process-isolation tests spawn real child processes — cheap in isolation
     # but Windows 'spawn' re-imports the suite, so they crawl inside the full
     # fast lane. Run them in the slow lane. (The RemoteBrain/run_split/brain

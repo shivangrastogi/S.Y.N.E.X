@@ -1,0 +1,7 @@
+# generated data, private pools and build output — never commit
+out/
+private/
+dist/
+.pytest_cache/
+__pycache__/
+notebooks/.ipynb_checkpoints/

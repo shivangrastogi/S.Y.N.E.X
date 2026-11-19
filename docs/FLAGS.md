@@ -24,6 +24,7 @@ Discovered by scanning the source, so this cannot silently miss a flag; descript
 | `AERIS_LITE_ML` | off | Boot with no model weights; the tiered router pulls each in on the first utterance that needs it. |
 | `AERIS_LLM_IDLE_UNLOAD_S` | AERIS_IDLE_UNLOAD_S, else 300 | Idle window for the local Qwen gguf alone — ~1 GB and the most expensive thing to reload, so you may want it held longer. |
 | `AERIS_MATH_THREADS` | 1 | Overrides the BLAS/OMP thread pin (default 1, which avoids heap corruption when audio and encode threads run together). |
+| `AERIS_PREWARM` | on (only acts with AERIS_LITE_ML) | After a lite boot, load the encoder, neural head, spaCy and chat gate on a background thread so the first heavy command doesn't stall. `0` keeps lite boot fully lazy. |
 
 ## Devices
 
@@ -51,7 +52,7 @@ Discovered by scanning the source, so this cannot silently miss a flag; descript
 - `AERIS_AFFECT_OFF` — core/affect.py:103
 - `AERIS_ANTICIPATE_OFF` — core/anticipation.py:51
 - `AERIS_AUTONOMY_LEVEL` — core/trust_ladder.py:67
-- `AERIS_BOOT_THROTTLE_MS` — ui/jarvis_v31/main_window.py:158
+- `AERIS_BOOT_THROTTLE_MS` — ui/jarvis_v31/main_window.py:169
 - `AERIS_BRAIN_HIBERNATE_S` — core/brain_hibernator.py:51
 - `AERIS_CAMERA_IDLE_S` — core/gesture_engine.py:76
 - `AERIS_CLASSIC_BOOT` — run_gui.py:137
@@ -63,8 +64,9 @@ Discovered by scanning the source, so this cannot silently miss a flag; descript
 - `AERIS_LITE_ML` — core/lite_ml.py:33
 - `AERIS_LLM_IDLE_UNLOAD_S` — core/local_llm.py:62
 - `AERIS_MATH_THREADS` — main.py:42, run_gui.py:78
+- `AERIS_PREWARM` — core/lite_ml.py:46
 - `AERIS_REASONING_CACHE_OFF` — core/reasoning_cache.py:57
-- `AERIS_REPAIR_MEMORY` — core/main_engine.py:186
+- `AERIS_REPAIR_MEMORY` — core/main_engine.py:196
 - `AERIS_SHOW_NODES` — ui/jarvis_v31/wiring_system.py:657
 - `AERIS_SPLIT_BRAIN` — core/brain_backend.py:25, core/split_preflight.py:283, run_gui.py:162
 - `AERIS_SPLIT_VISION` — core/remote_gesture_engine.py:38, core/split_preflight.py:120, core/split_preflight.py:122, core/split_preflight.py:156 (+1 more)

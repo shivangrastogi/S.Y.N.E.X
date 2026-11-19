@@ -32,3 +32,16 @@ def lite_ml_enabled(flag: Optional[Any] = None) -> bool:
     """True when the engine should boot without loading any ML weights."""
     v = flag if flag is not None else os.environ.get("AERIS_LITE_ML", "")
     return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def prewarm_enabled(flag: Optional[Any] = None) -> bool:
+    """True unless ``AERIS_PREWARM`` is explicitly off.
+
+    Only consulted after a lite boot: the engine then loads the heavy tier
+    on a background thread (``JarvisMainEngine.start_background_warmup``),
+    so boot stays fast AND the first heavy command doesn't pay the load.
+    ``AERIS_PREWARM=0`` restores lite boot's original, fully lazy behaviour
+    for when resting memory matters more than first-command latency.
+    """
+    v = flag if flag is not None else os.environ.get("AERIS_PREWARM", "1")
+    return str(v).strip().lower() not in ("0", "false", "no", "off")

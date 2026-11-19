@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'pairing.dart';
-import 'chat_screen.dart';
-import 'theme.dart';
-import 'wake_controller.dart';
+import 'laptop/pairing.dart';
+import 'home/chat_screen.dart';
+import 'ui/theme.dart';
+import 'wake/wake_controller.dart';
+import 'core/lang.dart';
+import 'brain/brain.dart';
 
 // FCM background handler — runs in its own isolate when a push arrives
 // with the app closed/background. Must be a top-level function.
@@ -26,6 +28,10 @@ void main() async {
   // Wake-word service ↔ app port; restart the hotword if it was left on.
   WakeController.initPort();
   WakeController.ensureStarted();
+  await Lang.load(); // Hinglish / English mode, before any reply
+  // On-device brain settings + model discovery (the model itself loads
+  // lazily on the first turn that needs it, in a native worker isolate).
+  await AerisBrain.instance.load();
   await Firebase.initializeApp();
   // Anonymous auth — the Firestore rules require request.auth != null.
   try {
@@ -49,18 +55,7 @@ class AerisRemoteApp extends StatelessWidget {
     return MaterialApp(
       title: 'AERIS Remote',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: A.deck,
-        colorScheme: const ColorScheme.dark(
-          primary: A.plasmaB,
-          surface: A.panel,
-          secondary: A.plasmaA,
-          error: A.hot,
-        ),
-        splashFactory: InkSparkle.splashFactory,
-        useMaterial3: true,
-      ),
+      theme: A.theme(), // Aurora Pro (theme.dart)
       home: const _Gate(),
     );
   }

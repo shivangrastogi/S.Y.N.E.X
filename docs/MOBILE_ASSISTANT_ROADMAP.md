@@ -95,7 +95,7 @@ sherpa-onnx = Apache-2.0, no account, keyword plain text se — training hi nahi
       2.0→1.5 karo (kam pakde to 2.5, ya global keywordsThreshold ghatao)
 
 ### Phase 2 — On-device skills (T1) ✅ BUILT 2026-07-11
-`lib/phone_skills.dart` — Tier-1 router, runs offline, no laptop. Wired into
+`lib/assistant/phone_skills.dart` — Tier-1 router, runs offline, no laptop. Wired into
 `chat_screen.dart` `_send()` as the FIRST tier (before laptop/offline fallback).
 - [x] App launch: "WhatsApp/YouTube/Instagram kholo" (25+ app map + Play Store
       fallback + settings/camera intents)
@@ -115,7 +115,7 @@ sherpa-onnx = Apache-2.0, no account, keyword plain text se — training hi nahi
       "youtube kholo". First call/contacts use prompts CALL_PHONE/READ_CONTACTS.
 
 ### Phase 3 — Cloud brain + web answers (T3) ✅ BUILT 2026-07-11
-`lib/cloud_brain.dart` — Gemini REST (generateContent), Hinglish spoken-first
+`lib/assistant/cloud_brain.dart` — Gemini REST (generateContent), Hinglish spoken-first
 system prompt, key/model/grounding in flutter_secure_storage.
 - [x] Gemini integration (http package, v1beta REST, key from AI Studio free)
 - [x] **Grounding reality (checked 2026-07-11): live Google Search is PAID on
@@ -175,6 +175,39 @@ custom-voice keyword tuning.
 - [x] File transfer + screen share already built (earlier phases) — voice
       hooks reuse the bridge.
 - [ ] Cross-device shared context = future.
+
+### Phase 10 — Phone agent (multi-step, uses other apps) ✅ BUILT 2026-10-16
+"Hi Jarvis, kitchen mein khade aadmi ki image banao aur Ravi ko WhatsApp pe
+bhejo" → AERIS operates the free Gemini/ChatGPT *apps* like a person (no image
+API). `lib/assistant/phone_agent.dart`:
+- [x] `looksLikeTask()` cheap pre-filter (chains / "image banao" / "khud
+      karo"), checked in `_send` BEFORE Tier-1. The guard test in
+      `phone_skills_test` proves no one-shot command trips it.
+- [x] `plan()` — one Gemini JSON call with the INSTALLED APPS list → is_task,
+      Hinglish summary, steps, messages_someone. Not a task → normal tiers.
+- [x] Confirm up front ("…bhejunga. Karun? Haan ya nahi?") whenever the plan
+      messages a person — asked while AERIS is still on screen.
+- [x] `run()` loop: `dumpUi()` numbered elements → Gemini (JSON mode,
+      thinkingBudget 0 on 2.5-flash) picks ONE action → execute → re-read.
+      Actions: open_app, tap, long_press, type, enter, scroll, back, home,
+      wait, find_contact, whatsapp_send_latest_image, whatsapp_chat, skill
+      (any Tier-1 phone skill), say, done, fail. Caps: 30 steps / 5 min / 3
+      brain errors; repeat-nudge after 3 identical action+screen; "stop".
+- [x] Hard guards in code (not just the prompt): Send in messaging apps
+      blocked unless the plan was approved to message; pay/buy/subscribe/
+      upgrade/uninstall/delete-account taps always blocked.
+- [x] Kotlin: AerisAccessibilityService dumpUi/clickId/longClickId/typeId
+      (ACTION_SET_TEXT)/pressEnter (API 30+), gesture-tap fallback; MainActivity
+      apps `list` + `whatsappLatestImage` (newest MediaStore image ≤15 min →
+      ACTION_SEND to com.whatsapp with `jid` extra). READ_MEDIA_IMAGES added.
+- [x] test/phone_agent_test.dart — fake phone + scripted brain run the real
+      loop (full Gemini→WhatsApp example, every guard, caps). 96/96 green;
+      debug APK builds.
+- [ ] LIVE TEST on RMX3741: needs Gemini key + Screen control on + Gemini app
+      installed. Expect prompt tuning once real Gemini/WhatsApp dumps are seen
+      (Assistant → Logs shows every step as "n. action → result").
+- [ ] Future: screenshot → Gemini vision when the a11y tree is too thin
+      (canvas apps); TTS "ruk jao" barge-in during a run.
 
 ---
 

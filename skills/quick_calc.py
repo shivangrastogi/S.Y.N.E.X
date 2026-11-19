@@ -54,7 +54,7 @@ _PCT_OF_RE = re.compile(
     re.IGNORECASE,
 )
 _SQRT_RE = re.compile(
-    r"(?:sq(?:uare)?\s*root\s+of|root\s+of|sqrt\s*\(?)\s*(\d+(?:\.\d+)?)\)?",
+    r"(?:sq(?:uare)?\s*root(?:\s+of)?|\broot(?:\s+of)?|sqrt\s*\(?)\s*(\d+(?:\.\d+)?)\)?",
     re.IGNORECASE,
 )
 

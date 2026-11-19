@@ -89,6 +89,23 @@ class ConversationHistory:
             return t.content
         return None
 
+    def last_assistant_text(self, *, max_age_s: float = 300.0) -> Optional[str]:
+        """The most recent assistant reply, if it is younger than
+        ``max_age_s`` — what "isko note kar lo" points at. A stale answer
+        from an hour ago is not what the user means."""
+        for t in reversed(self._buf):
+            if t.role != "assistant":
+                continue
+            try:
+                age = (datetime.now()
+                       - datetime.fromisoformat(t.timestamp)).total_seconds()
+            except ValueError:
+                return None
+            if age > max_age_s or not (t.content or "").strip():
+                return None
+            return t.content
+        return None
+
     def __len__(self) -> int:
         return len(self._buf)
 

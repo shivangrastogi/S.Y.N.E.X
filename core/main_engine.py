@@ -100,6 +100,13 @@ def _is_cancel(text: str) -> bool:
     return _norm(text) in _CANCEL_KEYWORDS
 
 
+# Explicit note CREATION ("note banao", "note me likho X", "likh do ek note").
+# Shared by the dangerous-route guard's note rule and its no-prediction rescue.
+_NOTE_CREATE_RE = re.compile(
+    r"\bnote\s+(banao|bana\s+do|create|likho|save|karo|kar\s+lo|me\s+(likho|add|daal\w*))\b|"
+    r"\b(likho|likh\s+do|add)\s+(a\s+|ye\s+|ek\s+)?note\b")
+
+
 def _is_correction(text: str) -> bool:
     return _norm(text) in _CORRECTION_KEYWORDS
 
@@ -164,6 +171,9 @@ class JarvisMainEngine:
         # the metadata of the most recent dispatch, set synchronously at the
         # dispatch seam so the UI can read it right after process_text().
         self.last_dispatch: Optional[dict] = None
+        # Trace of the most recent multi-step chain (core/chain_planner.py),
+        # for the GUI / debugging: which step ran, what it returned.
+        self.last_chain = None
         self.is_running = True
 
         # Dialogue context — the working memory BETWEEN turns that lets
@@ -385,9 +395,25 @@ class JarvisMainEngine:
             except Exception:
                 pass
             if _settings.get("bridge_enabled", True):
-                _ok, _msg = _b.start(None)
-                if _ok:
-                    log.info("cloud bridge auto-started")
+                # On its own thread. `start()` opens a live Firestore
+                # connection — measured at ~15 s on this laptop — and running
+                # it inline here made "brain ready" wait on the phone bridge,
+                # which no local command needs. The hook above is already
+                # wired, so a phone message that arrives mid-connect is
+                # handled. start() is internally locked, so the bridge
+                # subsystem's own boot/retry can race this safely.
+                import threading as _t
+
+                def _start_bridge():
+                    try:
+                        ok, msg = _b.start(None)
+                        log.info("cloud bridge %s", "auto-started" if ok
+                                 else f"not started: {msg}")
+                    except Exception as e:
+                        log.debug("cloud bridge start failed: %s", e)
+
+                _t.Thread(target=_start_bridge, name="AerisBridgeStart",
+                          daemon=True).start()
         except Exception as _bridge_err:
             log.debug("cloud bridge not started: %s", _bridge_err)
 
@@ -411,6 +437,12 @@ class JarvisMainEngine:
             self.brain.start_idle_unloader()
         except Exception as e:
             log.debug("[engine] idle-unloader not started: %s", e)
+
+        # Lite boot said "ready" with no weights in RAM. Load them now on a
+        # background thread so the first command that needs the encoder
+        # doesn't stall on it. AERIS_PREWARM=0 keeps lite boot fully lazy.
+        if self._lite_ml:
+            self.start_background_warmup()
 
         yield ("SYS", "All modules nominal · brain ready", 100)
 
@@ -448,6 +480,44 @@ class JarvisMainEngine:
             log.warning("[engine] deferred chat-gate warm failed: %s", e)
         log.info("[engine] deferred ML extras warmed in %.1fs",
                  time.monotonic() - t0)
+
+    def start_background_warmup(self, delay_s: float = 1.5) -> bool:
+        """Load the heavy tier on a background thread after a lite boot.
+
+        Lite boot gets AERIS accepting commands in under two seconds, but on
+        its own it moves the model load onto the first utterance that misses
+        the cheap tiers, measured at 14 s on this laptop. Warming straight
+        after boot keeps the fast start and removes that stall whenever the
+        user takes more than a few seconds to speak. A command that needs the
+        encoder mid-warm waits on ENCODER_LOCK for the single load already in
+        flight; cheap-tier commands never wait.
+
+        ``delay_s`` lets the GUI finish its first paint before torch starts
+        competing for the GIL. Returns True if a thread was started. Turned
+        off by ``AERIS_PREWARM=0``.
+        """
+        import threading
+        from core.lite_ml import prewarm_enabled
+        brain = getattr(self, "brain", None)
+        if brain is None or brain.ml_loaded or not prewarm_enabled():
+            return False
+        if getattr(self, "_warmup_thread", None) is not None:
+            return False
+
+        def _run():
+            time.sleep(delay_s)
+            t0 = time.monotonic()
+            try:
+                if brain.warm_up():
+                    log.info("[engine] background warm-up done in %.1fs",
+                             time.monotonic() - t0)
+            except Exception as e:
+                log.warning("[engine] background warm-up failed: %s", e)
+
+        self._warmup_thread = threading.Thread(
+            target=_run, name="AerisWarmup", daemon=True)
+        self._warmup_thread.start()
+        return True
 
     def _build_scheduler(self):
         """Create the reminder scheduler if APScheduler is available."""
@@ -972,317 +1042,529 @@ class JarvisMainEngine:
         offer = f"Waise — {s.command} karoon?"
         return f"{resp}\n\n{offer}" if resp else offer
 
+    # "This step didn't handle the turn." A step's own reply may legitimately
+    # be None (a skill with nothing to say), so None can't mean "keep going".
+    _PASS = object()
+
+    # The turn pipeline, in order. Each step receives the stripped utterance
+    # and returns a reply (which ends the turn) or _PASS. The order IS the
+    # behaviour: pending conversational state is resolved before anything new
+    # is interpreted, and memory / goal / preference capture runs before
+    # command routing, so "mera naam Shivang hai" is stored, never classified.
+    _TURN_STEPS = (
+        "_step_anticipation_reply",   # "haan" to an anticipation offer
+        "_step_slot_fill",            # answering "kis time?"
+        "_step_disambiguation",       # answering "X ya Y?"
+        "_step_destructive_confirm",  # answering "pakka?"
+        "_step_proactive_offer",      # answering a mode offer
+        "_step_feedback_window",      # "nahi galat" right after an action
+        "_step_say_again",            # "kya bola?"
+        "_step_memory",               # recall / store / forget a fact
+        "_step_panic",                # emergency stop and resume
+        "_step_self_query",           # "tu kya kar sakta hai"
+        "_step_goal_capture",         # a standing goal
+        "_step_preference",           # "mujhe X pasand hai"
+        "_step_goal_confirmation",    # "haan" / "cancel" to a parked goal
+        "_step_routine_voice",        # accept / reject / revert a routine
+        "_step_temporal_recall",      # "kal kya kiya tha?"
+        "_step_idle_cancel",          # "cancel" with nothing running
+    )
+
     def _process_text_inner(self, text: str) -> Optional[str]:
         if not text or not text.strip():
             return None
-
         text = text.strip()
+        for name in self._TURN_STEPS:
+            out = getattr(self, name)(text)
+            if out is not self._PASS:
+                return out
+        return self._run_commands(text)
 
-        # Anticipation offer resolution (Phase 4 surface): a "haan" after an offer
-        # replays the suggested command; otherwise the offer is silently dropped.
-        _confirmed = self._resolve_pending(text)
-        if _confirmed is not None:
-            return self._process_segment(_confirmed) or "Ho gaya."
+    def _reply(self, text: str, msg: str) -> str:
+        """Record a turn answered outside skill dispatch, then return the reply."""
+        self.history.add_user(text, "neutral")
+        self.history.add_assistant(msg)
+        return msg
 
-        # ── Step 0a: slot-filling in progress ──
-        if self.state.is_waiting_slot():
-            if _is_cancel(text):
+    # ── pending conversational state ────────────────────────────────────
+
+    def _step_anticipation_reply(self, text: str):
+        """A "haan" after an anticipation offer replays the suggested command;
+        anything else silently drops the offer (Sentient-Partner Phase 4)."""
+        confirmed = self._resolve_pending(text)
+        if confirmed is not None:
+            return self._process_segment(confirmed) or "Ho gaya."
+        return self._PASS
+
+    def _step_slot_fill(self, text: str):
+        if not self.state.is_waiting_slot():
+            return self._PASS
+        if _is_cancel(text):
+            self.state.reset()
+            return "Theek hai, cancel kar diya."
+        # New-command rescue: if the "answer" is VERBATIM a known command
+        # (exact pattern match), the user abandoned the half-finished command
+        # and issued a new one ("note banao" → then "coin toss karo") — run it
+        # instead of storing it as the slot value. Exact-match ONLY, so
+        # free-form slot content ("buy milk") is never hijacked.
+        try:
+            em = self.brain.classifier.exact_match(text)
+            if em and em != (self.state.current_state or {}).get("intent"):
                 self.state.reset()
-                return "Theek hai, cancel kar diya."
-            # New-command rescue: if the "answer" is VERBATIM a known command
-            # (exact pattern match), the user abandoned the half-finished command
-            # and issued a new one ("note banao" → then "coin toss karo") — run it
-            # instead of storing it as the slot value. Exact-match ONLY, so
-            # free-form slot content ("buy milk") is never hijacked.
+                return (self._process_segment(text)
+                        or "Theek hai, cancel kar diya.")
+        except Exception as e:
+            log.debug("[engine] slot-fill new-command rescue skipped: %s", e)
+        # Re-run entity extraction on the answer so "with raj" → "raj",
+        # "5 baje" → "5 baje", etc. — instead of storing the raw answer.
+        intent = self.state.current_state["intent"]
+        waiting_for = self.state.current_state["waiting_for"]
+        extracted = self.entity_extractor.extract(text, intent)
+        answer_text = extracted.get(waiting_for, text).strip()
+        return self._render_state_result(self.state.handle_follow_up(answer_text))
+
+    def _step_disambiguation(self, text: str):
+        if not self.state.is_waiting_disambig():
+            return self._PASS
+        if _is_cancel(text):
+            self.state.reset()
+            return "Theek hai, cancel kar diya."
+        return self._handle_disambig_answer(text)
+
+    def _step_destructive_confirm(self, text: str):
+        """One-turn window: "haan"/"pakka" runs the parked skill, anything else
+        (including cancel) aborts it. See core/confirm_gate.py."""
+        if self._pending_confirm is None:
+            return self._PASS
+        from core.confirm_gate import is_confirmation
+        intent, slots = self._pending_confirm
+        self._pending_confirm = None
+        if is_confirmation(text):
+            out = self.executor.execute(intent, slots)
             try:
-                _em = self.brain.classifier.exact_match(text)
-                if _em and _em != (self.state.current_state or {}).get("intent"):
-                    self.state.reset()
-                    return (self._process_segment(text)
-                            or "Theek hai, cancel kar diya.")
-            except Exception as _e:
-                log.debug("[engine] slot-fill new-command rescue skipped: %s", _e)
-            # Re-run entity extraction on the answer so "with raj" → "raj",
-            # "5 baje" → "5 baje", etc. — instead of storing the raw answer.
-            intent = self.state.current_state["intent"]
-            waiting_for = self.state.current_state["waiting_for"]
-            extracted = self.entity_extractor.extract(text, intent)
-            answer_text = extracted.get(waiting_for, text).strip()
-            return self._render_state_result(self.state.handle_follow_up(answer_text))
+                self.dialogue.note(intent, slots, slots.get("raw_text", ""), out or "")
+            except Exception:
+                pass
+            return out
+        if _is_cancel(text):
+            return "Theek hai, cancel kar diya — kuch delete nahi hua."
+        # Any OTHER input: abort the parked action AND process the new
+        # input normally (pending already cleared → recursion is safe).
+        rest = self.process_text(text)
+        note = "Pehla wala action cancel kar diya. "
+        return note + rest if rest else note.strip()
 
-        # ── Step 0b: disambiguation in progress ──
-        if self.state.is_waiting_disambig():
-            if _is_cancel(text):
-                self.state.reset()
-                return "Theek hai, cancel kar diya."
-            return self._handle_disambig_answer(text)
+    def _step_proactive_offer(self, text: str):
+        """"haan" activates the offered mode; anything else silently drops the
+        offer and the input is processed normally (no scary cancel message)."""
+        if self._pending_offer is None:
+            return self._PASS
+        from core.confirm_gate import is_confirmation
+        intent, slots = self._pending_offer
+        self._pending_offer = None
+        if not is_confirmation(text):
+            return self._PASS
+        out = self.executor.execute(intent, slots)
+        try:
+            self.dialogue.note(intent, slots, slots.get("raw_text", ""), out or "")
+        except Exception:
+            pass
+        return out
 
-        # ── Step 0c: destructive action awaiting confirmation ──
-        # One-turn window: "haan"/"pakka" runs the parked skill, anything
-        # else (including cancel) aborts it. See core/confirm_gate.py.
-        if self._pending_confirm is not None:
-            from core.confirm_gate import is_confirmation
-            intent, slots = self._pending_confirm
-            self._pending_confirm = None
-            if is_confirmation(text):
-                out = self.executor.execute(intent, slots)
-                try:
-                    self.dialogue.note(intent, slots,
-                                       slots.get("raw_text", ""), out or "")
-                except Exception:
-                    pass
-                return out
-            if _is_cancel(text):
-                return "Theek hai, cancel kar diya — kuch delete nahi hua."
-            # Any OTHER input: abort the parked action AND process the new
-            # input normally (pending already cleared → recursion is safe).
-            rest = self.process_text(text)
-            note = "Pehla wala action cancel kar diya. "
-            return note + rest if rest else note.strip()
-
-        # ── Step 0d: proactive OFFER awaiting "haan" (one turn) ──
-        # "haan" activates the offered mode; anything else silently drops the
-        # offer and the input is processed normally (no scary cancel message).
-        if self._pending_offer is not None:
-            from core.confirm_gate import is_confirmation
-            intent, slots = self._pending_offer
-            self._pending_offer = None
-            if is_confirmation(text):
-                out = self.executor.execute(intent, slots)
-                try:
-                    self.dialogue.note(intent, slots,
-                                       slots.get("raw_text", ""), out or "")
-                except Exception:
-                    pass
-                return out
-            # else: fall through — offer dropped, process this input normally.
-
-        # ── Step 1: pending feedback (within one-turn window) ──
-        if self._pending_utterance_id is not None:
-            if _is_correction(text):
-                self.feedback.record_feedback(self._pending_utterance_id, "corrected")
-                self._pending_utterance_id = None
-                return "Sorry. Phir se batao kya karna hai?"
-            # Any other input means the prior execution was implicitly accepted.
-            self.feedback.record_feedback(self._pending_utterance_id, "accepted")
+    def _step_feedback_window(self, text: str):
+        """A correction right after an action marks it wrong; any other input
+        means the previous execution was implicitly accepted."""
+        if self._pending_utterance_id is None:
+            return self._PASS
+        if _is_correction(text):
+            self.feedback.record_feedback(self._pending_utterance_id, "corrected")
             self._pending_utterance_id = None
+            return "Sorry. Phir se batao kya karna hai?"
+        self.feedback.record_feedback(self._pending_utterance_id, "accepted")
+        self._pending_utterance_id = None
+        return self._PASS
 
-        # ── Step 1.5: "what did you just say?" — answer from dialogue context ──
+    def _step_say_again(self, text: str):
+        """"What did you just say?" — answered from dialogue context."""
         again = say_again_reply(text, self.dialogue)
-        if again:
-            return again
+        return again if again else self._PASS
 
-        # ── Step 2a: memory-RECALL first (more specific — needs interrogative form) ──
-        # Recall runs on the FULL utterance before splitting so that
-        # "mera naam kya hai aur mera ghar kahan hai" is still treated as
-        # a single recall pattern (the splitter would otherwise fragment it).
-        recall = self.memory.detect_and_recall(text)
-        if recall:
-            self.history.add_user(text, "neutral")
-            self.history.add_assistant(recall)
-            return recall
+    # ── things to remember rather than do ───────────────────────────────
 
-        # ── Step 2b: memory-SET commands ──
-        ack = self.memory.detect_and_store(text)
-        if ack:
-            self.history.add_user(text, "neutral")
-            self.history.add_assistant(ack)
-            return ack
+    def _step_memory(self, text: str):
+        """Recall runs FIRST and on the full utterance, before any splitting:
+        it is the more specific form (needs an interrogative), and
+        "mera naam kya hai aur mera ghar kahan hai" is one recall, which the
+        splitter would fragment. Then store, then forget (reversible via undo)."""
+        for handler in (self.memory.detect_and_recall,
+                        self.memory.detect_and_store,
+                        self.memory.detect_and_forget):
+            msg = handler(text)
+            if msg:
+                return self._reply(text, msg)
+        return self._PASS
 
-        # ── Step 2c: memory-FORGET commands (reversible via undo) ──
-        forget_ack = self.memory.detect_and_forget(text)
-        if forget_ack:
-            self.history.add_user(text, "neutral")
-            self.history.add_assistant(forget_ack)
-            return forget_ack
-
-        # ── Step 2e: PANIC / resume (Q1·M3) — instant global halt ──
-        _low = text.strip().lower()
+    def _step_panic(self, text: str):
+        """Instant global halt, and its resume (Q1·M3)."""
+        low = text.lower()
         if re.search(r"\b(bilkul ruk ja|sab band kar do|sab rok do|"
-                     r"emergency stop|stop everything|panic)\b", _low):
+                     r"emergency stop|stop everything|panic)\b", low):
             try:
                 from core import autonomy
                 autonomy.set_panic(True)
             except Exception:
                 pass
-            msg = "Sab kuch rok diya — autonomy off (L0). 'resume karo' bolo."
-            self.history.add_user(text, "neutral")
-            self.history.add_assistant(msg)
-            return msg
-        if re.search(r"\b(resume karo|panic off|wapas normal|autonomy on)\b",
-                     _low):
+            return self._reply(
+                text, "Sab kuch rok diya — autonomy off (L0). 'resume karo' bolo.")
+        if re.search(r"\b(resume karo|panic off|wapas normal|autonomy on)\b", low):
             try:
                 from core import autonomy
                 autonomy.set_panic(False)
             except Exception:
                 pass
-            msg = "Theek hai, wapas normal. Autonomy on."
-            self.history.add_user(text, "neutral")
-            self.history.add_assistant(msg)
-            return msg
+            return self._reply(text, "Theek hai, wapas normal. Autonomy on.")
+        return self._PASS
 
-        # ── Step 2f: SELF-QUERY (Blueprint M1) — the agent knows itself ──
-        if re.search(
+    def _step_self_query(self, text: str):
+        """The agent knows itself (Blueprint M1)."""
+        low = text.lower()
+        if not (re.search(
                 r"\b(tu|tum|aeris|tumhare)\b.*\b(kaisa hai|kaise ho|kya kar "
-                r"sakt|kya kar sakte|abhi kya kar|kaun ho|capabilit)\b", _low) \
-                or re.search(r"\b(ye|yeh|iska|tu ne).*(kyun kiya)\b", _low) \
-                or _low in ("tu kaisa hai", "aeris kaisa hai"):
-            try:
-                from core.self_model import get_self_model
-                reply = get_self_model().describe(_low)
-                self.history.add_user(text, "neutral")
-                self.history.add_assistant(reply)
-                return reply
-            except Exception as e:
-                log.debug("[engine] self-query skipped: %s", e)
+                r"sakt|kya kar sakte|abhi kya kar|kaun ho|capabilit)\b", low)
+                or re.search(r"\b(ye|yeh|iska|tu ne).*(kyun kiya)\b", low)
+                or low in ("tu kaisa hai", "aeris kaisa hai")):
+            return self._PASS
+        try:
+            from core.self_model import get_self_model
+            return self._reply(text, get_self_model().describe(low))
+        except Exception as e:
+            log.debug("[engine] self-query skipped: %s", e)
+            return self._PASS
 
-        # ── Step 2d: capture a STANDING GOAL (Q1·M2) ──
-        # "yaad dilana… / help me plan… / keep an eye on…" is a persistent
-        # intention, not a one-shot command — hold it and ack.
+    def _step_goal_capture(self, text: str):
+        """"yaad dilana… / help me plan… / keep an eye on…" is a persistent
+        intention, not a one-shot command — hold it and ack (Q1·M2)."""
         try:
             from core import goal_system
             g = goal_system.get_goal_store().capture(text, source="voice")
             if g is not None:
-                ack = goal_system.capture_ack(g)
-                self.history.add_user(text, "neutral")
-                self.history.add_assistant(ack)
-                return ack
+                return self._reply(text, goal_system.capture_ack(g))
         except Exception as e:
             log.debug("[engine] goal capture skipped: %s", e)
+        return self._PASS
 
-        # ── Step 2g: learn a stated PREFERENCE (Blueprint loop 1) ──
-        # "I prefer… / mujhe … pasand / next time …" → durable memory the
-        # planner recalls later. Conservative — never catches commands.
+    def _step_preference(self, text: str):
+        """"I prefer… / mujhe … pasand / next time …" → durable memory the
+        planner recalls later. Conservative — never catches commands."""
         try:
             from core import preference_learner
             pref = preference_learner.get_learner().learn(text)
             if pref is not None:
-                msg = preference_learner.ack(pref)
-                self.history.add_user(text, "neutral")
-                self.history.add_assistant(msg)
-                return msg
+                return self._reply(text, preference_learner.ack(pref))
         except Exception as e:
             log.debug("[engine] preference learn skipped: %s", e)
+        return self._PASS
 
-        # ── Step 2h: answer a PARKED goal's confirmation (Q1·M3 cycle) ──
-        # If a goal recently asked "…haan ya cancel?", a "haan" resumes it with
-        # the action pre-approved; a "cancel" drops it.
+    def _step_goal_confirmation(self, text: str):
+        """If a goal recently asked "…haan ya cancel?", a "haan" resumes it
+        with the action pre-approved; a "cancel" drops it (Q1·M3 cycle)."""
+        low = text.lower()
         try:
             from core import goal_system
             from core.confirm_gate import is_confirmation
-            pending = goal_system.get_goal_store().awaiting_confirmation(
-                within_s=300)
-            if pending is not None:
-                if is_confirmation(text) and self.agent is not None:
-                    res = goal_system.advance(
-                        goal_system.get_goal_store(), pending, self.agent,
-                        approve_last=True)
-                    reply = res.reply
-                    self.history.add_user(text, "neutral")
-                    self.history.add_assistant(reply)
-                    return reply
-                if re.search(r"^(cancel|nahi|na|mat karo|rehne do|band karo|"
-                             r"chhod do)$", _low):
-                    goal_system.get_goal_store().drop(pending)
-                    # Record the refusal (§6.33). Until this existed, saying
-                    # "cancel" left NO trace anywhere: the ledger held the
-                    # `confirm`/PARKED row but nothing about how it resolved,
-                    # so a class the user kept refusing looked identical to
-                    # one they never had to be asked about — and
-                    # `trust_promotion` would cheerfully propose raising it.
-                    self._record_decline(pending)
-                    msg = "Theek hai, cancel kar diya."
-                    self.history.add_user(text, "neutral")
-                    self.history.add_assistant(msg)
-                    return msg
+            store = goal_system.get_goal_store()
+            pending = store.awaiting_confirmation(within_s=300)
+            if pending is None:
+                return self._PASS
+            if is_confirmation(text) and self.agent is not None:
+                res = goal_system.advance(store, pending, self.agent,
+                                          approve_last=True)
+                return self._reply(text, res.reply)
+            if re.search(r"^(cancel|nahi|na|mat karo|rehne do|band karo|"
+                         r"chhod do)$", low):
+                store.drop(pending)
+                # Record the refusal (§6.33). Without it, "cancel" left NO
+                # trace: the ledger held the confirm/PARKED row but nothing
+                # about how it resolved, so a class the user kept refusing
+                # looked like one they were never asked about, and
+                # trust_promotion would happily propose raising it.
+                self._record_decline(pending)
+                return self._reply(text, "Theek hai, cancel kar diya.")
         except Exception as e:
             log.debug("[engine] confirm-answer skipped: %s", e)
+        return self._PASS
 
-        # ── Step 2i: manage a LEARNED routine by voice (Blueprint loop 3) ──
-        # "auto kar do" accepts the offer just surfaced; "rehne do" rejects it;
-        # "morning routine band karo" reverts a running auto-routine. Handled by
-        # the trust-aware offers layer; a graduate/revert is materialized into
-        # the live executor right away (not just at the nightly sync).
+    def _step_routine_voice(self, text: str):
+        """"auto kar do" accepts the offer just surfaced; "rehne do" rejects
+        it; "morning routine band karo" reverts a running auto-routine
+        (Blueprint loop 3). A graduate/revert is materialised into the live
+        executor right away, not just at the nightly sync."""
         try:
             from core import routine_voice, routine_offers
             from core.routine_graduation import get_tracker
-            _tr = get_tracker()
+            tracker = get_tracker()
             reply = routine_voice.handle(
                 text,
-                pending_fn=lambda: routine_offers.pending_offers(tracker=_tr),
-                active_fn=lambda: routine_offers.active_routines(tracker=_tr),
-                accept_fn=lambda k: routine_offers.accept(k, tracker=_tr),
-                reject_fn=lambda k: routine_offers.reject(k, tracker=_tr),
-                revert_fn=lambda k: routine_offers.revert(k, tracker=_tr),
+                pending_fn=lambda: routine_offers.pending_offers(tracker=tracker),
+                active_fn=lambda: routine_offers.active_routines(tracker=tracker),
+                accept_fn=lambda k: routine_offers.accept(k, tracker=tracker),
+                reject_fn=lambda k: routine_offers.reject(k, tracker=tracker),
+                revert_fn=lambda k: routine_offers.revert(k, tracker=tracker),
             )
-            if reply is not None:
-                if routine_voice.classify(text) in ("accept", "revert"):
-                    try:
-                        from core.automation import get_engine as _ae
-                        from core.graduated_routines import sync as _sync
-                        _sync(_ae())
-                    except Exception:
-                        pass
-                self.history.add_user(text, "neutral")
-                self.history.add_assistant(reply)
-                return reply
+            if reply is None:
+                return self._PASS
+            if routine_voice.classify(text) in ("accept", "revert"):
+                try:
+                    from core.automation import get_engine as _ae
+                    from core.graduated_routines import sync as _sync
+                    _sync(_ae())
+                except Exception:
+                    pass
+            return self._reply(text, reply)
         except Exception as e:
             log.debug("[engine] routine-voice skipped: %s", e)
+        return self._PASS
 
-        # ── Step 2j: TEMPORAL recall (Blueprint I2) — "kal kya kiya tha?" ──
-        # Window-word + ask-verb dono chahiye, isliye "kal alarm laga do"
-        # jaise commands isse kabhi nahi pakde jaate.
+    def _step_temporal_recall(self, text: str):
+        """"kal kya kiya tha?" (Blueprint I2). Needs a window word AND an ask
+        verb, so commands like "kal alarm laga do" are never caught."""
         try:
             from core import temporal_recall
             from core.presence_journal import get_journal
             from core.goal_system import get_goal_store
             from core.autonomy import get_gate
-            t_ans = temporal_recall.answer(
+            answer = temporal_recall.answer(
                 text, time.time(), journal=get_journal(),
                 goal_store=get_goal_store(), ledger=get_gate().ledger)
-            if t_ans is not None:
-                self.history.add_user(text, "neutral")
-                self.history.add_assistant(t_ans)
-                return t_ans
+            if answer is not None:
+                return self._reply(text, answer)
         except Exception as e:
             log.debug("[engine] temporal recall skipped: %s", e)
+        return self._PASS
 
-        # ── Step 3: cancel keyword with no live state ──
+    def _step_idle_cancel(self, text: str):
         if _is_cancel(text):
             return "Kuch chal nahi raha cancel karne ke liye, sir."
+        return self._PASS
 
-        # ── Step 4: split into segments and run pipeline per segment ──
-        # Chatty utterances are NEVER split: "yaar thak gaya hoon, kya
-        # karoon" is one thought, not two commands — splitting it hands
-        # fragments to the k-NN where they misroute.
-        #
-        # Exact-match short-circuit: if the WHOLE utterance is a verbatim
-        # skill pattern ("phone pair karo", "lock screen"), it's certainly
-        # a command — skip the chat gate entirely. This (a) avoids a
-        # pointless second encoder forward per command and (b) dodges the
-        # torch .to() heap-corruption seen on that encode path. exact_match
-        # is a dict lookup — no encoding, no crash surface.
+    # ── commands ────────────────────────────────────────────────────────
+
+    def _run_commands(self, text: str) -> Optional[str]:
+        """Split the utterance into command segments and run each one.
+
+        Chatty utterances are NEVER split: "yaar thak gaya hoon, kya karoon"
+        is one thought, not two commands — splitting it hands fragments to
+        the k-NN where they misroute.
+
+        Exact-match short-circuit: if the WHOLE utterance is a verbatim skill
+        pattern ("phone pair karo", "lock screen"), it's certainly a command,
+        so the chat gate is skipped entirely. That avoids a pointless second
+        encoder forward per command and dodges the torch .to() heap-corruption
+        seen on that encode path; exact_match is a dict lookup.
+        """
         try:
-            _exact = self.brain.classifier.exact_match(text)
+            exact = self.brain.classifier.exact_match(text)
         except Exception:
-            _exact = None
-        if _exact:
+            exact = None
+        # Multi-step chains ("weather batao aur phone pe bhejo", "agar
+        # battery 30 se kam hai to ...") run step by step with each result
+        # fed forward — no LLM round-trip.
+        chained = self._try_chain(text, exact=bool(exact))
+        if chained is not None:
+            return chained
+        if exact:
             segments = split_into_segments(text)
         else:
             from core.chat_gate import is_chatty_hybrid
-            if is_chatty_hybrid(text):
-                segments = [text]
-            else:
-                segments = split_into_segments(text)
-        responses: list[str] = []
-        for seg in segments:
-            seg_response = self._process_segment(seg)
-            if seg_response:
-                responses.append(seg_response)
+            segments = [text] if is_chatty_hybrid(text) else split_into_segments(text)
+        responses = [r for r in (self._process_segment(s) for s in segments) if r]
+        return "\n".join(responses) if responses else None
 
-        if not responses:
+    # ── multi-step chains (core/chain_planner.py) ───────────────────────
+
+    # Producer intents whose result is an image, not text: "screenshot leke
+    # phone pe bhejo" must send the picture, so the pair fuses into one skill.
+    _SCREENSHOT_INTENTS = frozenset({
+        "take_screenshot", "screenshot_full", "screenshot_window",
+    })
+
+    def _try_chain(self, text: str, *, exact: bool = False) -> Optional[str]:
+        """Run ``text`` as a multi-step chain, or return None if it isn't one.
+
+        A verbatim skill pattern is its own skill ("screenshot phone pe
+        bhejo"), EXCEPT a pointer at the previous answer: "isko note kar lo"
+        is also a create_note pattern, but that skill has no idea what
+        "isko" is and would save the words themselves."""
+        from core import chain_planner
+        prev = self.history.last_assistant_text() if self.history else None
+        try:
+            plan = chain_planner.plan(text, has_previous_reply=bool(prev))
+        except Exception as e:
+            log.debug("[chain] plan failed: %s", e)
             return None
-        return "\n".join(responses)
+        if plan is None or (exact and not plan.uses_previous_reply):
+            return None
+        if plan.uses_previous_reply:
+            # No command step runs, so nothing else records the user turn.
+            self.history.add_user(text, "neutral")
+
+        def optimize(producer: str, sink: str) -> Optional[str]:
+            if sink == "phone" and producer in self._SCREENSHOT_INTENTS:
+                return "screenshot phone pe bhejo"
+            return None
+
+        runner = chain_planner.ChainRunner(
+            self._chain_run_command, self._chain_sinks(), optimize=optimize)
+        result = runner.run(plan, previous_reply=prev or "")
+        self.last_chain = result
+        log.info("[chain] %s: %d step(s), %s", plan.kind,
+                 len(result.trace), result.stopped)
+        # Command steps recorded their own replies via _process_segment;
+        # sink outputs and the condition verdict only exist in the trace.
+        for item in result.trace:
+            if item.step.kind == "sink" and item.output:
+                self.history.add_assistant(item.output)
+        return result.reply or None
+
+    def _chain_run_command(self, text: str):
+        """One command step of a chain → (reply, intent, paused).
+
+        Goes through the full per-segment pipeline, so routing, the danger
+        guard and the confirm gate all still apply to every step. ``paused``
+        is True when the step asked the user something (slot prompt,
+        disambiguation, "pakka?") — the chain must stop and let them answer.
+        """
+        before = self.last_dispatch
+        reply = self._process_segment(text)
+        after = self.last_dispatch
+        intent = after.get("intent") if (after is not before and after) else None
+        paused = bool(
+            self.state.is_waiting_slot() or self.state.is_waiting_disambig()
+            or self._pending_confirm is not None
+            or (after is not before and after
+                and after.get("action") == "asked_slot"))
+        return reply, intent, paused
+
+    def _chain_sinks(self) -> dict:
+        """Where a chain can send a result. Each takes (payload, args)."""
+        from core.chain_planner import summarize_text
+
+        def note(payload, _args):
+            return self.executor.execute("append_note", {"content": payload})
+
+        def file_(payload, _args):
+            return self.executor.execute("create_note", {"content": payload})
+
+        def clipboard(payload, _args):
+            return self.executor.execute("clipboard_copy", {"content": payload})
+
+        def phone(payload, _args):
+            try:
+                import secrets
+                from core.cloud_bridge import get_bridge
+                bridge = get_bridge()
+                if not bridge.status().get("paired"):
+                    return "Error: koi phone paired nahi — pehle 'phone pair karo'."
+                ok = bridge.send_to_phone({
+                    "id": secrets.token_hex(4), "type": "clipboard",
+                    "text": payload[:4000], "reply_to": None, "extra": {},
+                })
+            except Exception as e:
+                return f"Error: phone pe nahi bhej paaya: {e}"
+            return ("Phone pe bhej diya." if ok
+                    else "Error: phone pe bhejne mein dikkat aayi.")
+
+        def translate(payload, args):
+            from core.translator import translate as _tr
+            out, _backend = _tr(payload, args.get("lang") or "english")
+            return out
+
+        def summarize(payload, _args):
+            def gen(t):
+                from core import local_llm
+                llm = local_llm.get()
+                if not llm.available():
+                    return None
+                return llm.generate(
+                    prompt=f"Text: {t[:2000]}",
+                    system=("Summarise the text in 1-2 short sentences, same "
+                            "language as the text. Reply with only the summary."),
+                    max_tokens=120, temperature=0.3)
+            return summarize_text(payload, gen)
+
+        return {"note": note, "file": file_, "clipboard": clipboard,
+                "phone": phone, "translate": translate, "summarize": summarize}
+
+    def route(self, text: str):
+        """Pick the intent for one command segment.
+
+        This is the routing half of ``_process_segment``, split out so it has
+        no side effects on history, feedback or dialogue state. That makes it
+        the thing ``tools/validate_command_routing.py`` measures: the accuracy
+        it reports is the routing a real turn gets, gazetteer and guard included.
+
+        Returns ``(pred, winning_span, from_alias)``. Tiers run cheapest and
+        most authoritative first:
+
+        0. Repair memory. A phrasing the user taught by rephrasing after a
+           miss (core/repair_memory.py). It outranks exact_match on purpose:
+           the user is more authoritative about their own phrasing than the
+           corpus, and the two never collide in practice, since a phrase
+           exact_match resolves never missed, so no alias was learned for it.
+        1. Exact pattern. A dict lookup, so the whole segment does ZERO
+           encoding. That matters beyond speed: the subspan scanner calls
+           brain.predict on many trimmed variants, each a torch encoder
+           forward whose .to() can heap-corrupt this process.
+        2. Subspan scan. The full segment plus trimmed variants, highest
+           confidence wins, so "ek kam karo notepad open karo" is open_app,
+           not volume_down ("kam karo" is filler). winning_span is for
+           classification only; entity extraction still sees the full text.
+        3. Gazetteer. A known app name plus an open/close verb is harder
+           evidence than a cosine vote. It replaces a wrong prediction
+           ("brave open karo" -> volume_up) and collapses a split open/close
+           top3 that would otherwise ask a needless disambiguation question.
+        4. Safety guard. Measured dangerous mis-routes (a reminder reaching
+           empty_recycle_bin, "X kholo" logging an expense) are rescued. See
+           docs/ROUTING_ACCURACY_AUDIT.md.
+        """
+        exact_intent = None
+        from_alias = False
+        if self.repair is not None:
+            try:
+                alias = self.repair.lookup(text)
+            except Exception:
+                alias = None
+            if alias is not None:
+                exact_intent = alias.intent
+                from_alias = True
+                log.debug("[repair] %r -> %s (learned)", text, alias.intent)
+        try:
+            if not exact_intent:
+                exact_intent = self.brain.classifier.exact_match(text)
+        except Exception:
+            exact_intent = None
+
+        if exact_intent:
+            from core.intent_classifier import Prediction as _Pred
+            pred = _Pred(intent=exact_intent, confidence=1.0,
+                         top3=[(exact_intent, 1.0)], raw_text=text,
+                         normalized_text=self.brain.classifier.normalizer.clean(text))
+            winning_span = text
+        else:
+            pred, winning_span = find_best_interpretation(text, self.brain)
+
+        hint = self.entity_extractor.intent_hint(text)
+        if hint:
+            pred = type(pred)(
+                intent=hint,
+                confidence=max(pred.confidence, 0.90),
+                top3=[(hint, 1.0)],
+                raw_text=pred.raw_text,
+                normalized_text=pred.normalized_text,
+            )
+
+        pred = self._guard_dangerous_route(text, pred)
+        return pred, winning_span, from_alias
 
     # Intents a reminder-signal utterance is allowed to land on (reminder-adjacent).
     _REMINDER_FAMILY = {"set_reminder", "set_timer", "add_task",
@@ -1306,6 +1588,13 @@ class JarvisMainEngine:
         low = (text or "").lower()
         intent = getattr(pred, "intent", None)
         if not intent:
+            # Nothing cleared any tier. Only explicit note creation is clear
+            # enough to act on here ("note me likho call the plumber" fell
+            # through to chat). The topic-word rules below would turn chatty
+            # remarks like "garmi lag rahi hai" into commands, so they don't
+            # run without a prediction.
+            if _NOTE_CREATE_RE.search(low):
+                return self._force_intent(pred, "create_note")
             return pred
         # (1) Reminder request → must stay in the reminder family (was hitting
         # empty_recycle_bin, dice_roll, sleep_cycle…). "yaad dila/rakh", not the
@@ -1325,7 +1614,10 @@ class JarvisMainEngine:
         # weather_for_city / real_weather (city or forecast) route is left alone.
         if intent not in {"weather_local", "weather_for_city", "real_weather",
                           "get_weather"} and \
-                re.search(r"\b(mausam|weather|baarish|barish|garmi|thand)\b", low):
+                re.search(r"\b(mausam|weather|baarish|barish|garmi|thand|rain|raining|"
+                          r"dhoop|baadal|forecast|temperature)\b", low) and \
+                not re.search(r"\b(cpu|gpu|battery|processor|body|bukhar|fever|"
+                              r"celsius|fahrenheit|convert)\b", low):
             return self._force_intent(pred, "weather_local")
         # (4) System-status query landed on an unrelated skill ("system info" →
         # whoami_info, "performance batao" → brain_health, "cpu aur ram" →
@@ -1335,7 +1627,11 @@ class JarvisMainEngine:
                           "disk_space", "cpu_info", "system_uptime"} and \
                 re.search(r"\bsystem\s+(info|information|stats|ka\s+haal)\b|"
                           r"\bcpu\s+aur\s+ram\b|"
-                          r"\bperformance\s+(batao|dikhao|kaisi|kaisa|check)\b", low):
+                          r"\bperformance\s+(batao|dikhao|kaisi|kaisa|check)\b|"
+                          # "kitni" (feminine) is RAM the memory; "Ram kitna" is a person.
+                          r"\bram\s+kitni\b|\bkitni\s+ram\b|\bdisk\s+(kitna|kitni)\b|"
+                          r"\bkitna\s+disk\b|\bresource\s+usage\b|\bhardware\s+info\b|"
+                          r"\bcpu\s+temp", low):
             return self._force_intent(pred, "system_stats")
         # (5) Screenshot request landed on repeat_last ('ss lelo'). Rescue to
         # screenshot_full; the other screenshot phrasings already route there.
@@ -1343,18 +1639,21 @@ class JarvisMainEngine:
                           "screenshot_to_phone", "screenshots_folder",
                           "take_screenshot"} and \
                 re.search(r"\bscreenshot\b|\bscreen\s+(shot|capture)\b|"
-                          r"\bscreen\s+ka\s+photo\b|\bss\s+le", low):
+                          r"\bscreen\s+ka\s+photo\b|\bss\s+le|"
+                          r"\b(grab|snap)\s+the\s+screen\b", low):
             return self._force_intent(pred, "screenshot_full")
         # (6) Note-creation request landed on an unrelated skill — most harmfully
         # add_expense (logs a JUNK expense!), also password_generate / calculate /
         # todays_meetings. Rescue to create_note. Fires only outside the note
         # family so a correct append_note / scratchpad edit is left alone. "note"
         # is \b-bounded so footnote/banknote don't trip it.
-        if intent not in {"create_note", "append_note", "scratchpad_summarize",
-                          "scratchpad_append"} and \
-                re.search(r"\bnote\s+(banao|bana\s+do|create|likho|save|karo|"
-                          r"kar\s+lo|me\s+(likho|add))\b|"
-                          r"\b(likho|likh\s+do|add)\s+(a\s+|ye\s+|ek\s+)?note\b", low):
+        # scratchpad_summarize only counts as note-family when the user asked
+        # for a summary: "ek note create karo" was landing there and
+        # summarising instead of creating.
+        _note_family = {"create_note", "append_note", "scratchpad_append"}
+        if re.search(r"summar|saar", low):
+            _note_family.add("scratchpad_summarize")
+        if intent not in _note_family and _NOTE_CREATE_RE.search(low):
             return self._force_intent(pred, "create_note")
         # (7) Chat/memory WIPE skills are destructive — they must fire only on an
         # EXPLICIT wipe request. "ek pep talk do" was routing to clear_chat, which
@@ -1421,76 +1720,9 @@ class JarvisMainEngine:
         except Exception:
             pass
 
-        # Exact-match fast path: if the whole segment is a verbatim skill
-        # pattern, build the prediction from a dict lookup and skip the
-        # subspan scanner entirely. The scanner calls brain.predict on many
-        # trimmed variants — each a torch encoder forward whose .to() can
-        # heap-corrupt this process (conflicting native runtimes + torch).
-        # Exact commands ("phone pair karo", "lock screen") thus do ZERO
-        # encoding — instant and crash-free.
-        # Tier 0: a phrasing the USER taught us by rephrasing after a miss
-        # (core/repair_memory.py). It sits above exact_match on purpose —
-        # the user is more authoritative about their own phrasing than the
-        # corpus is, and in practice the two never collide: a phrase that
-        # exact_match already resolves never missed, so no alias was ever
-        # learned for it. Cheapest tier there is: one dict lookup, no encode.
-        _exact_intent = None
-        self._turn_from_alias = False
-        if self.repair is not None:
-            try:
-                _alias = self.repair.lookup(text)
-            except Exception:
-                _alias = None
-            if _alias is not None:
-                _exact_intent = _alias.intent
-                self._turn_from_alias = True
-                log.debug("[repair] %r → %s (learned)", text, _alias.intent)
-        try:
-            if not _exact_intent:
-                _exact_intent = self.brain.classifier.exact_match(text)
-        except Exception:
-            _exact_intent = None
-        if _exact_intent:
-            from core.intent_classifier import Prediction as _Pred
-            _norm_t = self.brain.classifier.normalizer.clean(text)
-            pred = _Pred(intent=_exact_intent, confidence=1.0,
-                         top3=[(_exact_intent, 1.0)], raw_text=text,
-                         normalized_text=_norm_t)
-            winning_span = text
-        else:
-            # Subspan scanner: tries the full segment plus a few trimmed
-            # variants and picks the highest-confidence interpretation.
-            # This lets "ek kam karo notepad open karo" be recognised as
-            # open_app instead of volume_down ("kam karo" is filler here).
-            # winning_span is used ONLY for intent classification — entity
-            # extraction still runs on the full segment.
-            pred, winning_span = find_best_interpretation(text, self.brain)
-
-        # Gazetteer override: if the segment contains a known app name AND
-        # an open/close verb, trust that structural evidence over the brain's
-        # cosine vote. Two reasons to fire:
-        #   (a) the brain disagrees ("brave open karo" → volume_up) — replace
-        #       the wrong prediction with the structural one;
-        #   (b) the brain agrees but its top3 is split between open/close,
-        #       which would otherwise trigger a needless disambig prompt
-        #       ("ek kam karo notepad open karo" had open_app=0.42, close_app=0.37).
-        # In both cases we collapse top3 to a single high-confidence pick.
-        hint = self.entity_extractor.intent_hint(text)
-        if hint:
-            pred = type(pred)(
-                intent=hint,
-                confidence=max(pred.confidence, 0.90),
-                top3=[(hint, 1.0)],
-                raw_text=pred.raw_text,
-                normalized_text=pred.normalized_text,
-            )
-
-        # ── Safety guard: block measured dangerous mis-routes ─────────────
-        # A reminder request ("yaad dilana bill bharne ka") was routing to
-        # empty_recycle_bin (data loss!); an "X kholo" was routing to
-        # add_expense (logs a fake expense). Structural signal beats the cosine
-        # vote here. See docs/ROUTING_ACCURACY_AUDIT.md.
-        pred = self._guard_dangerous_route(text, pred)
+        # Routing: repair alias -> exact pattern -> subspan scan -> gazetteer
+        # -> safety guard. See route(); it is also what the validator measures.
+        pred, winning_span, self._turn_from_alias = self.route(text)
 
         intent_for_threshold = pred.intent or "_unknown"
         threshold = self.feedback.get_threshold(intent_for_threshold)

@@ -1,0 +1,10 @@
+# Build output
+build/
+.dart_tool/
+
+# On-device models are large (160 MB+) and GitHub rejects files >100 MB.
+# Rebuild them with tool/model_export/README.md.
+assets/models/**/*.onnx
+assets/models/**/*.zip
+assets/models/asr/tokens.txt
+assets/models/**/*.bin

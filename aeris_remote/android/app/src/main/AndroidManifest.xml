@@ -23,6 +23,11 @@
          "Mummy ko call karo" resolves the number). Torch uses CAMERA above. -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <!-- Phase 10 agent: find the image it just saved (Gemini/ChatGPT download)
+         so it can attach it to a WhatsApp chat. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.FLASHLIGHT"/>
     <application
         android:label="AERIS Remote"

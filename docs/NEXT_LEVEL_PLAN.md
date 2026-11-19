@@ -100,7 +100,7 @@ A two-part deterministic router that runs around the k-NN classifier:
   This bought most of P1a's win *before* a retrain, exactly as planned.
 
 **P1d — Retrain (You).** After P1a–b, `python -m core.retrain` so the neural head is
-fresh on the slim corpus. Then re-run **`python validate_command_routing.py`** —
+fresh on the slim corpus. Then re-run **`python tools/validate_command_routing.py`** —
 target 90%+ (baseline 50%).
 
 ## P2 — Next-level abilities (agentic, not more one-shot skills)

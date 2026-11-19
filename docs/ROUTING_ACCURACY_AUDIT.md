@@ -97,7 +97,7 @@ command`. Re-run it after any corpus change to track accuracy back up toward 100
 # UPDATE — 2026-08-01 (deterministic hardening, no retrain)
 
 Executed recommendations #2 and #3 above **without touching the training corpus**
-(retrain remains yours). `validate_command_routing.py` now measures the **real
+(retrain remains yours). `tools/validate_command_routing.py` now measures the **real
 end-to-end pipeline** (`brain.predict` **+** `_guard_dangerous_route`), not the raw
 classifier alone — so the number reflects what the user actually gets.
 
@@ -157,3 +157,58 @@ Real routing quality is therefore materially above 65.5%.
   2026-08-01.** These skills were *already* LLM-backed (`core/local_llm`); the problem
   was routing, fixed with the entertainment anchors above (now 86-100%). No LLM-fallback
   rewire needed.
+
+---
+
+# UPDATE — 2026-09-15 (real-pipeline measurement + second anchor pass, no retrain)
+
+### The measurement changed
+`tools/validate_command_routing.py` (moved from the repo root) now calls
+`JarvisMainEngine.route()`, the side-effect-free routing method extracted from
+`_process_segment`: repair alias → exact pattern → subspan scan → app gazetteer
+→ guard. The 2026-08-01 script called `brain.predict` plus the guard, so it
+skipped the subspan scanner and gazetteer that every real turn goes through.
+
+It reports two numbers. **Strict**: landed on the example's label. **Accepted**:
+strict, or a skill listed for that label under `_also_ok` in
+`data/command_examples.json` (screenshot_full for take_screenshot, weather_local
+for the hardcoded get_weather stub, …). That settles the first "still open" item
+above without relabelling a single example, and the strict number stays visible
+so the list can't hide a real mis-route.
+
+| Date | Strict | Accepted | What |
+|---|---|---|---|
+| 2026-08-01 | 74.8% | — | predict + guard (old script) |
+| 2026-09-15 | 74.4% | 89.6% | route() + first anchor batch |
+| 2026-09-15 | **77.3%** | **95.5%** | + second batch |
+
+### What changed
+- **Anchors** (`core/brain._BUILTIN_ANCHORS`): fix_grammar, lock_screen,
+  shutdown_pc / restart_pc / sleep_pc, `<site> kholo` → open_in_browser, square
+  root → quick_calc, factorial / square / cube → factorial_power, play_youtube
+  (ordered before motivate and music), broader search (`dhund\w*`), definitions
+  ("what does X mean"), more joke and motivate phrasings. Each has over-catch
+  traps in `tests/test_routing_anchors.py`.
+- **`shutdown_pc` and `restart_pc` are now in `confirm_gate.DESTRUCTIVE_SKILLS`**,
+  the precondition set above before any routing rule points at shutdown.
+  `autonomy.classify` keeps them in the "system" class.
+- **Guard**: rain / temperature / dhoop / baadal / forecast → weather (never CPU
+  or battery temperature, never a unit conversion); "kitni ram", disk, "cpu
+  temp", "hardware info" → system_stats; "grab/snap the screen" →
+  screenshot_full; "note me daal do" → create_note; a note-*create* request on
+  `scratchpad_summarize` is rescued; explicit note creation is rescued even with
+  no prediction, while every other rule stays off there so a remark like "garmi
+  lag rahi hai" stays chat.
+- **Handler bugs found on the way**: `open_in_browser` / `search_in_browser` built
+  their target from every slot value, including the engine's `raw_intent`, so
+  "netflix kholo" resolved to "netflix open_in_browser". Site shortcuts added
+  (amazon, flipkart, netflix, stackoverflow, leetcode, …); the app gazetteer no
+  longer forces open_app when the text says web/site/website; `quick_calc`
+  accepts "root 81".
+
+### Still misrouted (24 of 528)
+Mostly defensible: "youtube kholo" → youtube_jump, "kill the terminal" →
+kill_process, "10 minute baad remind karna" → set_timer. A few are genuine and
+belong to the corpus trim + retrain: "system band kar do" → play_music, "music
+chalu karo" → open_app (the gazetteer overrides the music anchor), "tell me a
+fairy tale" → kg_query.

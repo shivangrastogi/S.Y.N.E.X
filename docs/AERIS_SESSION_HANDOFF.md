@@ -30,7 +30,7 @@ $env:AERIS_SPLIT_BRAIN = "1"
 | **Routing anchors** | 8 deterministic no-retrain anchors: arithmetic→calculate, reminder-guard, kholo-guard, get_time, search_web, define_word, gcd_lcm, is-prime | `core/brain.py _ANCHORS`, `main_engine._guard_dangerous_route` |
 | **Handler bugs (5)** | Hinglish calculate parsing · `quick_calc` error-leak · disambiguation swallow-rescue · memory recall-as-store · number→hex | various skills/core |
 | **Split-parity** | intent chip forwards full dispatch · proactive double-consume fixed (`enable_scheduler=False`) | `brain_service`, `remote_brain` |
-| **Docs/tooling** | `COMMANDS.md` (587 abilities, 20+ examples), `gen_commands_readme.py`, `validate_command_routing.py` | — |
+| **Docs/tooling** | `COMMANDS.md` (587 abilities, 20+ examples), `gen_commands_readme.py`, `tools/validate_command_routing.py` | — |
 | **Plans** | This handoff · `NEXT_LEVEL_PLAN.md` · `SKILL_TRIM_CHECKLIST.md` · `ROUTING_ACCURACY_AUDIT.md` | — |
 
 Fast lane: **2099 passing** throughout.
@@ -51,7 +51,7 @@ Fast lane: **2099 passing** throughout.
    `"thank you"`, `"ek joke sunao"`, `"12 plus 37 kitna hai"`, `"time batao"`).
    Confirm no crash + routing feels right.
 2. **Retrain the neural head** (it's stale, on k-NN — the biggest remaining
-   routing win): `python -m core.retrain`, then `python validate_command_routing.py`
+   routing win): `python -m core.retrain`, then `python tools/validate_command_routing.py`
    (target 50% → 90%+).
 3. **(Optional) Trim** — pick tiers in `SKILL_TRIM_CHECKLIST.md`; reply and I'll
    produce the exact diffs (I won't delete skills without your go-ahead).

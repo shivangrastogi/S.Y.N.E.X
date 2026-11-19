@@ -1,0 +1,122 @@
+# AERIS golden commands: what real people say → which tool must answer.
+# One per line: <sentence> TAB <tool>. Lines starting with # are notes.
+# Add every misheard / mis-routed sentence from the phone here (with the tool
+# it SHOULD have gone to), then fix the router until test/golden_test.dart passes.
+# "fallback" = nothing matched → the brain (if loaded) or "search Google?".
+#
+# ── alarms ──
+kal subah 6 baje ka alarm laga do	alarm
+mujhe 5:30 baje jaga dena	alarm
+set an alarm for 7 am	alarm
+alarm for 10 minutes	alarm
+wake me up in half an hour	alarm
+saade 6 ka alarm	alarm
+alarm band karo	cancel_alarm
+7 baje wala alarm hata do	cancel_alarm
+delete my alarm	cancel_alarm
+alarm kitne baje ka hai	next_alarm
+mera agla alarm kab hai	next_alarm
+# ── timers ──
+5 minute ka timer lagao	timer
+timer for 90 seconds	timer
+dedh ghante ka timer	timer
+timer band kar do	cancel_timer
+stop the timer	cancel_timer
+# ── reminders ──
+kal 9 baje yaad dilana ki dawai leni hai	remind
+remind me to call mom at 5 pm	remind
+20 minute baad yaad dilana ki chai bana li	remind
+shaam 7 baje remind karna ki gym jana hai	remind
+2 ghante baad batana	remind
+# ── notes & recall ──
+yaad rakho ki meri car B2 mein parked hai	remember
+remember that my locker code is 4512	remember
+note karo ki kal meeting 11 baje hai	remember
+# ── torch ──
+torch on karo	torch
+torch jalao	torch
+flashlight band karo	torch
+flash on kar do	torch
+turn off the torch	torch
+# ── ringer, volume, music ──
+phone silent karo	ringer
+phone ko vibrate pe daal do	ringer
+silent mode hatao	ringer
+dnd on karo	ringer
+volume badhao	volume
+awaaz thodi kam karo	volume
+volume full kar do	volume
+mute karo sound	volume
+gaana band karo	media
+next song	media
+agla gaana lagao	media
+pichla gaana	media
+pause	media
+gaana bajao	play
+arijit singh ke gaane bajao	play
+play kesariya	play
+play believer on spotify	play
+youtube pe lofi bajao	play
+music chalu karo	play
+# ── quick settings ──
+wifi on karo	setting
+bluetooth band kar do	setting
+mobile data on karo	setting
+location chalu karo	setting
+airplane mode on karo	setting
+# ── messages & calls ──
+Ravi ko WhatsApp karo ki main late hoon	message
+papa ko message bhejo ki 5 minute mein aa raha hoon	message
+send a whatsapp to mom saying reached home	message
+mummy ko bolo ki khana garam kar de	message
+Ravi ko message karo ki volume kam kar de	message
+Ravi ko whatsapp karo	clarify
+ek message bhejo papa ko	clarify
+Mummy ko call karo	call
+call Ravi	call
+papa ko phone lagao	call
+9876543210 pe call karo	call
+call karo	clarify
+# ── apps & maps ──
+YouTube kholo	open
+open whatsapp	open
+camera open karo	open
+instagram khol do	open
+angel one kholo	open
+ghar ka rasta dikhao	navigate
+navigate to india gate	navigate
+office kaise jaun	navigate
+airport le chalo	navigate
+# ── search & live info ──
+search best biryani near me	search
+iphone 17 price google karo	search
+flipkart flash sale search karo	search
+aaj mausam kaisa hai	search
+what time is the match	search
+train ka time kya hai	search
+aaj ki news batao	search
+# ── battery, time, date, maths ──
+battery kitni hai	battery
+phone ki battery kitni hai	battery
+time kya hua	time
+kitne baje hain	time
+what time is it	time
+aaj ki date kya hai	date
+aaj kaunsa din hai	date
+12 into 8	math
+500 ka 20 percent	math
+100 divided by 4	math
+# ── talk ──
+hello	greet
+thank you	thanks
+tum kya kar sakte ho	help
+tum kaun ho	who
+kaise ho	howareyou
+bas	end
+ok bye	end
+# ── must NOT be grabbed by a rule (the brain / "search?" handles them) ──
+mujhe help chahiye bank account kholne mein	fallback
+torch kharidna hai	fallback
+joke sunao	fallback
+quantum physics samjhao	fallback
+ring tone change karo	fallback

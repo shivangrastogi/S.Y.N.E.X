@@ -241,7 +241,7 @@ python -m pytest -q -m "not slow"          # ~2368 passing
 # Full suite:
 python -m pytest -q                         # + ~894 slow = ~3260
 # Routing accuracy (end-to-end predict + guards):
-python validate_command_routing.py          # current ~65.5% strict / behaviourally higher
+python tools/validate_command_routing.py          # current ~65.5% strict / behaviourally higher
 # Regenerate the command reference after skill changes:
 python gen_commands_readme.py
 ```
